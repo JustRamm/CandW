@@ -4,6 +4,7 @@ import { CalendarDays, Cog, Pencil, Shapes, Trash2, UserPlus, Users } from "luci
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
+import { AdminSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiDelete, apiPost, apiPut } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useAssetTypes, useHolidays, useMe, useRoles, useSettings, useUsers } from "@/lib/queries";
 import { errMessage, fmtDate } from "@/lib/helpers";
@@ -22,7 +23,19 @@ function UsersPanel() {
   const [form, setForm] = useState({ email: "", name: "", role: "sales", password: "" });
 
   const create = useMutation({
-    mutationFn: (body) => apiPost("/admin/users", body),
+    mutationFn: async (body) => {
+      // Note: in production, user creation goes via a Supabase Edge Function
+      // to use the service-role key. For the prototype, we call the RPC directly.
+      const { data, error } = await supabase.rpc("admin_create_user", {
+        p_email: body.email,
+        p_name: body.name,
+        p_role: body.role,
+        p_password: body.password,
+      });
+      if (error) throw { body: { detail: error.message } };
+      const ROLE_LABELS = { admin: "Admin", sales: "Sales", ops: "Operations", finance: "Finance", finance_manager: "Finance Manager" };
+      return { ...data, name: body.name, role_label: ROLE_LABELS[body.role] ?? body.role };
+    },
     onSuccess: (u) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success(`${u.name} invited as ${u.role_label}`);
@@ -32,7 +45,12 @@ function UsersPanel() {
   });
 
   const toggle = useMutation({
-    mutationFn: (id) => apiPost(`/admin/users/${id}/toggle`),
+    mutationFn: async (id) => {
+      const { data: p } = await supabase.from("profiles").select("active").eq("id", id).single();
+      const { error } = await supabase.from("profiles").update({ active: !p?.active }).eq("id", id);
+      if (error) throw { body: { detail: error.message } };
+      return { ok: true };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success("User updated");
@@ -173,7 +191,11 @@ function SettingsPanel() {
   const active = form ?? settings ?? { gtp_interval_days: 28, queue_active_business_days: 5, gtp_reminder_days: 5 };
 
   const save = useMutation({
-    mutationFn: (body) => apiPut("/admin/settings", body),
+    mutationFn: async (body) => {
+      const { error } = await supabase.from("settings").upsert({ id: "global", ...body });
+      if (error) throw { body: { detail: error.message } };
+      return body;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast.success("Workflow settings saved");
@@ -251,7 +273,11 @@ function HolidaysPanel() {
   const [form, setForm] = useState({ date: "", name: "" });
 
   const add = useMutation({
-    mutationFn: (body) => apiPost("/admin/holidays", body),
+    mutationFn: async (body) => {
+      const { data, error } = await supabase.from("holidays").insert({ id: crypto.randomUUID(), ...body }).select().single();
+      if (error) throw { body: { detail: error.message } };
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["holidays"] });
       toast.success("Holiday added — business-day math updated");
@@ -261,7 +287,11 @@ function HolidaysPanel() {
   });
 
   const remove = useMutation({
-    mutationFn: (id) => apiDelete(`/admin/holidays/${id}`),
+    mutationFn: async (id) => {
+      const { error } = await supabase.from("holidays").delete().eq("id", id);
+      if (error) throw { body: { detail: error.message } };
+      return { ok: true };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["holidays"] });
       toast.success("Holiday removed");
@@ -374,7 +404,11 @@ function AssetTypesPanel() {
   };
 
   const create = useMutation({
-    mutationFn: (body) => apiPost("/asset-types", body),
+    mutationFn: async (body) => {
+      const { data, error } = await supabase.from("asset_types").insert({ id: crypto.randomUUID(), ...body }).select().single();
+      if (error) throw { body: { detail: error.message } };
+      return data;
+    },
     onSuccess: (t) => {
       invalidate();
       toast.success(`Asset type "${t.name}" added`);
@@ -384,7 +418,11 @@ function AssetTypesPanel() {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, body }) => apiPut(`/asset-types/${id}`, body),
+    mutationFn: async ({ id, body }) => {
+      const { error } = await supabase.from("asset_types").update(body).eq("id", id);
+      if (error) throw { body: { detail: error.message } };
+      return { ok: true };
+    },
     onSuccess: () => {
       invalidate();
       toast.success("Asset type updated");
@@ -394,7 +432,15 @@ function AssetTypesPanel() {
   });
 
   const remove = useMutation({
-    mutationFn: (id) => apiDelete(`/asset-types/${id}`),
+    mutationFn: async (id) => {
+      // Prevent deleting types in use
+      const { data: t } = await supabase.from("asset_types").select("name").eq("id", id).single();
+      const { count } = await supabase.from("assets").select("*", { count: "exact", head: true }).eq("asset_type", t?.name);
+      if (count) throw { body: { detail: `This type is used by ${count} asset(s). Reassign them first.` } };
+      const { error } = await supabase.from("asset_types").delete().eq("id", id);
+      if (error) throw { body: { detail: error.message } };
+      return { ok: true };
+    },
     onSuccess: () => {
       invalidate();
       toast.success("Asset type deleted");
@@ -613,7 +659,15 @@ function AssetTypesPanel() {
 }
 
 export default function Admin() {
-  const { data: me } = useMe();
+  const { data: me, isLoading } = useMe();
+
+  if (isLoading) {
+    return (
+      <AppShell title="Administration" subtitle="Loading administrative workspace…">
+        <AdminSkeleton />
+      </AppShell>
+    );
+  }
 
   if (me && me.role !== "admin") {
     return (

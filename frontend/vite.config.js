@@ -43,6 +43,7 @@ export default defineConfig({
       "@base-ui/react/select",
       "@base-ui/react/tabs",
       "@base-ui/react/use-render",
+      "@supabase/supabase-js",
       "@tanstack/react-query",
       "class-variance-authority",
       "clsx",
@@ -75,13 +76,6 @@ export default defineConfig({
           usePolling: true,
           interval: 300,
         },
-    // The /api proxy convention: frontend code calls relative /api/*, never an
-    // absolute backend URL. Target is the FastAPI dev server (supervisor: backend).
-    proxy: {
-      "/api": {
-        target: "http://localhost:8001",
-        changeOrigin: true,
-      },
-    },
+    // No /api proxy: all data comes from Supabase directly via the SDK.
   },
 });

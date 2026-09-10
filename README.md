@@ -1,193 +1,185 @@
-# farm-js
+<div align="center">
 
-Minimal split backend/frontend starter: **FastAPI + MongoDB** behind a
-**Vite + React 19 + JavaScript** frontend, joined by a small fetch layer
-over `/api`. This is a bare skeleton — no app features are implemented. Build on
-top of it.
+<img src="./frontend/public/brand/logo.svg" alt="Carbon & Whale Logo" width="280" height="auto" />
 
-## Layout
+# Carbon & Whale · OOH-Sync
+
+### Out-Of-Home (OOH) Asset Inventory Management System (IMS)
+
+*A specialized, role-governed platform designed for high-density transit metro networks and retail mall bench advertising assets.*
+
+[![React 19](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.x-646CFF.svg)](https://vitejs.dev/)
+[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC.svg)](https://tailwindcss.com/)
+[![Supabase](https://img.shields.io/badge/Database-Supabase_%2F_PostgreSQL-3ECF8E.svg)](https://supabase.com/)
+[![License](https://img.shields.io/badge/License-Proprietary-slate.svg)](#)
+
+---
+
+</div>
+
+## 📌 Overview
+
+**Carbon & Whale · OOH-Sync** replaces fragmented spreadsheets, manual reservation slips, and disconnected chat threads with a single source of truth for transit and retail OOH media networks. 
+
+It manages the complete advertising asset lifecycle: transparent interest slot queuing with business-day expiries, conflict-free booking confirmations, field operations geo-tagged proof-of-posting (GTP), and an immutable financial and operational audit trail.
+
+---
+
+## 🚀 Key Features
+
+### 🏢 Asset Inventory Management
+- **Asset Directory**: Granular inventory registry for metro concourses, platform benches, station pillars, and shopping mall interior assets.
+- **Physical Specifications**: Tracks physical dimensions (W × H in feet), illumination status (backlit, frontlit, non-lit), rate cards, and location codes.
+- **Visual Galleries**: Multi-photo asset showcases and slideshow previews for client proposals and field inspections.
+
+### ⏱️ Transparent Interest Queue & Conflict Resolution
+- **Interest Queues**: Per-asset visible interest queues for Sales agents with automated slot ranking.
+- **Business-Day Expiry Engine**: Automatic expiry timers based on official operational working days (skipping weekends and statutory holidays).
+- **Graceful Bump & Promotion**: Auto-promotes waitlisted brands upon slot forfeiture or expiration.
+
+### 📋 End-to-End Campaign Lifecycle
+- **Stage Progression**: Multi-step state machine: `Draft` ➔ `Onboarding` ➔ `Invoicing` ➔ `GTP Review` ➔ `Live` ➔ `Completed`.
+- **Creative & Production Checklist**: Pre-flight checks for client creatives, print specs, mounting approvals, and electrical sign-offs.
+- **Financial Controls**: Invoicing records, payment terms, and campaign booking value tracking.
+
+### 📸 Geo-Tagged Proof (GTP) Verification
+- **Field Ops Uploads**: On-site photographic proof capture with timestamp and geo-location metadata.
+- **QA & Sign-off**: Operations review and approval before client presentation, ensuring strict delivery compliance.
+
+### 🛡️ Role-Based Access Control (RBAC)
+- **Sales**: Browse inventory, create interest slots, register brands, and initiate booking requests.
+- **Operations (Ops)**: Manage mounting, creative checklists, photo inspection, and GTP verification.
+- **Finance & Finance Manager**: Confirm booking holds, review invoices, authorize campaign execution, and approve exceptions.
+- **System Administrator**: Full user administration, role assignment, asset category definitions, and holiday calendar scheduling.
+
+### 📜 Tamper-Proof Audit Trail
+- **Immutable Ledger**: Append-only log recording every status alteration, queue shift, proof submission, and administrative change.
+- **CSV Export**: Instant one-click exports for accounting reconciliation and client compliance reporting.
+
+### ✨ Shimmer Skeleton Loading Suite
+- **Screen-Specific Skeletons**: Tailored skeleton loading animations for every screen (`Dashboard`, `Assets`, `AssetDetail`, `Queue`, `Campaigns`, `CampaignDetail`, `Brands`, `BrandDetail`, `Audit`, `Admin`).
+- **Smooth Wave Shimmer**: High-fidelity animated gradients matching the real screen layout to eliminate cumulative layout shift (CLS).
+
+---
+
+## 🏗️ Tech Stack
+
+- **Frontend**: [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
+- **State & Queries**: [@tanstack/react-query v5](https://tanstack.com/query/latest)
+- **Routing**: [React Router DOM v7](https://reactrouter.com/)
+- **Icons & Typography**: [Lucide React](https://lucide.dev/), [Inter Variable](https://fontsource.org/fonts/inter), [JetBrains Mono Variable](https://fontsource.org/fonts/jetbrains-mono)
+- **Notifications**: [Sonner](https://sonner.emilkowal.ski/)
+- **Backend & Database**: [Supabase](https://supabase.com/) (PostgreSQL with RLS, Stored Procedures, and Auth)
+
+---
+
+## 📁 Repository Structure
 
 ```
-farm-js/
-  backend/   FastAPI + motor (async MongoDB) + Pydantic v2 — python, /root/.venv
-  frontend/  Vite + React 19 + Tailwind v4 + shadcn/ui (JavaScript)
-  tests/     Playwright e2e workspace (pre-scaffolded)
+├── frontend/
+│   ├── public/
+│   │   ├── brand/                     # Centralized brand visual assets
+│   │   │   ├── logo.svg               # Vector brand identity
+│   │   │   ├── favicon.svg            # Browser tab icon
+│   │   │   ├── app-icon.png           # Master application icon
+│   │   │   ├── apple-touch-icon.png   # iOS home screen touch icon (180x180)
+│   │   │   ├── icon-192.png           # PWA mobile icon (192x192)
+│   │   │   └── icon-512.png           # PWA splash icon (512x512)
+│   │   └── manifest.webmanifest       # PWA web app manifest
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── layout/                # AppShell, Navigation, Topbar
+│   │   │   ├── shared/                # Status badges, audit timeline, photo preview
+│   │   │   ├── skeletons/             # Screen-specific skeleton loaders
+│   │   │   │   ├── Skeleton.jsx       # Base animated shimmer primitive
+│   │   │   │   ├── DashboardSkeleton.jsx
+│   │   │   │   ├── AssetsSkeleton.jsx
+│   │   │   │   ├── AssetDetailSkeleton.jsx
+│   │   │   │   ├── QueueSkeleton.jsx
+│   │   │   │   ├── CampaignsSkeleton.jsx
+│   │   │   │   ├── CampaignDetailSkeleton.jsx
+│   │   │   │   ├── BrandsSkeleton.jsx
+│   │   │   │   ├── BrandDetailSkeleton.jsx
+│   │   │   │   ├── AuditSkeleton.jsx
+│   │   │   │   ├── AdminSkeleton.jsx
+│   │   │   │   └── index.js           # Barrel export
+│   │   │   └── ui/                    # shadcn/ui components (button, card, dialog, etc.)
+│   │   ├── lib/                       # Supabase client, queries, session & utilities
+│   │   ├── pages/                     # Application screens
+│   │   │   ├── Login.jsx              # Role-aware authentication
+│   │   │   ├── Dashboard.jsx          # Role metrics & operational actions
+│   │   │   ├── Assets.jsx             # Inventory explorer & filters
+│   │   │   ├── AssetDetail.jsx        # Specifications, schedule & history
+│   │   │   ├── Queue.jsx              # Visible interest queue & countdowns
+│   │   │   ├── Campaigns.jsx          # Pipeline management & booking stages
+│   │   │   ├── CampaignDetail.jsx     # Campaign execution & GTP upload
+│   │   │   ├── Brands.jsx             # Advertiser CRM & contact directory
+│   │   │   ├── BrandDetail.jsx        # Brand portfolio & active campaigns
+│   │   │   ├── Audit.jsx              # Immutable chronological activity ledger
+│   │   │   └── Admin.jsx              # Users, asset types, holidays & workflow rules
+│   │   ├── App.jsx                    # Route declarations
+│   │   ├── index.css                  # Design tokens, fonts, and shimmer animations
+│   │   └── main.jsx                   # React root & QueryClient provider
+│   └── package.json
+└── supabase_schema.sql                # Complete PostgreSQL tables, RLS policies & RPCs
 ```
 
-## Running
+---
 
-Two separate processes, managed by supervisor in the pod (see "Pod conventions"
-below); to run them by hand from two terminals instead:
+## ⚡ Getting Started
 
+### 1. Prerequisites
+- **Node.js**: v18.0.0 or higher
+- **Package Manager**: `npm` or `yarn`
+- **Supabase**: Active Supabase project (or local Supabase instance)
+
+### 2. Environment Setup
+Create a `.env` file in `frontend/`:
+
+```env
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
+### 3. Database Initialization
+Run the SQL migration script in your Supabase SQL editor:
+- Execute `supabase_schema.sql` to establish the tables (`assets`, `brands`, `campaigns`, `interest_queue`, `gtp_records`, `audit_logs`, `holidays`, `profiles`), security policies, and stored procedures.
+
+### 4. Running the Frontend
 ```bash
-cd backend && uvicorn server:app --host 0.0.0.0 --port 8001 --reload   # http://localhost:8001
-cd frontend && yarn dev                                                # http://localhost:3000
+# Navigate to frontend
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start local development server (port 3000)
+npm run dev
 ```
 
-## The `/api` proxy convention
+Visit **http://localhost:3000** in your browser.
 
-Every backend route lives under `/api` (the backend mounts one
-`APIRouter(prefix="/api")`), and the frontend dev server
-(`frontend/vite.config.js`) proxies `/api/*` to `http://localhost:8001`. So
-frontend code always calls a **relative** path — `apiGet("/status")` →
-`/api/status` — and never an absolute backend URL. The same code works in dev
-(via the Vite proxy) and in production (once both are served behind a single
-origin).
+---
 
-## Backend
+## 👥 Demo Credentials
 
-FastAPI, async throughout. `python` is the app venv interpreter
-(`/root/.venv/bin/python`); backend deps are pip-installed from
-`backend/requirements.txt`.
+The platform provides preconfigured quick-login demo accounts across all system personas:
 
-- **Entry point**: `backend/server.py` — creates `app = FastAPI()`, creates
-  `api_router = APIRouter(prefix="/api")`, registers routes **on the router**,
-  and calls `app.include_router(api_router)` at the bottom. CORS middleware is
-  added from `CORS_ORIGINS`. Never hang a route directly off `app` — it would
-  land outside `/api` and the Vite proxy would not reach it.
-- **The route pattern** (copy `status` in `server.py`):
-  1. a Pydantic model per request body and per response
-     (`StatusCheckCreate` / `StatusCheck`);
-  2. an `async def` handler decorated with
-     `@api_router.post("/status", response_model=StatusCheck)`;
-  3. `await` the motor call inside it.
-  FastAPI validates the request against the Pydantic model before your handler
-  runs — a malformed body never reaches your code, it gets an automatic `422`
-  with a `{"detail": [...]}` body.
-- **Growing the backend**: as `server.py` gets crowded, move models to
-  `backend/models/` and routers to `backend/routers/` (one module per resource,
-  each exporting its own `APIRouter`, mounted from `server.py` via
-  `api_router.include_router(...)` or `app.include_router(...)` with the `/api`
-  prefix preserved).
-- **MongoDB**: import the shared handle — `from lib.db import client, db`
-  (`backend/lib/db.py` self-loads `.env` before reading env). Use it from
-  `server.py`, every router, and standalone scripts like `seed.py`; never
-  construct another `AsyncIOMotorClient`. Collections are attributes:
-  `await db.status_checks.insert_one(...)`, `await db.status_checks.find().to_list(1000)`.
-  Motor connects lazily, so importing `server` never blocks on Mongo. `pymongo`
-  is installed too if you need a sync client in a script.
-- **Ids**: documents use a string `id` (`uuid4`) field, not Mongo's `ObjectId`
-  — `ObjectId` is not JSON-serializable and leaks into response bodies. Keep the
-  `uuid4` default-factory pattern from `StatusCheck`.
-- **Config**: `backend/.env` — `MONGO_URL` (connection string), `DB_NAME`
-  (database name), `CORS_ORIGINS`. `server.py` loads it with `python-dotenv`
-  above its local imports, and `lib/db.py` self-loads it so standalone scripts
-  inherit it too. The pod runs `mongod` locally, so `MONGO_URL` points at
-  `localhost`. Add new secrets/config here; read them with `os.environ`.
-- **Dates**: `backend/lib/dates.py` — `today_iso(tz=None)`. The pod clock is
-  UTC; anchor "today" server-side with this, never with client-side date math.
-- **Interactive check**: `cd /app/backend && python -c 'import server'` catches
-  syntax/import errors without waiting for the supervisor log.
+| Role | Email | Access Scope |
+| :--- | :--- | :--- |
+| **System Admin** | `admin@ims.test` | Full configuration, user invites, settings, holidays |
+| **Sales Executive** | `sales@ims.test` | Inventory browsing, queue booking, brand records |
+| **Field Operations** | `ops@ims.test` | Creative onboarding, mounting checklists, GTP proof |
+| **Finance Specialist**| `finance@ims.test` | Invoice tracking, proof review, client billing |
+| **Finance Manager** | `fm@ims.test` | Booking approval, slot confirmation, priority overrides |
 
-## Frontend
+*(Demo password across accounts: `Password123!`)*
 
-- Vite + React 19 + JavaScript, dev server on port `3000`.
-- Tailwind CSS v4 (via the `@tailwindcss/vite` plugin — no separate
-  `tailwind.config.js` needed) + shadcn/ui, initialized with the `base-nova`
-  style and `neutral` base color, with the `@` path alias (`@/*` → `src/*`)
-  wired in `vite.config.js`.
-- `react-router-dom` and `motion` are preinstalled — don't re-add them. `src/App.jsx`
-  is the `<Routes>` table and nothing else; screens live in `src/pages/*.jsx` and are
-  imported as `@/pages/<Name>`. `src/pages/Home.jsx` ships as the worked example. Add
-  a `<Route>` for every page you write, in the same edit that creates the page — a
-  page with no route is unreachable, and any URL without a matching `<Route>` renders a
-  **blank page** — `<Routes>` matches nothing and mounts nothing.
-- Components installed under `src/components/ui/`: button, card, input, label,
-  select, dialog, sheet, tabs, badge, calendar, sonner, textarea, table, popover,
-  dropdown-menu, checkbox. Add more with `npx shadcn@latest add <component>`.
-- `src/lib/api.js` — the fetch layer: `apiGet`, `apiPost`, `apiPut`, `apiPatch`,
-  `apiDelete`, all relative to base `/api`,
-  throwing `ApiError` (with `status` and the parsed body) on any non-2xx.
-  **Nothing validates the response across the Python boundary** — Pydantic owns
-  the backend contract, while JavaScript consumes the returned JSON directly.
-  Assert important response fields in backend or browser tests.
-- `src/pages/Home.jsx` is a minimal example of the wiring: TanStack Query's `useQuery`
-  with `apiGet("/status")` as the `queryFn`. It is a **non-blocking
-  connectivity probe**, not a proof of the round trip — the result is deliberately
-  discarded so the splash renders identically with no backend. `apiGet` does no
-  runtime validation. See the
-  static-preview rule in `TEMPLATE.md` §4 for why no page may be gated on a fetch.
+---
 
-## JavaScript
+## 📄 License & Brand Notice
 
-This comparison arm deliberately has no TypeScript, JSDoc type layer, or
-`checkJs` configuration. In the pod, use oxlint for static checks:
-
-```bash
-cd frontend && yarn lint
-```
-
-Response-shape correctness must be covered at the Python boundary or through an
-API/browser assertion; lint cannot prove it.
-
-## Data fetching
-
-TanStack Query is wired: `QueryClientProvider` in `src/main.jsx`, `useQuery` demo
-in `src/pages/Home.jsx` (see above). Use `useQuery`/`useMutation`, not
-fetch-in-`useEffect`.
-
-## Completion gate (tier 1)
-
-When the build is complete, run tier 1 once, all in the same turn: a curl smoke
-over the key `/api` endpoints (assert status AND a response field, plus one
-negative case), `cd frontend && yarn lint`, and ONE happy-path browser pass
-through the core user journey. Clean on all three → finish; any failure is a real
-bug — fix it, re-run the failed check, and escalate to the testing subagent.
-No routine lint/smoke passes during the build — tier 1 runs exactly once.
-
-
-## Testing
-
-Two lanes.
-
-**Backend (pytest)** — specs in `backend/tests/` as `test_*.py`, run with:
-
-```bash
-cd /app/backend && pytest
-```
-
-`backend/pytest.ini` is canonical: `addopts = -n 2 --dist loadscope` (pytest-xdist,
-already parallel — do not pass your own `-n`) and `asyncio_mode = auto` (so
-`async def test_...` needs no marker). Serial is `-n 0`, **never**
-`-p no:xdist` (that errors, because `addopts` still passes `-n`/`--dist`).
-`backend/tests/conftest.py` is pre-scaffolded — a sync `client` fixture
-(`httpx.Client` rooted at `/api`), an async `aclient`, and an `api_url()` helper,
-all pointed at `BACKEND_URL` (default `http://localhost:8001`). Tests hit the
-live uvicorn process, so the app under test is the one the browser sees. Add
-app-specific fixtures below the marker; do not re-create the file.
-
-**Frontend (Playwright)** — `/app/tests/` is pre-scaffolded:
-`playwright.config.js` (canonical — edit the marked lines only),
-`fixtures/helpers.js`, and a `package.json` that resolves
-`@playwright/test@1.62.0` (node_modules baked into the image). Write specs into
-`tests/e2e/`. Do NOT re-create the config/helpers or install/upgrade playwright —
-matching Chromium browsers live at `/pw-browsers`.
-
-The backend lane is pytest: this template's backend is Python, so `vitest` does
-not apply to it.
-
-## Pod conventions
-
-This template runs under supervisord in the Emergent agent pod — supersedes any
-local-run instructions above.
-
-- Backend, frontend, and `mongod` are each a supervisor program. After code or
-  config changes, restart and wait for readiness:
-
-  ```bash
-  sudo supervisorctl restart frontend backend
-  until curl -sf -o /dev/null http://localhost:3000; do sleep 2; done
-  ```
-
-- Status, only after a restart you triggered:
-  `sudo supervisorctl status frontend backend`. Logs:
-  `/var/log/supervisor/backend.err.log`, `backend.out.log`,
-  `frontend.err.log`.
-- App in a browser: the pod's preview URL (frontend, port `3000`). Backend API
-  directly at port `8001`.
-- `mongod` runs locally in the pod (`--bind_ip_all`); `MONGO_URL` in
-  `backend/.env` points at `localhost`, no separate Mongo container.
-- Both dev servers hot-reload on file edits (uvicorn `--reload` for the backend,
-  Vite HMR for the frontend); no rebuild step needed for normal iteration. A
-  restart is still needed after changing `.env`, `requirements.txt`, or
-  `vite.config.js`.
+© **Carbon & Whale**. All rights reserved.  
+Proprietary software for transit and retail Out-Of-Home media inventory operations.

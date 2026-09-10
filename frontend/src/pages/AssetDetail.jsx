@@ -9,6 +9,7 @@ import { AssetStatusBadge, StageBadge, UrgencyBadge } from "@/components/shared/
 import PhotoSlideshow from "@/components/shared/PhotoSlideshow";
 import AuditTrail from "@/components/shared/AuditTrail";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { AssetDetailSkeleton } from "@/components/skeletons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiPost } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useAsset, useAssetQueue, useBrands, useMe } from "@/lib/queries";
 import { AssetDialog } from "@/pages/Assets";
@@ -48,7 +49,68 @@ function AddInterestDialog({ asset }) {
   const selectedBrandName = brands?.find((b) => b.id === brandId)?.name ?? "";
 
   const add = useMutation({
-    mutationFn: (body) => apiPost("/queue", body),
+    mutationFn: async (body) => {
+      // 1. Resolve or create the brand
+      let brandId = body.brand_id;
+      let brandName = body.brand;
+      if (!brandId) {
+        const { data: existing } = await supabase.from("brands").select("id, name").ilike("name", body.brand.trim()).maybeSingle();
+        if (existing) { brandId = existing.id; brandName = existing.name; }
+        else {
+          const { data: newBrand, error: bErr } = await supabase.from("brands").insert({ id: crypto.randomUUID(), name: body.brand.trim(), created_at: new Date().toISOString() }).select().single();
+          if (bErr) throw { body: { detail: bErr.message } };
+          brandId = newBrand.id; brandName = newBrand.name;
+        }
+      }
+      // 2. Check for existing open entry from same brand
+      const { data: dupe } = await supabase.from("queue_entries").select("id").eq("asset_id", body.asset_id).eq("brand", brandName).in("state", ["active", "pending"]).maybeSingle();
+      if (dupe) throw { body: { detail: "This brand is already in the queue for this asset" } };
+
+      // 3. Check if there's already an active slot
+      const { data: existingActive } = await supabase.from("queue_entries").select("id").eq("asset_id", body.asset_id).eq("state", "active").maybeSingle();
+      const { count: pendingCount } = await supabase.from("queue_entries").select("*", { count: "exact", head: true }).eq("asset_id", body.asset_id).eq("state", "pending");
+
+      // 4. Calculate expiry (5 business days by default)
+      const { data: settingsArr } = await supabase.from("settings").select("queue_active_business_days").eq("id", "global").maybeSingle();
+      const holdDays = settingsArr?.queue_active_business_days ?? 5;
+      const { data: holidays } = await supabase.from("holidays").select("date");
+      const holidaySet = new Set((holidays ?? []).map((h) => h.date));
+      let expiresOn = null;
+      const isActive = !existingActive;
+      if (isActive) {
+        // Count forward holdDays business days
+        let d = new Date(); let counted = 0;
+        while (counted < holdDays) {
+          d.setDate(d.getDate() + 1);
+          const ds = d.toISOString().split("T")[0];
+          const dow = d.getDay();
+          if (dow !== 0 && dow !== 6 && !holidaySet.has(ds)) counted++;
+        }
+        expiresOn = d.toISOString().split("T")[0];
+      }
+
+      const entry = {
+        id: crypto.randomUUID(),
+        asset_id: body.asset_id,
+        brand_id: brandId,
+        brand: brandName,
+        salesperson_id: (await supabase.auth.getUser()).data.user?.id,
+        salesperson_name: (await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single()).data?.name ?? "",
+        proposed_duration_days: body.proposed_duration_days,
+        proposed_start_date: body.proposed_start_date || null,
+        proposed_end_date: body.proposed_end_date || null,
+        notes: body.notes || "",
+        state: isActive ? "active" : "pending",
+        position: isActive ? 0 : (pendingCount ?? 0) + 1,
+        expires_on: expiresOn,
+        created_at: new Date().toISOString(),
+      };
+      const { data: inserted, error } = await supabase.from("queue_entries").insert(entry).select().single();
+      if (error) throw { body: { detail: error.message } };
+      // Update asset status to reserved
+      await supabase.from("assets").update({ status: "reserved" }).eq("id", body.asset_id);
+      return inserted;
+    },
     onSuccess: (entry) => {
       queryClient.invalidateQueries({ queryKey: ["queue"] });
       queryClient.invalidateQueries({ queryKey: ["asset", asset.id] });
@@ -205,7 +267,28 @@ function QueuePanel({ asset }) {
   const { data: me } = useMe();
   const { data: entries } = useAssetQueue(asset.id);
   const withdraw = useMutation({
-    mutationFn: (id) => apiPost(`/queue/${id}/withdraw`),
+    mutationFn: async (id) => {
+      const { data: entry, error: fetchErr } = await supabase.from("queue_entries").select("*").eq("id", id).single();
+      if (fetchErr) throw { body: { detail: fetchErr.message } };
+      const { error } = await supabase.from("queue_entries").update({ state: "cancelled", closed_at: new Date().toISOString(), cancel_reason: "Withdrawn by sales" }).eq("id", id);
+      if (error) throw { body: { detail: error.message } };
+      // If withdrawn was the active slot, promote next pending
+      if (entry.state === "active") {
+        const { data: next } = await supabase.from("queue_entries").select("*").eq("asset_id", entry.asset_id).eq("state", "pending").order("created_at").limit(1).maybeSingle();
+        if (next) {
+          const { data: settingsArr } = await supabase.from("settings").select("queue_active_business_days").eq("id", "global").maybeSingle();
+          const holdDays = settingsArr?.queue_active_business_days ?? 5;
+          const { data: holidays } = await supabase.from("holidays").select("date");
+          const holidaySet = new Set((holidays ?? []).map((h) => h.date));
+          let d = new Date(); let counted = 0;
+          while (counted < holdDays) { d.setDate(d.getDate() + 1); const ds = d.toISOString().split("T")[0]; const dow = d.getDay(); if (dow !== 0 && dow !== 6 && !holidaySet.has(ds)) counted++; }
+          await supabase.from("queue_entries").update({ state: "active", position: 0, expires_on: d.toISOString().split("T")[0] }).eq("id", next.id);
+        } else {
+          await supabase.from("assets").update({ status: "available" }).eq("id", entry.asset_id).eq("status", "reserved");
+        }
+      }
+      return { ok: true };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue"] });
       queryClient.invalidateQueries({ queryKey: ["asset", asset.id] });
@@ -235,11 +318,11 @@ function QueuePanel({ asset }) {
                 "rounded-xl border px-4 py-3 transition-colors duration-200",
                 e.state === "active"
                   ? e.urgency === "urgent"
-                    ? "border-red-700/70 bg-red-950/25 animate-urgent-pulse"
+                    ? "border-red-200 bg-red-50/90 animate-urgent-pulse shadow-xs"
                     : e.urgency === "warning"
-                      ? "border-amber-700/70 bg-amber-950/20"
-                      : "border-primary/50 bg-primary/5"
-                  : "border-border/60 bg-card/50",
+                      ? "border-amber-200 bg-amber-50 shadow-xs"
+                      : "border-sky-200/80 bg-sky-50/50 shadow-xs"
+                  : "border-border/80 bg-card shadow-xs",
               )}
               data-testid={`asset-queue-entry-${e.brand.replace(/\s+/g, "-")}`}
             >
@@ -349,7 +432,7 @@ export default function AssetDetail() {
           testId="asset-detail-error"
         />
       )}
-      {isLoading && <div className="h-64 animate-pulse rounded-xl border border-border/60 bg-card/40" />}
+      {isLoading && <AssetDetailSkeleton />}
 
       {asset && (
         <div className="space-y-5">

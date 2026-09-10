@@ -6,6 +6,7 @@ import EmptyState from "@/components/shared/EmptyState";
 import { StageBadge } from "@/components/shared/StatusBadges";
 import PriorityBadge from "@/components/shared/PriorityBadge";
 import { Button } from "@/components/ui/button";
+import { CampaignsSkeleton } from "@/components/skeletons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCampaigns } from "@/lib/queries";
@@ -66,7 +67,7 @@ export default function Campaigns() {
         {isError && (
           <EmptyState title="Campaigns unavailable" hint="Try again shortly." testId="campaigns-error-state" />
         )}
-        {isLoading && <div className="h-40 animate-pulse rounded-xl border border-border/60 bg-card/40" />}
+        {isLoading && <CampaignsSkeleton count={4} />}
         {!isLoading && !isError && campaigns?.length === 0 && (
           <EmptyState
             title="No campaigns in this stage"

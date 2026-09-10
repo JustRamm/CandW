@@ -1,15 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/outfit";
-@import "@fontsource-variable/dm-sans";
+@import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: 'Outfit Variable', sans-serif;
-    --font-sans: 'DM Sans Variable', sans-serif;
+    --font-heading: 'Inter Variable', sans-serif;
+    --font-sans: 'Inter Variable', sans-serif;
     --font-mono: 'JetBrains Mono Variable', monospace;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -42,16 +41,17 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
     --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+    --radius-xl: 1rem;
+    --radius-2xl: 1.25rem;
+    --radius-3xl: 1.5rem;
+    --radius-4xl: 9999px;
     --animate-slide-up: slide-up 0.28s cubic-bezier(0.22, 1, 0.36, 1);
     --animate-fade-in: fade-in 0.2s ease-out;
     --animate-urgent-pulse: urgent-pulse 2.4s ease-in-out infinite;
+    --animate-shimmer: shimmer 1.8s ease-in-out infinite;
 }
 
 @keyframes slide-up {
@@ -65,94 +65,120 @@
 }
 
 @keyframes urgent-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.32); }
-    50% { box-shadow: 0 0 18px 2px rgba(220, 38, 38, 0.12); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(186, 26, 26, 0.32); }
+    50% { box-shadow: 0 0 14px 2px rgba(186, 26, 26, 0.12); }
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
 }
 
 :root {
-    --background: #0B0F17;
-    --foreground: #F1F5F9;
-    --card: #131B2A;
-    --card-foreground: #F8FAFC;
-    --popover: #1E293B;
-    --popover-foreground: #FFFFFF;
-    --primary: #0284C7;
-    --primary-foreground: #FFFFFF;
-    --secondary: #1E293B;
-    --secondary-foreground: #F1F5F9;
-    --muted: #1B2435;
-    --muted-foreground: #94A3B8;
-    --accent: #1E293B;
-    --accent-foreground: #F8FAFC;
-    --destructive: #DC2626;
-    --border: #26314A;
-    --input: #26314A;
-    --ring: #38BDF8;
-    --chart-1: #0284C7;
-    --chart-2: #16A34A;
-    --chart-3: #D97706;
-    --chart-4: #DC2626;
-    --chart-5: #7C3AED;
-    --radius: 0.75rem;
-    --sidebar: #0F172A;
-    --sidebar-foreground: #E2E8F0;
-    --sidebar-primary: #0284C7;
-    --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #1E293B;
-    --sidebar-accent-foreground: #F8FAFC;
-    --sidebar-border: #1E293B;
-    --sidebar-ring: #38BDF8;
+    /* Carbon & Whale Operational Identity */
+    --background: #f7f9fb;
+    --foreground: #191c1e;
+    --card: #ffffff;
+    --card-foreground: #191c1e;
+    --popover: #ffffff;
+    --popover-foreground: #191c1e;
+    --primary: #00668a;
+    --primary-foreground: #ffffff;
+    --secondary: #f2f4f6;
+    --secondary-foreground: #191c1e;
+    --muted: #eceef0;
+    --muted-foreground: #3f484e;
+    --accent: #e6e8ea;
+    --accent-foreground: #00668a;
+    --destructive: #ba1a1a;
+    --border: #e0e3e5;
+    --input: #bfc8cf;
+    --ring: #00668a;
+    --chart-1: #00668a;
+    --chart-2: #006d37;
+    --chart-3: #d97706;
+    --chart-4: #ba1a1a;
+    --chart-5: #565f70;
+    --radius: 0.5rem;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #191c1e;
+    --sidebar-primary: #00668a;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #e6e8ea;
+    --sidebar-accent-foreground: #00668a;
+    --sidebar-border: #e0e3e5;
+    --sidebar-ring: #00668a;
 }
 
 .dark {
-    --background: #0B0F17;
-    --foreground: #F1F5F9;
-    --card: #131B2A;
-    --card-foreground: #F8FAFC;
-    --popover: #1E293B;
-    --popover-foreground: #FFFFFF;
-    --primary: #0284C7;
-    --primary-foreground: #FFFFFF;
-    --secondary: #1E293B;
-    --secondary-foreground: #F1F5F9;
-    --muted: #1B2435;
-    --muted-foreground: #94A3B8;
-    --accent: #1E293B;
-    --accent-foreground: #F8FAFC;
-    --destructive: #DC2626;
-    --border: #26314A;
-    --input: #26314A;
-    --ring: #38BDF8;
-    --sidebar: #0F172A;
-    --sidebar-foreground: #E2E8F0;
-    --sidebar-primary: #0284C7;
-    --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #1E293B;
-    --sidebar-accent-foreground: #F8FAFC;
-    --sidebar-border: #1E293B;
-    --sidebar-ring: #38BDF8;
+    --background: #f7f9fb;
+    --foreground: #191c1e;
+    --card: #ffffff;
+    --card-foreground: #191c1e;
+    --popover: #ffffff;
+    --popover-foreground: #191c1e;
+    --primary: #00668a;
+    --primary-foreground: #ffffff;
+    --secondary: #f2f4f6;
+    --secondary-foreground: #191c1e;
+    --muted: #eceef0;
+    --muted-foreground: #3f484e;
+    --accent: #e6e8ea;
+    --accent-foreground: #00668a;
+    --destructive: #ba1a1a;
+    --border: #e0e3e5;
+    --input: #bfc8cf;
+    --ring: #00668a;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #191c1e;
+    --sidebar-primary: #00668a;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #e6e8ea;
+    --sidebar-accent-foreground: #00668a;
+    --sidebar-border: #e0e3e5;
+    --sidebar-ring: #00668a;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
   body {
     @apply bg-background text-foreground;
-    }
+  }
   html {
     @apply font-sans;
-    }
+  }
 }
 
 @utility font-heading {
     font-family: var(--font-heading);
+    letter-spacing: -0.015em;
 }
 
 @utility mono-label {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     font-weight: 600;
 }
+
+@utility skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    &::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.45) 50%,
+            transparent 100%
+        );
+        animation: shimmer 1.8s infinite ease-in-out;
+    }
+}
+

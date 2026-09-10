@@ -19,6 +19,7 @@ import DocumentList from "@/components/shared/DocumentList";
 import AuditTrail from "@/components/shared/AuditTrail";
 import { GtpStatusBadge, StageBadge } from "@/components/shared/StatusBadges";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { CampaignDetailSkeleton } from "@/components/skeletons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -35,7 +36,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PriorityBadge from "@/components/shared/PriorityBadge";
-import { apiPost } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useCampaign, useMe } from "@/lib/queries";
 import { errMessage, fmtDate, fmtDateTime, fmtMoney } from "@/lib/helpers";
@@ -63,10 +64,10 @@ function LifecycleTracker({ stage }) {
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors duration-200",
               i < idx
-                ? "border-emerald-800 bg-emerald-950/40 text-emerald-300"
+                ? "border-emerald-200 bg-emerald-50 text-[#006d37] font-semibold"
                 : i === idx
-                  ? "border-primary bg-primary/15 text-primary"
-                  : "border-border/60 bg-card/40 text-muted-foreground",
+                  ? "border-sky-300 bg-sky-50 text-[#00668a] font-semibold"
+                  : "border-border/80 bg-card text-muted-foreground",
             )}
             data-testid={`lifecycle-step-${s}`}
           >
@@ -86,8 +87,19 @@ function PrioritySelect({ campaign, gtpId, value }) {
   const canEdit = me?.role === "ops" || me?.role === "admin";
 
   const save = useMutation({
-    mutationFn: (priority) =>
-      apiPost(`/campaigns/${campaign.id}/priority`, { priority, gtp_id: gtpId ?? null }),
+    mutationFn: async (priority) => {
+      if (gtpId) {
+        // Update priority of a specific GTP within the JSONB array
+        const { data: c } = await supabase.from("campaigns").select("gtps").eq("id", campaign.id).single();
+        const gtps = (c?.gtps ?? []).map((g) => g.id === gtpId ? { ...g, priority } : g);
+        const { error } = await supabase.from("campaigns").update({ gtps, priority }).eq("id", campaign.id);
+        if (error) throw { body: { detail: error.message } };
+        return { priority };
+      }
+      const { error } = await supabase.from("campaigns").update({ priority }).eq("id", campaign.id);
+      if (error) throw { body: { detail: error.message } };
+      return { priority };
+    },
     onSuccess: (_r, priority) => {
       refresh();
       toast.success(`Priority set to ${priority}`);
@@ -128,7 +140,33 @@ function ChecklistItem({ campaign, item }) {
   const canEdit = (me?.role === "ops" || me?.role === "admin") && campaign.stage === "onboarding";
 
   const save = useMutation({
-    mutationFn: (body) => apiPost(`/campaigns/${campaign.id}/checklist/${item.key}`, body),
+    mutationFn: async (body) => {
+      const { data: c } = await supabase.from("campaigns").select("checklist").eq("id", campaign.id).single();
+
+      // Resolve the current user's name before .map() so we don't need await inside a sync callback
+      let completedByName = null;
+      if (body.status === "done") {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: profile } = await supabase.from("profiles").select("name").eq("id", user?.id).single();
+        completedByName = profile?.name ?? null;
+      }
+
+      const checklist = (c?.checklist ?? []).map((ci) =>
+        ci.key === item.key
+          ? {
+              ...ci,
+              status: body.status,
+              notes: body.notes ?? ci.notes,
+              doc_ids: body.doc_ids?.length ? body.doc_ids : ci.doc_ids,
+              completed_by: body.status === "done" ? completedByName : ci.completed_by,
+              completed_at: body.status === "done" ? new Date().toISOString() : ci.completed_at,
+            }
+          : ci,
+      );
+      const { error } = await supabase.from("campaigns").update({ checklist }).eq("id", campaign.id);
+      if (error) throw { body: { detail: error.message } };
+      return { checklist };
+    },
     onSuccess: () => {
       refresh();
       setDocs([]);
@@ -143,7 +181,7 @@ function ChecklistItem({ campaign, item }) {
     <div
       className={cn(
         "rounded-xl border px-4 py-3.5 transition-colors duration-200",
-        done ? "border-emerald-800/60 bg-emerald-950/15" : "border-border/60 bg-card/50",
+        done ? "border-emerald-200 bg-emerald-50/60 shadow-xs" : "border-border/80 bg-card shadow-xs",
       )}
       data-testid={`checklist-item-${item.key}`}
     >
@@ -159,7 +197,7 @@ function ChecklistItem({ campaign, item }) {
           variant="outline"
           className={cn(
             "mono-label",
-            done ? "border-emerald-800 text-emerald-300" : "border-border/70 text-muted-foreground",
+            done ? "border-emerald-200 bg-emerald-50 text-[#006d37]" : "border-border/70 text-muted-foreground",
           )}
         >
           {item.status}
@@ -230,7 +268,41 @@ function InvoiceDialog({ campaign }) {
   const refresh = useRefresh(campaign.id);
 
   const submit = useMutation({
-    mutationFn: (body) => apiPost(`/campaigns/${campaign.id}/invoice`, body),
+    mutationFn: async (body) => {
+      // Invoice: add invoice object, move to live, set start/end dates, generate GTP schedule
+      const { data: settingsArr } = await supabase.from("settings").select("*").eq("id", "global").maybeSingle();
+      const interval = settingsArr?.gtp_interval_days ?? 28;
+      const today = new Date().toISOString().split("T")[0];
+      const startDate = today;
+      const endDate = new Date(Date.now() + campaign.duration_days * 86400000).toISOString().split("T")[0];
+      // Generate GTP schedule
+      const gtps = [];
+      let dueDateMs = new Date(startDate).getTime() + interval * 86400000;
+      let seq = 1;
+      while (dueDateMs < new Date(endDate).getTime()) {
+        gtps.push({ id: crypto.randomUUID(), seq, status: "pending", due_date: new Date(dueDateMs).toISOString().split("T")[0], is_final: false, doc_ids: [], priority: "medium" });
+        dueDateMs += interval * 86400000;
+        seq++;
+      }
+      // Add final GTP
+      gtps.push({ id: crypto.randomUUID(), seq, status: "pending", due_date: endDate, is_final: true, doc_ids: [], priority: "medium" });
+
+      const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
+      const invoice = {
+        invoice_number: body.invoice_number,
+        amount: body.amount,
+        gst_percent: body.gst_percent,
+        total_amount: body.amount * (1 + body.gst_percent / 100),
+        notes: body.notes,
+        doc_ids: body.doc_ids,
+        raised_by: profile?.name ?? "",
+        raised_at: new Date().toISOString(),
+      };
+      const { error } = await supabase.from("campaigns").update({ stage: "live", invoice, gtps, start_date: startDate, end_date: endDate }).eq("id", campaign.id);
+      if (error) throw { body: { detail: error.message } };
+      await supabase.from("assets").update({ status: "live" }).eq("id", campaign.asset_id);
+      return { ok: true };
+    },
     onSuccess: () => {
       refresh();
       toast.success("Invoice recorded — campaign is now live");
@@ -309,7 +381,7 @@ function InvoiceDialog({ campaign }) {
               data-testid="invoice-notes-input"
             />
           </div>
-          <p className="rounded-lg border border-emerald-800/50 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-300">
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-[#006d37] shadow-xs">
             Submitting flips the asset to Live and schedules the GTP cycle from today.
           </p>
           <DialogFooter>
@@ -334,7 +406,18 @@ function GtpCard({ campaign, gtp }) {
   const isFinance = ["finance", "finance_manager", "admin"].includes(me?.role);
 
   const submit = useMutation({
-    mutationFn: (body) => apiPost(`/campaigns/${campaign.id}/gtp/${gtp.id}/submit`, body),
+    mutationFn: async (body) => {
+      const { data: c } = await supabase.from("campaigns").select("gtps").eq("id", campaign.id).single();
+      const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
+      const gtps = (c?.gtps ?? []).map((g) =>
+        g.id === gtp.id
+          ? { ...g, status: "submitted", doc_ids: body.doc_ids ?? g.doc_ids, notes: body.notes ?? g.notes, submitted_by: profile?.name, submitted_at: new Date().toISOString() }
+          : g,
+      );
+      const { error } = await supabase.from("campaigns").update({ gtps }).eq("id", campaign.id);
+      if (error) throw { body: { detail: error.message } };
+      return { ok: true };
+    },
     onSuccess: () => {
       refresh();
       setDocs([]);
@@ -344,7 +427,22 @@ function GtpCard({ campaign, gtp }) {
   });
 
   const review = useMutation({
-    mutationFn: (body) => apiPost(`/campaigns/${campaign.id}/gtp/${gtp.id}/review`, body),
+    mutationFn: async (body) => {
+      const { data: c } = await supabase.from("campaigns").select("gtps,stage").eq("id", campaign.id).single();
+      const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
+      const gtps = (c?.gtps ?? []).map((g) =>
+        g.id === gtp.id
+          ? { ...g, status: body.approve ? "approved" : "rejected", reject_reason: body.reason ?? null, reviewed_by: profile?.name, reviewed_at: new Date().toISOString() }
+          : g,
+      );
+      // If all GTPs approved and it's the final one, move to closing
+      const allApproved = gtps.every((g) => g.status === "approved");
+      const finalApproved = body.approve && gtp.is_final;
+      const newStage = finalApproved || allApproved ? "closing" : c.stage;
+      const { error } = await supabase.from("campaigns").update({ gtps, stage: newStage }).eq("id", campaign.id);
+      if (error) throw { body: { detail: error.message } };
+      return { approve: body.approve };
+    },
     onSuccess: (_res, vars) => {
       refresh();
       toast.success(vars.approve ? `GTP #${gtp.seq} approved` : `GTP #${gtp.seq} returned to Ops`);
@@ -357,10 +455,10 @@ function GtpCard({ campaign, gtp }) {
       className={cn(
         "rounded-xl border px-4 py-3.5",
         gtp.status === "approved"
-          ? "border-emerald-800/60 bg-emerald-950/15"
+          ? "border-emerald-200 bg-emerald-50/60 shadow-xs"
           : gtp.status === "rejected"
-            ? "border-red-800/60 bg-red-950/15"
-            : "border-border/60 bg-card/50",
+            ? "border-red-200 bg-red-50/60 shadow-xs"
+            : "border-border/80 bg-card shadow-xs",
       )}
       data-testid={`gtp-card-${gtp.seq}`}
     >
@@ -394,7 +492,7 @@ function GtpCard({ campaign, gtp }) {
         </p>
       )}
       {gtp.reject_reason && (
-        <p className="mt-2 rounded-lg border border-red-800/50 bg-red-950/25 px-3 py-2 text-xs text-red-300">
+        <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-[#ba1a1a] shadow-xs">
           Rejected: {gtp.reject_reason}
         </p>
       )}
@@ -492,7 +590,20 @@ function CancellationPanel({ campaign }) {
     campaign.cancellation?.status === "requested";
 
   const request = useMutation({
-    mutationFn: (body) => apiPost(`/campaigns/${campaign.id}/cancellation`, body),
+    mutationFn: async (body) => {
+      const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
+      const cancellation = {
+        status: "requested",
+        reason: body.reason,
+        proposed_cancel_date: body.proposed_cancel_date,
+        doc_ids: body.doc_ids ?? [],
+        requested_by_name: profile?.name ?? "",
+        requested_at: new Date().toISOString(),
+      };
+      const { error } = await supabase.from("campaigns").update({ cancellation }).eq("id", campaign.id);
+      if (error) throw { body: { detail: error.message } };
+      return { ok: true };
+    },
     onSuccess: () => {
       refresh();
       toast.success("Cancellation request sent to Finance");
@@ -502,7 +613,22 @@ function CancellationPanel({ campaign }) {
   });
 
   const review = useMutation({
-    mutationFn: (body) => apiPost(`/campaigns/${campaign.id}/cancellation/review`, body),
+    mutationFn: async (body) => {
+      const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
+      const { data: c } = await supabase.from("campaigns").select("cancellation").eq("id", campaign.id).single();
+      const cancellation = { ...(c?.cancellation ?? {}), status: body.approve ? "approved" : "rejected", comment: body.comment, reviewed_by: profile?.name, reviewed_at: new Date().toISOString() };
+      const updates = { cancellation };
+      if (body.approve) {
+        updates.stage = "closing";
+        // Create a closure GTP
+        const closureGtp = { id: crypto.randomUUID(), seq: 99, status: "pending", due_date: cancellation.proposed_cancel_date, is_final: true, doc_ids: [], priority: "high", notes: "Closure inspection" };
+        const { data: existing } = await supabase.from("campaigns").select("gtps").eq("id", campaign.id).single();
+        updates.gtps = [...(existing?.gtps ?? []), closureGtp];
+      }
+      const { error } = await supabase.from("campaigns").update(updates).eq("id", campaign.id);
+      if (error) throw { body: { detail: error.message } };
+      return { approve: body.approve };
+    },
     onSuccess: (_r, vars) => {
       refresh();
       toast.success(vars.approve ? "Cancellation approved — closure GTP created" : "Cancellation rejected");
@@ -519,10 +645,10 @@ function CancellationPanel({ campaign }) {
           className={cn(
             "rounded-xl border px-4 py-3.5",
             c.status === "approved"
-              ? "border-orange-800/60 bg-orange-950/20"
+              ? "border-orange-200 bg-orange-50 shadow-xs"
               : c.status === "rejected"
-                ? "border-border/60 bg-card/50"
-                : "border-amber-800/60 bg-amber-950/20",
+                ? "border-border/80 bg-card shadow-xs"
+                : "border-amber-200 bg-amber-50 shadow-xs",
           )}
           data-testid="cancellation-record"
         >
@@ -648,7 +774,11 @@ export default function CampaignDetail() {
   const refresh = useRefresh(campaignId);
 
   const onboard = useMutation({
-    mutationFn: () => apiPost(`/campaigns/${campaignId}/onboard`),
+    mutationFn: async () => {
+      const { error } = await supabase.from("campaigns").update({ stage: "invoicing" }).eq("id", campaignId);
+      if (error) throw { body: { detail: error.message } };
+      return { ok: true };
+    },
     onSuccess: () => {
       refresh();
       toast.success("Ad onboarded — invoice request raised with Finance");
@@ -674,7 +804,7 @@ export default function CampaignDetail() {
       {isError && (
         <EmptyState title="Campaign unavailable" hint="This campaign could not be loaded." testId="campaign-detail-error" />
       )}
-      {isLoading && <div className="h-64 animate-pulse rounded-xl border border-border/60 bg-card/40" />}
+      {isLoading && <CampaignDetailSkeleton />}
 
       {campaign && (
         <div className="space-y-5">

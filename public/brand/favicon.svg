@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 2062" width="2000" height="2062" fill="none">
+  <!-- Carbon & Whale Geometric Orca Logo -->
+  <!-- Black Body -->
+  <polygon
+    points="353,849 1218,754 1662,854 1701,1037 1545,942 1125,1244 991,1443 840,1277 353,1113"
+    fill="#000000"
+  />
+  <!-- White Belly Patch -->
+  <polygon
+    points="353,1066 692,1054 840,1277 353,1113"
+    fill="#FFFFFF"
+  />
+  <!-- Eye -->
+  <circle
+    cx="445.2"
+    cy="940.3"
+    r="26"
+    fill="#FFFFFF"
+  />
+</svg>

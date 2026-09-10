@@ -1,19 +1,25 @@
-// Session boundary: auth is an httpOnly cookie the backend owns; the frontend's one
-// duty is wiping the react-query cache so one account's data never renders for the next.
+// Session helpers — wraps Supabase Auth.
 import { queryClient } from "./queryClient";
-import { apiPost } from "./api";
+import { supabase } from "./supabase";
 
-// Call after every successful login/signup.
+// Call after every successful login to ensure stale data from a previous
+// session is not rendered for the new user.
 export function beginSession() {
   queryClient.clear();
 }
 
-// Call from every sign-out control; the hard redirect resets all in-memory state.
+// Call from every sign-out control. Signs out of Supabase Auth, clears
+// the React Query cache, and hard-redirects to /login so all in-memory
+// state is wiped.
 export async function endSession(redirectTo = "/login") {
   try {
-    await apiPost("/auth/logout");
+    localStorage.removeItem("cw_mock_user");
+    await supabase.auth.signOut();
+  } catch {
+    // ignore
   } finally {
     queryClient.clear();
     window.location.assign(redirectTo);
   }
 }
+

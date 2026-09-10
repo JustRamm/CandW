@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
+import { BrandsSkeleton } from "@/components/skeletons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { apiPost } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useBrands, useMe } from "@/lib/queries";
 import { errMessage } from "@/lib/helpers";
@@ -38,7 +39,11 @@ function BrandDialog() {
   const [form, setForm] = useState(BLANK);
 
   const create = useMutation({
-    mutationFn: (body) => apiPost("/brands", body),
+    mutationFn: async (body) => {
+      const { data, error } = await supabase.from("brands").insert({ id: crypto.randomUUID(), ...body, created_at: new Date().toISOString() }).select().single();
+      if (error) throw { body: { detail: error.message } };
+      return data;
+    },
     onSuccess: (b) => {
       queryClient.invalidateQueries({ queryKey: ["brands"] });
       toast.success(`${b.name} added`);
@@ -152,7 +157,7 @@ export default function Brands() {
         </div>
 
         {isError && <EmptyState title="Brands unavailable" hint="Try again shortly." testId="brands-error-state" />}
-        {isLoading && <div className="h-32 animate-pulse rounded-xl border border-border/60 bg-card/40" />}
+        {isLoading && <BrandsSkeleton count={6} />}
         {!isLoading && !isError && brands?.length === 0 && (
           <EmptyState
             title="No brands yet"
@@ -199,12 +204,12 @@ export default function Brands() {
                       {b.campaign_count} campaign{b.campaign_count === 1 ? "" : "s"}
                     </Badge>
                     {b.live_campaigns > 0 && (
-                      <Badge variant="outline" className="mono-label border-emerald-800 bg-emerald-950/40 text-emerald-300">
+                      <Badge variant="outline" className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs">
                         {b.live_campaigns} live
                       </Badge>
                     )}
                     {b.open_queue_entries > 0 && (
-                      <Badge variant="outline" className="mono-label border-sky-800 bg-sky-950/40 text-sky-300">
+                      <Badge variant="outline" className="mono-label rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs">
                         {b.open_queue_entries} in queue
                       </Badge>
                     )}

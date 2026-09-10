@@ -6,6 +6,7 @@ import { StageBadge, UrgencyBadge } from "@/components/shared/StatusBadges";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { DashboardSkeleton } from "@/components/skeletons";
 import { useDashboard, useMe } from "@/lib/queries";
 import { fmtDate } from "@/lib/helpers";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,7 @@ function KpiGrid({ kpis }) {
       {kpis.map((k) => (
         <Card
           key={k.label}
-          className="border-border/70 bg-card/80 transition-colors duration-200 hover:border-primary/40"
+          className="border-border/80 bg-card shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/40 rounded-xl"
           data-testid={`kpi-${k.label.toLowerCase().replace(/\s+/g, "-")}`}
         >
           <CardContent className="px-4 py-4">
@@ -31,14 +32,14 @@ function KpiGrid({ kpis }) {
 
 function Panel({ title, icon: Icon, children, testId }) {
   return (
-    <Card className="border-border/70 bg-card/70" data-testid={testId}>
-      <CardHeader className="pb-3">
+    <Card className="border-border/80 bg-card shadow-xs rounded-xl" data-testid={testId}>
+      <CardHeader className="pb-3 border-b border-border/50">
         <CardTitle className="flex items-center gap-2 font-heading text-base font-semibold">
           {Icon && <Icon className="size-4 text-primary" />}
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">{children}</CardContent>
+      <CardContent className="space-y-2 pt-4">{children}</CardContent>
     </Card>
   );
 }
@@ -47,11 +48,11 @@ function CampaignRow({ campaign, note }) {
   return (
     <Link
       to={`/campaigns/${campaign.id}`}
-      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2.5 transition-colors duration-150 hover:border-primary/45 hover:bg-secondary/60"
+      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2.5 transition-all duration-150 hover:border-primary/50 hover:bg-sky-50/50 hover:shadow-xs"
       data-testid="dashboard-campaign-row"
     >
       <div className="min-w-0">
-        <p className="truncate font-heading text-sm font-medium">{campaign.brand}</p>
+        <p className="truncate font-heading text-sm font-semibold text-foreground hover:text-primary">{campaign.brand}</p>
         <p className="mono-label truncate text-muted-foreground">{campaign.asset_code}</p>
         {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
       </div>
@@ -64,9 +65,10 @@ function CampaignRow({ campaign, note }) {
 }
 
 export default function Dashboard() {
-  const { data: me } = useMe();
-  const { data, isError } = useDashboard();
+  const { data: me, isLoading: isMeLoading } = useMe();
+  const { data, isError, isLoading: isDashboardLoading } = useDashboard();
   const role = me?.role;
+  const isLoading = isDashboardLoading || (!data && isMeLoading);
 
   const kpis = data?.kpis ?? [];
   const queue = data?.queue ?? [];
@@ -78,10 +80,13 @@ export default function Dashboard() {
       title={`${me?.role_label ?? "Role"} dashboard`}
       subtitle={me ? `Signed in as ${me.name}` : "Loading workspace…"}
     >
-      <div className="space-y-5">
+      {isLoading ? (
+        <DashboardSkeleton />
+      ) : (
+        <div className="space-y-5">
         {isError && (
           <div
-            className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-xs text-amber-300"
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-xs"
             data-testid="dashboard-offline-notice"
           >
             Live data is unavailable right now. Reconnect to load your work queues.
@@ -256,6 +261,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      )}
     </AppShell>
   );
 }

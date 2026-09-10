@@ -1,5 +1,7 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
+import { supabase } from "@/lib/supabase";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Assets from "@/pages/Assets";
@@ -14,11 +16,23 @@ import Admin from "@/pages/Admin";
 
 // One <Route> per page in src/pages; BrowserRouter already wraps this in main.jsx.
 export default function App() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Redirect to /login whenever Supabase session is invalidated
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      const mockUser = localStorage.getItem("cw_mock_user");
+      if (event === "SIGNED_OUT" && !mockUser) navigate("/login", { replace: true });
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
   return (
     <>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Login initialMode="signup" />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/assets" element={<Assets />} />
         <Route path="/assets/:assetId" element={<AssetDetail />} />

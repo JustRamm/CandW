@@ -6,19 +6,20 @@ import {
   ClipboardList,
   Cog,
   LayoutDashboard,
+  Leaf,
   ListOrdered,
   LogOut,
   MapPinned,
   ScrollText,
-  Radio,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/skeletons";
 import { useMe, useNotifications } from "@/lib/queries";
-import { apiPost } from "@/lib/api";
+import { supabase } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { endSession } from "@/lib/session";
 import { fmtDateTime } from "@/lib/helpers";
@@ -43,7 +44,16 @@ function NotificationDrawer() {
   const items = data?.items ?? [];
   const unread = data?.unread ?? 0;
   const readAll = useMutation({
-    mutationFn: () => apiPost("/notifications/read-all"),
+    mutationFn: async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData?.user) return;
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("user_id", authData.user.id)
+        .eq("read", false);
+      if (error) throw error;
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
@@ -135,16 +145,18 @@ export default function AppShell({ children, title, subtitle, actions }) {
   }
 
   return (
-    <div className="min-h-screen bg-background md:grid md:grid-cols-[248px_1fr]">
-      <aside className="hidden border-r border-sidebar-border bg-sidebar md:flex md:flex-col">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <Radio className="size-5 text-primary" />
-          <div>
-            <p className="font-heading text-sm font-bold leading-tight tracking-tight">OOH-Sync</p>
-            <p className="mono-label text-muted-foreground">Asset IMS</p>
+    <div className="flex h-screen overflow-hidden bg-background">
+      <aside className="hidden w-[248px] shrink-0 border-r border-sidebar-border bg-sidebar md:flex md:flex-col h-screen select-none">
+        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-sidebar-border/60 shrink-0">
+          <div className="flex size-9 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-xs">
+            <img src="/brand/logo.svg" alt="Carbon & Whale" className="h-full w-full object-contain" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-heading text-sm font-bold leading-tight tracking-tight text-foreground truncate">Carbon &amp; Whale</p>
+            <p className="mono-label text-[10px] text-muted-foreground">OOH-Sync · Asset IMS</p>
           </div>
         </div>
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="flex-1 space-y-1 px-3 py-3 overflow-y-auto">
           {nav.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -153,8 +165,8 @@ export default function AppShell({ children, title, subtitle, actions }) {
                 cn(
                   "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150",
                   isActive
-                    ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                    ? "bg-sky-50 font-semibold text-[#00668a] border border-sky-200/60 shadow-xs"
+                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
                 )
               }
               data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
@@ -164,7 +176,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-sidebar-border px-4 py-4">
+        <div className="border-t border-sidebar-border px-4 py-4 shrink-0">
           <p className="truncate font-heading text-sm font-medium" data-testid="sidebar-user-name">
             {me?.name ?? "…"}
           </p>
@@ -185,7 +197,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
         </div>
       </aside>
 
-      <div className="flex min-h-screen flex-col pb-20 md:pb-0">
+      <div className="flex flex-1 flex-col min-w-0 h-screen overflow-y-auto pb-20 md:pb-0">
         <header className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-border/70 bg-background/85 px-4 py-4 backdrop-blur-xl md:px-8">
           <div className="min-w-0">
             <h1 className="font-heading text-xl font-bold tracking-tight sm:text-2xl" data-testid="page-title">
@@ -211,7 +223,14 @@ export default function AppShell({ children, title, subtitle, actions }) {
         </header>
         <main className="flex-1 px-4 py-5 md:px-8 md:py-7">
           {isLoading ? (
-            <div className="h-32 animate-pulse rounded-xl border border-border/60 bg-card/40" />
+            <div className="space-y-4">
+              <Skeleton className="h-10 w-48 rounded-lg" />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Skeleton className="h-44 rounded-xl" />
+                <Skeleton className="h-44 rounded-xl" />
+                <Skeleton className="h-44 rounded-xl" />
+              </div>
+            </div>
           ) : (
             children
           )}

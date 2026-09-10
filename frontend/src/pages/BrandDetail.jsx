@@ -8,6 +8,7 @@ import EmptyState from "@/components/shared/EmptyState";
 import AuditTrail from "@/components/shared/AuditTrail";
 import { AssetStatusBadge, StageBadge } from "@/components/shared/StatusBadges";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { BrandDetailSkeleton } from "@/components/skeletons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { apiPut } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useBrand, useMe } from "@/lib/queries";
 import { errMessage, fmtDate } from "@/lib/helpers";
@@ -39,7 +40,11 @@ function EditBrandDialog({ brand }) {
   });
 
   const save = useMutation({
-    mutationFn: (body) => apiPut(`/brands/${brand.id}`, body),
+    mutationFn: async (body) => {
+      const { data, error } = await supabase.from("brands").update(body).eq("id", brand.id).select().single();
+      if (error) throw { body: { detail: error.message } };
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["brand", brand.id] });
       queryClient.invalidateQueries({ queryKey: ["brands"] });
@@ -129,7 +134,7 @@ export default function BrandDetail() {
       }
     >
       {isError && <EmptyState title="Brand unavailable" hint="This brand could not be loaded." testId="brand-detail-error" />}
-      {isLoading && <div className="h-48 animate-pulse rounded-xl border border-border/60 bg-card/40" />}
+      {isLoading && <BrandDetailSkeleton />}
 
       {brand && (
         <div className="space-y-5">

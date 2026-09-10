@@ -1,7 +1,19 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { Download, MapPinned, Pencil, Plus, Search, Trash2, Upload, Users } from "lucide-react";
+import {
+  Building2,
+  Download,
+  MapPin,
+  MapPinned,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  Users,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -9,6 +21,7 @@ import FileUploader from "@/components/shared/FileUploader";
 import PhotoSlideshow from "@/components/shared/PhotoSlideshow";
 import { AssetStatusBadge } from "@/components/shared/StatusBadges";
 import { Button } from "@/components/ui/button";
+import { AssetsSkeleton } from "@/components/skeletons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { apiDelete, apiPost, apiPut } from "@/lib/api";
+
 import { queryClient } from "@/lib/queryClient";
 import { useAssetTypes, useAssets, useMe } from "@/lib/queries";
 import { downloadCsv, errMessage, importAssetsCsv } from "@/lib/helpers";
@@ -37,13 +50,109 @@ const STATUS_FILTERS = [
   ["live", "Live"],
 ];
 
+/** 14 Official Districts of Kerala */
+export const KERALA_DISTRICTS = [
+  "Alappuzha",
+  "Ernakulam",
+  "Idukki",
+  "Kannur",
+  "Kasaragod",
+  "Kollam",
+  "Kottayam",
+  "Kozhikode",
+  "Malappuram",
+  "Palakkad",
+  "Pathanamthitta",
+  "Thiruvananthapuram",
+  "Thrissur",
+  "Wayanad",
+];
+
+/** Kerala Malls mapped to their respective districts */
+export const KERALA_MALLS = [
+  { name: "Center Square Mall Kochi", district: "Ernakulam" },
+  { name: "Gokulam Mall Kozhikode", district: "Kozhikode" },
+  { name: "Hilite Kozhikode", district: "Kozhikode" },
+  { name: "Hilite Thrissur", district: "Thrissur" },
+  { name: "Lulu Kottayam", district: "Kottayam" },
+  { name: "Lulu Kozhikode", district: "Kozhikode" },
+  { name: "Lulu Mall TVM", district: "Thiruvananthapuram" },
+  { name: "Market City Malappuram", district: "Malappuram" },
+  { name: "MOT Trivandrum", district: "Thiruvananthapuram" },
+  { name: "Oberon Mall Kochi", district: "Ernakulam" },
+  { name: "Secura Centre Kannur", district: "Kannur" },
+  { name: "Shobha City Thrissur", district: "Thrissur" },
+];
+
+/**
+ * Intelligently derives the Mall name from asset data.
+ * Prioritizes matching against known Kerala malls, then falls back to venue prefixes.
+ */
+export function extractMallName(asset) {
+  if (!asset) return null;
+  if (asset.mall_name) return asset.mall_name.trim();
+  if (asset.mall) return asset.mall.trim();
+
+  const locName = (asset.location_name || "").trim();
+  if (!locName) return null;
+
+  // 1. Direct match with Kerala malls
+  for (const km of KERALA_MALLS) {
+    if (locName.toLowerCase().includes(km.name.toLowerCase())) {
+      return km.name;
+    }
+  }
+
+  // 2. Common Kerala Mall name aliases
+  if (/sobha\s*city/i.test(locName)) return "Shobha City Thrissur";
+  if (/mall\s*of\s*travancore/i.test(locName)) return "MOT Trivandrum";
+  if (/center\s*square/i.test(locName)) return "Center Square Mall Kochi";
+  if (/oberon/i.test(locName)) return "Oberon Mall Kochi";
+  if (/secura/i.test(locName)) return "Secura Centre Kannur";
+  if (/market\s*city/i.test(locName)) return "Market City Malappuram";
+  if (/gokulam/i.test(locName)) return "Gokulam Mall Kozhikode";
+
+  const locType = (asset.location_type || "").toLowerCase();
+  const assetType = (asset.asset_type || "").toLowerCase();
+
+  const hasMallKeyword = /mall|marketcity|citywalk|plaza|galleria|forum|centre|center|mot/i.test(locName);
+  const isMallType = locType.includes("mall") || assetType.includes("mall");
+
+  if (!isMallType && !hasMallKeyword) return null;
+
+  // Split by common separators: " — ", " – ", " - ", " | ", or ","
+  const parts = locName.split(/\s*[\u2014\u2013\-\|,]\s*/);
+  if (parts.length > 1) {
+    return parts[0].trim();
+  }
+  return locName;
+}
+
+/**
+ * Derives the Kerala District from asset data (uses district if available, otherwise city)
+ */
+export function extractDistrict(asset) {
+  if (!asset) return "";
+  const raw = (asset.district || asset.city || "").trim();
+  const lower = raw.toLowerCase();
+
+  // Kerala aliases
+  if (lower === "kochi" || lower === "cochin") return "Ernakulam";
+  if (lower === "trivandrum" || lower === "tvm") return "Thiruvananthapuram";
+  if (lower === "calicut") return "Kozhikode";
+
+  const match = KERALA_DISTRICTS.find((d) => d.toLowerCase() === lower);
+  return match || raw;
+}
+
 const BLANK = {
   asset_type: "",
-  location_type: "Metro",
+  location_type: "Mall",
   location_code: "",
   location_name: "",
-  city: "Delhi",
-  width_ft: 6,
+  city: "Ernakulam",
+  district: "Ernakulam",
+  width_ft: 8,
   height_ft: 3,
   description: "",
   notes: "",
@@ -80,7 +189,30 @@ export function AssetDialog({ asset, trigger }) {
   const activeType = form.asset_type || typeNames[0] || "";
 
   const save = useMutation({
-    mutationFn: (body) => (asset ? apiPut(`/assets/${asset.id}`, body) : apiPost("/assets", body)),
+    mutationFn: async (body) => {
+      const { supabase } = await import("@/lib/supabase");
+      if (asset) {
+        // Update existing
+        const { data, error } = await supabase.from("assets").update(body).eq("id", asset.id).select().single();
+        if (error) throw { body: { detail: error.message } };
+        return data;
+      }
+      // Create new — generate asset code
+      const assetType = body.asset_type;
+      const locationCode = body.location_code.toUpperCase();
+      const prefix = `${assetType.toUpperCase().replace(/\s+/g, "").slice(0, 5)}-${locationCode}`;
+      const { count } = await supabase.from("assets").select("*", { count: "exact", head: true }).like("asset_code", `${prefix}-%`);
+      const code = `${prefix}-${String((count ?? 0) + 1).padStart(3, "0")}`;
+      const { data, error } = await supabase.from("assets").insert({
+        id: crypto.randomUUID(),
+        asset_code: code,
+        ...body,
+        status: "available",
+        created_at: new Date().toISOString(),
+      }).select().single();
+      if (error) throw { body: { detail: error.message } };
+      return data;
+    },
     onSuccess: (a) => {
       refreshAssets();
       if (asset) queryClient.invalidateQueries({ queryKey: ["asset", asset.id] });
@@ -171,15 +303,70 @@ export function AssetDialog({ asset, trigger }) {
                 required
                 value={form.location_code}
                 onChange={set("location_code")}
-                placeholder="RJPM"
+                placeholder="e.g. CSMK"
                 data-testid="asset-location-code-input"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="city">City</Label>
-              <Input id="city" value={form.city} onChange={set("city")} data-testid="asset-city-input" />
+              <Label>Kerala District</Label>
+              <Select
+                value={form.city}
+                onValueChange={(v) => setForm((f) => ({ ...f, city: v, district: v }))}
+              >
+                <SelectTrigger data-testid="asset-district-select">
+                  <SelectValue>{(v) => v || "Ernakulam"}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {KERALA_DISTRICTS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
+
+          {form.location_type === "Mall" && (
+            <div className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-primary">Kerala Mall Preset</Label>
+                <span className="text-[10px] text-muted-foreground">Select to auto-fill</span>
+              </div>
+              <Select
+                value=""
+                onValueChange={(mName) => {
+                  const km = KERALA_MALLS.find((m) => m.name === mName);
+                  if (km) {
+                    setForm((f) => ({
+                      ...f,
+                      location_name: `${km.name} — `,
+                      city: km.district,
+                      district: km.district,
+                      location_code: km.name
+                        .split(" ")
+                        .map((w) => w[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 4),
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-background text-xs" data-testid="kerala-mall-picker">
+                  <SelectValue>Choose from 12 Kerala malls…</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {KERALA_MALLS.map((m) => (
+                    <SelectItem key={m.name} value={m.name}>
+                      {m.name} ({m.district})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="location_name">Location name</Label>
             <Input
@@ -187,9 +374,18 @@ export function AssetDialog({ asset, trigger }) {
               required
               value={form.location_name}
               onChange={set("location_name")}
-              placeholder="Rajiv Chowk Metro — Platform 2"
+              placeholder={
+                form.location_type === "Mall"
+                  ? "e.g. Center Square Mall Kochi — Ground Atrium"
+                  : "e.g. Kochi Metro — MG Road Platform 1"
+              }
               data-testid="asset-location-name-input"
             />
+            {form.location_type === "Mall" && (
+              <p className="text-[11px] text-muted-foreground">
+                Format: <span className="font-semibold text-foreground">Mall Name — Section</span> (e.g. Center Square Mall Kochi — Ground Atrium)
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -260,7 +456,18 @@ export function AssetDialog({ asset, trigger }) {
 export function DeleteAssetDialog({ asset }) {
   const [open, setOpen] = useState(false);
   const del = useMutation({
-    mutationFn: () => apiDelete(`/assets/${asset.id}`),
+    mutationFn: async () => {
+      const { supabase } = await import("@/lib/supabase");
+      // Business rule checks
+      if (asset.status !== "available") throw { body: { detail: `Only an Available asset can be deleted — this one is ${asset.status}` } };
+      const { count: qCount } = await supabase.from("queue_entries").select("*", { count: "exact", head: true }).eq("asset_id", asset.id).in("state", ["active", "pending"]);
+      if (qCount) throw { body: { detail: "Withdraw the open interest queue entries first" } };
+      const { count: cCount } = await supabase.from("campaigns").select("*", { count: "exact", head: true }).eq("asset_id", asset.id);
+      if (cCount) throw { body: { detail: "This asset has historical campaigns — records must be retained" } };
+      const { error } = await supabase.from("assets").delete().eq("id", asset.id);
+      if (error) throw { body: { detail: error.message } };
+      return { ok: true };
+    },
     onSuccess: () => {
       refreshAssets();
       toast.success(`Asset ${asset.asset_code} deleted`);
@@ -345,9 +552,73 @@ function CsvImport() {
 export default function Assets() {
   const { data: me } = useMe();
   const [status, setStatus] = useState("all");
+  const [district, setDistrict] = useState("all");
+  const [mall, setMall] = useState("all");
   const [q, setQ] = useState("");
-  const { data: assets, isError, isLoading } = useAssets({ status, q });
+
+  const { data: rawAssets, isError, isLoading } = useAssets({ q });
   const canManage = me?.role === "ops" || me?.role === "admin";
+
+  // Count of active assets in each district for badge indicators
+  const districtCounts = useMemo(() => {
+    const counts = {};
+    for (const a of rawAssets ?? []) {
+      const d = extractDistrict(a);
+      if (d) counts[d] = (counts[d] ?? 0) + 1;
+    }
+    return counts;
+  }, [rawAssets]);
+
+  // List of districts: All 14 Kerala districts
+  const districts = KERALA_DISTRICTS;
+
+  // Derived malls: If district is selected, show Kerala malls in that district, otherwise show all Kerala malls
+  const malls = useMemo(() => {
+    const set = new Set();
+
+    // 1. Add from known Kerala Malls matching selected district (or all)
+    for (const km of KERALA_MALLS) {
+      if (district === "all" || km.district.toLowerCase() === district.toLowerCase()) {
+        set.add(km.name);
+      }
+    }
+
+    // 2. Also check if any rawAssets has a custom mall name
+    for (const a of rawAssets ?? []) {
+      if (district !== "all" && extractDistrict(a).toLowerCase() !== district.toLowerCase()) continue;
+      const m = extractMallName(a);
+      if (m) set.add(m);
+    }
+
+    return Array.from(set).sort();
+  }, [rawAssets, district]);
+
+  // If the currently selected mall is not in the updated malls list, reset it
+  useEffect(() => {
+    if (mall !== "all" && !malls.includes(mall)) {
+      setMall("all");
+    }
+  }, [malls, mall]);
+
+  // Filter assets by status, district, and mall
+  const assets = useMemo(() => {
+    return (rawAssets ?? []).filter((a) => {
+      if (status !== "all" && a.status !== status) return false;
+      if (district !== "all" && extractDistrict(a).toLowerCase() !== district.toLowerCase()) return false;
+      if (mall !== "all" && extractMallName(a)?.toLowerCase() !== mall.toLowerCase()) return false;
+      return true;
+    });
+  }, [rawAssets, status, district, mall]);
+
+  const hasActiveFilters =
+    status !== "all" || district !== "all" || mall !== "all" || Boolean(q.trim());
+
+  function clearFilters() {
+    setStatus("all");
+    setDistrict("all");
+    setMall("all");
+    setQ("");
+  }
 
   return (
     <AppShell
@@ -385,31 +656,121 @@ export default function Assets() {
       }
     >
       <div className="space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search by asset ID or location"
-              className="pl-9"
+              className="pl-9 pr-8"
               data-testid="asset-search-input"
             />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="sm:w-48" data-testid="asset-status-filter">
-              <SelectValue>
-                {(v) => STATUS_FILTERS.find(([k]) => k === v)?.[1] ?? "All statuses"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_FILTERS.map(([k, label]) => (
-                <SelectItem key={k} value={k} data-testid={`asset-status-option-${k}`}>
-                  {label}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Filter by District (Kerala's 14 districts) */}
+            <Select value={district} onValueChange={setDistrict}>
+              <SelectTrigger className="w-full sm:w-48" data-testid="asset-district-filter">
+                <div className="flex items-center gap-1.5 truncate">
+                  <MapPin className="size-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue>
+                    {(v) => (v === "all" ? "All Kerala districts" : v)}
+                  </SelectValue>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" data-testid="asset-district-option-all">
+                  All Kerala districts
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                {districts.map((d) => {
+                  const cnt = districtCounts[d];
+                  return (
+                    <SelectItem
+                      key={d}
+                      value={d}
+                      data-testid={`asset-district-option-${d.toLowerCase()}`}
+                    >
+                      <span className="flex items-center justify-between w-full gap-2">
+                        <span>{d}</span>
+                        {cnt ? (
+                          <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                            {cnt}
+                          </span>
+                        ) : null}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+
+            {/* 2. Filter by Mall (Kerala malls) */}
+            <Select value={mall} onValueChange={setMall}>
+              <SelectTrigger className="w-full sm:w-52" data-testid="asset-mall-filter">
+                <div className="flex items-center gap-1.5 truncate">
+                  <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue>
+                    {(v) => (v === "all" ? "All Kerala malls" : v)}
+                  </SelectValue>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" data-testid="asset-mall-option-all">
+                  All Kerala malls
+                </SelectItem>
+                {malls.map((m) => (
+                  <SelectItem
+                    key={m}
+                    value={m}
+                    data-testid={`asset-mall-option-${m.toLowerCase().replace(/\s+/g, "-")}`}
+                  >
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Status Filter */}
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="w-full sm:w-40" data-testid="asset-status-filter">
+                <SelectValue>
+                  {(v) => STATUS_FILTERS.find(([k]) => k === v)?.[1] ?? "All statuses"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_FILTERS.map(([k, label]) => (
+                  <SelectItem key={k} value={k} data-testid={`asset-status-option-${k}`}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Reset Button */}
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                data-testid="reset-asset-filters-button"
+              >
+                <X className="mr-1 size-3.5" />
+                Reset
+              </Button>
+            )}
+          </div>
         </div>
 
         {isError && (
@@ -420,13 +781,7 @@ export default function Assets() {
           />
         )}
 
-        {isLoading && (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="h-52 animate-pulse rounded-xl border border-border/60 bg-card/40" />
-            ))}
-          </div>
-        )}
+        {isLoading && <AssetsSkeleton count={6} />}
 
         {!isLoading && !isError && assets?.length === 0 && (
           <EmptyState
@@ -441,15 +796,15 @@ export default function Assets() {
           {(assets ?? []).map((a) => (
             <Card
               key={a.id}
-              className="group h-full overflow-hidden border-border/70 bg-card/80 p-0 transition-colors duration-200 hover:border-primary/45"
+              className="group h-full overflow-hidden border-border/80 bg-card p-0 shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/45 rounded-xl"
               data-testid={`asset-card-${a.asset_code}`}
             >
               <Link to={`/assets/${a.id}`} className="block">
                 <div className="relative h-36 overflow-hidden">
                   <PhotoSlideshow asset={a} variant="card" />
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0B0F17] to-transparent" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
                   <div className="pointer-events-none absolute bottom-2 left-3 right-3 flex items-center justify-between gap-2">
-                    <span className="mono-label truncate text-foreground">{a.asset_code}</span>
+                    <span className="mono-label truncate text-white drop-shadow-xs font-semibold">{a.asset_code}</span>
                     <AssetStatusBadge status={a.status} />
                   </div>
                 </div>
@@ -460,14 +815,14 @@ export default function Assets() {
                   </p>
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                     {a.current_brand && (
-                      <Badge variant="outline" className="mono-label border-emerald-800 bg-emerald-950/50 text-emerald-300">
+                      <Badge variant="outline" className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs">
                         {a.current_brand}
                       </Badge>
                     )}
                     {a.queue_count > 0 && (
                       <Badge
                         variant="outline"
-                        className="mono-label border-sky-800 bg-sky-950/50 text-sky-300"
+                        className="mono-label rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs"
                         data-testid={`asset-queue-count-${a.asset_code}`}
                       >
                         <Users className="mr-1 size-3" />
@@ -479,8 +834,8 @@ export default function Assets() {
                         variant="outline"
                         className={
                           a.gtp_overdue
-                            ? "mono-label border-red-800 bg-red-950/40 text-red-300"
-                            : "mono-label border-border/70 text-muted-foreground"
+                            ? "mono-label rounded-full border-red-200 bg-red-50 text-[#ba1a1a] shadow-xs"
+                            : "mono-label rounded-full border-slate-200 bg-slate-100 text-slate-600 shadow-xs"
                         }
                         data-testid={`asset-next-gtp-${a.asset_code}`}
                       >

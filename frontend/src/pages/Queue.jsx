@@ -8,6 +8,7 @@ import EmptyState from "@/components/shared/EmptyState";
 import FileUploader from "@/components/shared/FileUploader";
 import { UrgencyBadge } from "@/components/shared/StatusBadges";
 import { Button } from "@/components/ui/button";
+import { QueueSkeleton } from "@/components/skeletons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiPost } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useMe, useQueueList } from "@/lib/queries";
 import { REASON_LABELS, downloadCsv, errMessage, fmtDate } from "@/lib/helpers";
@@ -36,7 +37,61 @@ function ConfirmDialog({ entry }) {
   const [comment, setComment] = useState("");
 
   const confirm = useMutation({
-    mutationFn: (body) => apiPost(`/queue/${entry.id}/confirm`, body),
+    mutationFn: async (body) => {
+      // 1. Close the active entry as confirmed
+      const { error: updErr } = await supabase.from("queue_entries").update({
+        state: "confirmed",
+        closed_at: new Date().toISOString(),
+        confirmation: {
+          reason_type: body.reason_type,
+          doc_ids: body.doc_ids,
+          final_duration_days: body.final_duration_days,
+          original_proposed_days: entry.proposed_duration_days,
+          comment: body.comment,
+          confirmed_at: new Date().toISOString(),
+        },
+      }).eq("id", entry.id);
+      if (updErr) throw { body: { detail: updErr.message } };
+
+      // 2. Auto-cancel other pending entries
+      const { data: losers } = await supabase.from("queue_entries").select("id").eq("asset_id", entry.asset_id).eq("state", "pending");
+      for (const l of losers ?? []) {
+        await supabase.from("queue_entries").update({ state: "cancelled", closed_at: new Date().toISOString(), cancel_reason: "Asset confirmed to another brand" }).eq("id", l.id);
+      }
+
+      // 3. Move asset to onboarding
+      await supabase.from("assets").update({ status: "onboarding" }).eq("id", entry.asset_id);
+
+      // 4. Create campaign
+      const campaignId = crypto.randomUUID();
+      const { data: settingsArr } = await supabase.from("settings").select("*").eq("id", "global").maybeSingle();
+      const interval = settingsArr?.gtp_interval_days ?? 28;
+      const checklistItems = [
+        { key: "creative_brief", label: "Creative brief", mandatory: true, status: "pending" },
+        { key: "site_inspection", label: "Site inspection", mandatory: true, status: "pending" },
+        { key: "printing_dispatch", label: "Printing & dispatch", mandatory: true, status: "pending" },
+        { key: "installation_photo", label: "Installation photo", mandatory: true, status: "pending" },
+      ];
+      const { error: cErr } = await supabase.from("campaigns").insert({
+        id: campaignId,
+        asset_id: entry.asset_id,
+        asset_code: entry.asset_code,
+        brand: entry.brand,
+        brand_id: entry.brand_id ?? null,
+        salesperson_id: entry.salesperson_id,
+        salesperson_name: entry.salesperson_name,
+        duration_days: body.final_duration_days,
+        proposed_duration_days: entry.proposed_duration_days,
+        stage: "onboarding",
+        priority: "high",
+        checklist: checklistItems,
+        gtps: [],
+        created_at: new Date().toISOString(),
+      });
+      if (cErr) throw { body: { detail: cErr.message } };
+
+      return { campaign_id: campaignId, cancelled_entries: (losers ?? []).length };
+    },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["queue"] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
@@ -125,7 +180,7 @@ function ConfirmDialog({ entry }) {
               data-testid="confirm-comment-input"
             />
           </div>
-          <p className="rounded-lg border border-amber-800/60 bg-amber-950/25 px-3 py-2 text-xs text-amber-300">
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-xs">
             Confirming auto-cancels every other pending waitlist entry on this asset and notifies those
             salespersons.
           </p>
@@ -146,7 +201,25 @@ export default function Queue() {
   const [onlyMine, setOnlyMine] = useState(false);
 
   const withdraw = useMutation({
-    mutationFn: (id) => apiPost(`/queue/${id}/withdraw`),
+    mutationFn: async (id) => {
+      const { data: e } = await supabase.from("queue_entries").select("*").eq("id", id).single();
+      await supabase.from("queue_entries").update({ state: "cancelled", closed_at: new Date().toISOString(), cancel_reason: "Withdrawn by sales" }).eq("id", id);
+      if (e?.state === "active") {
+        const { data: next } = await supabase.from("queue_entries").select("*").eq("asset_id", e.asset_id).eq("state", "pending").order("created_at").limit(1).maybeSingle();
+        if (next) {
+          const { data: settingsArr } = await supabase.from("settings").select("queue_active_business_days").eq("id", "global").maybeSingle();
+          const holdDays = settingsArr?.queue_active_business_days ?? 5;
+          const { data: holidays } = await supabase.from("holidays").select("date");
+          const holidaySet = new Set((holidays ?? []).map((h) => h.date));
+          let d = new Date(); let counted = 0;
+          while (counted < holdDays) { d.setDate(d.getDate() + 1); const ds = d.toISOString().split("T")[0]; const dow = d.getDay(); if (dow !== 0 && dow !== 6 && !holidaySet.has(ds)) counted++; }
+          await supabase.from("queue_entries").update({ state: "active", position: 0, expires_on: d.toISOString().split("T")[0] }).eq("id", next.id);
+        } else {
+          await supabase.from("assets").update({ status: "available" }).eq("id", e.asset_id).eq("status", "reserved");
+        }
+      }
+      return { ok: true };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue"] });
       queryClient.invalidateQueries({ queryKey: ["assets"] });
@@ -217,7 +290,7 @@ export default function Queue() {
             testId="queue-error-state"
           />
         )}
-        {isLoading && <div className="h-40 animate-pulse rounded-xl border border-border/60 bg-card/40" />}
+        {isLoading && <QueueSkeleton count={3} />}
         {!isLoading && !isError && list.length === 0 && (
           <EmptyState
             title="No open interest"
@@ -263,10 +336,10 @@ export default function Queue() {
                       className={cn(
                         "rounded-xl border px-4 py-3",
                         active.urgency === "urgent"
-                          ? "border-red-700/70 bg-red-950/25 animate-urgent-pulse"
+                          ? "border-red-200 bg-red-50/90 animate-urgent-pulse shadow-xs"
                           : active.urgency === "warning"
-                            ? "border-amber-700/70 bg-amber-950/20"
-                            : "border-primary/50 bg-primary/5",
+                            ? "border-amber-200 bg-amber-50 shadow-xs"
+                            : "border-sky-200/80 bg-sky-50/50 shadow-xs",
                       )}
                       data-testid={`queue-active-slot-${assetCode}`}
                     >

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Download } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import AuditTrail from "@/components/shared/AuditTrail";
+import { AuditSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuditLog, useMe, useUsers } from "@/lib/queries";
@@ -21,7 +22,7 @@ export default function Audit() {
   const { data: me } = useMe();
   const [entityType, setEntityType] = useState("all");
   const [actorId, setActorId] = useState("all");
-  const { data: entries, isError } = useAuditLog({ entity_type: entityType, actor_id: actorId });
+  const { data: entries, isError, isLoading } = useAuditLog({ entity_type: entityType, actor_id: actorId });
   const { data: users } = useUsers(me?.role === "admin");
 
   return (
@@ -87,14 +88,18 @@ export default function Audit() {
           )}
         </div>
 
-        <AuditTrail
-          entries={isError ? [] : (entries ?? [])}
-          emptyHint={
-            isError
-              ? "The audit service could not be reached. Try again shortly."
-              : "Nothing recorded for this filter yet."
-          }
-        />
+        {isLoading ? (
+          <AuditSkeleton count={5} />
+        ) : (
+          <AuditTrail
+            entries={isError ? [] : (entries ?? [])}
+            emptyHint={
+              isError
+                ? "The audit service could not be reached. Try again shortly."
+                : "Nothing recorded for this filter yet."
+            }
+          />
+        )}
       </div>
     </AppShell>
   );

@@ -1,18 +1,22 @@
 import { FileText, ImageIcon, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { apiGet } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 function DocChip({ docId }) {
   const { data } = useQuery({
     queryKey: ["doc", docId],
-    queryFn: () => apiGet(`/uploads/${docId}/meta`),
+    queryFn: async () => {
+      const { data, error } = await supabase.from("documents").select("*").eq("id", docId).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
     retry: false,
     staleTime: Infinity,
   });
   const isImage = data?.content_type?.startsWith("image/");
   return (
     <a
-      href={`/api/uploads/${docId}`}
+      href={data?.url || "#"}
       target="_blank"
       rel="noreferrer"
       className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/70 bg-secondary/50 px-2 py-1 text-xs transition-colors duration-150 hover:border-primary/50 hover:text-primary"

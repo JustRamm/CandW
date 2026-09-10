@@ -1,17 +1,40 @@
-// Multipart upload helper — api.js only speaks JSON, uploads need FormData.
+// File upload helpers — use Supabase Storage instead of the old /api/uploads endpoint.
+import { supabase } from "@/lib/supabase";
 import { ApiError } from "@/lib/api";
 
+function randomId() {
+  return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+}
+
 export async function uploadFile(file, { label = "", geo = "" } = {}) {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("label", label);
-  form.append("geo", geo);
-  const res = await fetch("/api/uploads", { method: "POST", body: form });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new ApiError(res.status, body);
-  }
-  return await res.json();
+  const ext = file.name.split(".").pop();
+  const path = `documents/${randomId()}.${ext}`;
+  const { error: uploadError } = await supabase.storage.from("documents").upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (uploadError) throw new ApiError(400, { detail: uploadError.message });
+
+  const { data: urlData } = supabase.storage.from("documents").getPublicUrl(path);
+
+  const { data: doc, error: insertError } = await supabase
+    .from("documents")
+    .insert({
+      id: randomId(),
+      filename: file.name,
+      content_type: file.type,
+      size: file.size,
+      label,
+      geo,
+      storage_path: path,
+      url: urlData.publicUrl,
+      created_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (insertError) throw new ApiError(400, { detail: insertError.message });
+  return { id: doc.id, filename: doc.filename, content_type: doc.content_type, size: doc.size, url: doc.url };
 }
 
 export async function uploadMany(files, opts) {
@@ -21,14 +44,52 @@ export async function uploadMany(files, opts) {
 }
 
 export async function importAssetsCsv(file) {
-  const form = new FormData();
-  form.append("file", file);
-  const res = await fetch("/api/assets/import-csv", { method: "POST", body: form });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new ApiError(res.status, body);
+  const text = await file.text();
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return { created: 0, codes: [], errors: ["File is empty"] };
+
+  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+  const rows = lines.slice(1);
+  const created = [];
+  const errors = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const values = rows[i].split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
+    const row = Object.fromEntries(headers.map((h, idx) => [h, values[idx] ?? ""]));
+    try {
+      const assetType = (row.asset_type || "").trim();
+      const locationCode = (row.location_code || "").trim().toUpperCase();
+      if (!assetType || !locationCode) throw new Error("asset_type and location_code are required");
+
+      // Generate a sequential asset code: TYPE-LOC-NNN
+      const prefix = `${assetType.toUpperCase().replace(/\s+/g, "").slice(0, 5)}-${locationCode}`;
+      const { count } = await supabase.from("assets").select("*", { count: "exact", head: true }).like("asset_code", `${prefix}-%`);
+      const code = `${prefix}-${String((count ?? 0) + 1).padStart(3, "0")}`;
+
+      const { error } = await supabase.from("assets").insert({
+        id: randomId(),
+        asset_code: code,
+        asset_type: assetType,
+        location_type: (row.location_type || "Metro").trim(),
+        location_code: locationCode,
+        location_name: (row.location_name || "").trim(),
+        city: (row.city || "Delhi").trim(),
+        width_ft: parseFloat(row.width_ft) || 6,
+        height_ft: parseFloat(row.height_ft) || 3,
+        photo_url: (row.photo_url || "").trim(),
+        photo_ids: [],
+        description: "",
+        notes: "",
+        status: "available",
+        created_at: new Date().toISOString(),
+      });
+      if (error) throw new Error(error.message);
+      created.push(code);
+    } catch (err) {
+      errors.push(`Row ${i + 2}: ${err.message}`);
+    }
   }
-  return await res.json();
+  return { created: created.length, codes: created, errors };
 }
 
 export function errMessage(err, fallback = "Something went wrong") {
