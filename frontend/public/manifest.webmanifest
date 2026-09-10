@@ -1,0 +1,13 @@
+{
+  "name": "OOH-Sync · Outdoor Advertising Asset IMS",
+  "short_name": "OOH-Sync",
+  "description": "Lifecycle management for metro and mall bench advertising assets.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0B0F17",
+  "theme_color": "#0B0F17",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

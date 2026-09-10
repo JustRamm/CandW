@@ -1,0 +1,71 @@
+{
+  "iteration": 1,
+  "passed": 8,
+  "failed": 0,
+  "bugs": [],
+  "action_items": [],
+  "retest_needed": false,
+  "checks": [
+    {
+      "criterion": "Unauthenticated visitor at / must be redirected to /login, never a dead-end 'Session ended' screen.",
+      "name": "unauth-root-redirects-login",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Cleared cookies, navigated to /, landed on /login with login form visible; body text did not contain 'Session ended'. Screenshot: unauth-root-redirects-login-login-page.png"
+    },
+    {
+      "criterion": "Unauthenticated deep links (/dashboard, /assets, /queue, /campaigns, /audit, /admin) are guarded, not dead-ended.",
+      "name": "unauth-deeplinks-redirect-login",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Each of the 6 protected routes redirected to /login with the login form visible and no 'Session ended' text. Screenshot: unauth-deeplinks-redirect-login-final-login.png"
+    },
+    {
+      "criterion": "Login works and lands the user on their role dashboard.",
+      "name": "login-lands-on-dashboard",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Signed in as sales@ims.test via demo-account button, redirected to /dashboard, kpi-grid visible, sidebar-user-name shows 'Vikram Sales'. Screenshot: login-lands-on-dashboard-dashboard-after-login.png"
+    },
+    {
+      "criterion": "Session survives a full page reload (httpOnly cookie persists); already-authenticated user visiting /login is bounced to dashboard.",
+      "name": "session-reload-and-login-bounce",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "After login, page.reload() kept kpi-grid visible and URL off /login, no 'Session ended' text. Subsequent navigation to /login while authenticated redirected back to /dashboard. Screenshots: after-reload.png, login-bounced-to-dashboard.png"
+    },
+    {
+      "criterion": "Signing out returns the user to login and re-protects the app.",
+      "name": "signout-blocks-protected-pages",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Clicked sign-out, landed on /login; subsequent navigation to /dashboard redirected to /login again with no stale data or 'Session ended' text. Screenshots: after-signout.png, dashboard-blocked-after-signout.png"
+    },
+    {
+      "criterion": "Role gating on the Admin area holds after the guard change.",
+      "name": "admin-area-role-gating",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "sales@ims.test at /admin sees 'Admin access required' restricted message, no user list; admin@ims.test at /admin sees the user list including sales@ims.test entry. Screenshots: sales-admin-restricted.png, admin-user-list-visible.png"
+    },
+    {
+      "criterion": "Auth session lifecycle (login sets cookie, /auth/me works, logout clears it; bad password rejected) — API-level backing for the reload/logout browser criteria.",
+      "name": "test_tscheck_auth_session.py",
+      "lane": "backend",
+      "status": "passed",
+      "evidence": "POST /api/auth/login (sales@ims.test) -> 200 sets ims_session cookie; GET /api/auth/me -> 200 {email, role: sales}; POST /api/auth/logout -> 200 with Set-Cookie Max-Age=0; GET /api/auth/me after cookie removal -> 401. POST /api/auth/login wrong password -> 401. 2 tests passed."
+    },
+    {
+      "criterion": "Finance-manager confirmation flow / role-restricted API action (pre-existing backend coverage, unrelated to the auth-guard bug fix but part of repo's existing test suite).",
+      "name": "test_tscheck_fm_confirm_flow.py",
+      "lane": "backend",
+      "status": "passed",
+      "evidence": "Full pytest run: 5 passed in 1.21s (includes this file alongside auth_session tests)."
+    }
+  ],
+  "notes": [
+    "7 acceptance-matrix criteria covered by 6 browser checks + 2 backend test files (8 total artifacts); criteria 4 and 5 combined into one browser check (session-reload-and-login-bounce) since they share the same authenticated-session flow.",
+    "Console 401s on /api/auth/me observed during unauthenticated-page checks are expected/benign per briefing and were not counted as failures.",
+    "All checks and backend tests passed on this run; no bugs found in the guard-fix behavior under test."
+  ]
+}
