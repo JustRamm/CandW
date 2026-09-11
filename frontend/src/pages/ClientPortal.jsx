@@ -27,6 +27,8 @@ import { fmtDate } from "@/lib/helpers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClientPortalSkeleton } from "@/components/skeletons";
+
 
 const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_API_KEY || "";
 
@@ -310,20 +312,9 @@ export default function ClientPortal() {
 
   // Loading State
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
-        <div className="text-center space-y-4">
-          <div className="inline-flex size-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <h2 className="font-heading text-lg font-semibold text-foreground">
-            Authenticating Proof-of-Performance telemetry…
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Connecting to live telemetry & geo-tagged installation records
-          </p>
-        </div>
-      </div>
-    );
+    return <ClientPortalSkeleton />;
   }
+
 
   // Not Found State
   if (isError || (!brand && !campaigns.length)) {

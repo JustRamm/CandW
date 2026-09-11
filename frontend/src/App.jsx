@@ -3,7 +3,9 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import PageLoadingFallback from "@/components/shared/PageLoadingFallback";
+import PwaInstallPrompt from "@/components/shared/PwaInstallPrompt";
 import { useMe } from "@/lib/queries";
+
 import { NotFound, Forbidden, ServerError, OfflineBanner } from "@/pages/errors";
 
 // Route-level Code Splitting for ultra-fast initial bundle loading
@@ -88,7 +90,9 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
+      <PwaInstallPrompt />
       <Toaster position="top-right" />
     </ErrorBoundary>
   );
 }
+

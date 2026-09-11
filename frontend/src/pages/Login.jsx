@@ -28,7 +28,9 @@ import { queryClient } from "@/lib/queryClient";
 import { beginSession } from "@/lib/session";
 import { useMe } from "@/lib/queries";
 import sound from "@/lib/sound";
+import Skeleton from "@/components/skeletons/Skeleton";
 import { cn } from "@/lib/utils";
+
 
 const ROLES = [
   { value: "sales", label: "Sales" },
@@ -196,14 +198,26 @@ export default function Login({ initialMode }) {
     onError: (err) => toast.error(err?.message ?? "Failed to send reset email"),
   });
 
-  // Bug #14 fix: show a minimal spinner while session is resolving — do not render the full form
+  // Show skeleton while session is resolving
   if (meLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="flex h-screen w-screen items-center justify-center bg-background p-4">
+        <div className="w-full max-w-md space-y-4 rounded-2xl border border-border/70 bg-card/60 p-8 shadow-sm">
+          <div className="space-y-2 text-center flex flex-col items-center">
+            <Skeleton className="size-12 rounded-2xl" />
+            <Skeleton className="h-6 w-36" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+          <div className="space-y-3 pt-4">
+            <Skeleton className="h-10 w-full rounded-lg" />
+            <Skeleton className="h-10 w-full rounded-lg" />
+            <Skeleton className="h-10 w-full rounded-lg" />
+          </div>
+        </div>
       </div>
     );
   }
+
 
   // If already logged in, redirect to dashboard (placed after all hooks)
   if (me?.id) {

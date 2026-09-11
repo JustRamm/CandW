@@ -9,3 +9,5 @@ export { default as BrandsSkeleton } from "./BrandsSkeleton";
 export { default as BrandDetailSkeleton } from "./BrandDetailSkeleton";
 export { default as AuditSkeleton } from "./AuditSkeleton";
 export { default as AdminSkeleton } from "./AdminSkeleton";
+export { default as ClientPortalSkeleton } from "./ClientPortalSkeleton";
+
