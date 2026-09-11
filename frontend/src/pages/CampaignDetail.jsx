@@ -7,6 +7,7 @@ import {
   Camera,
   CheckCircle2,
   CircleDot,
+  Copy,
   ExternalLink,
   Receipt,
   Rocket,
@@ -825,14 +826,23 @@ export default function CampaignDetail() {
               onClick={() => {
                 const url = `${window.location.origin}/view/${campaign.id}`;
                 navigator.clipboard.writeText(url);
-                toast.success("Client Proof-of-Performance link copied!");
-                window.open(`/view/${campaign.id}`, "_blank");
+                toast.success("Client Proof-of-Performance link copied to clipboard!");
               }}
-              data-testid="client-pop-portal-button"
+              data-testid="copy-client-pop-portal-button"
+            >
+              <Copy className="size-3.5" />
+              Copy Client Link
+            </Button>
+          )}
+          {campaign && (
+            <Link
+              to={`/view/${campaign.id}`}
+              className={cn(buttonVariants({ variant: "outline", size: "xs" }), "gap-1.5 cursor-pointer")}
+              data-testid="view-client-pop-portal-button"
             >
               <ExternalLink className="size-3.5" />
-              Client POP Portal
-            </Button>
+              View Portal
+            </Link>
           )}
         </div>
       }

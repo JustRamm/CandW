@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
+  ArrowLeft,
   ShieldCheck,
   MapPin,
   Calendar,
@@ -21,7 +22,7 @@ import {
   Radio,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useClientPortalData } from "@/lib/queries";
+import { useClientPortalData, useMe } from "@/lib/queries";
 import { fmtDate } from "@/lib/helpers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,19 @@ export default function ClientPortal() {
   const [lightboxProof, setLightboxProof] = useState(null);
   const [trafficTelemetry, setTrafficTelemetry] = useState(null);
   const [isCopied, setIsCopied] = useState(false);
+
+  const { data: me } = useMe();
+  const navigate = useNavigate();
+
+  const handleBackToCrm = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else if (brand?.id && brand.id !== "direct") {
+      navigate(`/brands/${brand.id}`);
+    } else {
+      navigate("/brands");
+    }
+  };
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -344,6 +358,25 @@ export default function ClientPortal() {
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 selection:text-primary">
+      {/* ── Internal Staff Preview Notice Bar (Only for logged-in CRM users) ── */}
+      {me && (
+        <div className="bg-primary/10 border-b border-primary/25 px-4 py-2 text-xs flex items-center justify-between text-foreground">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-primary inline-block" />
+            <span>
+              Internal CRM Preview as <strong>{me.name}</strong> ({me.role_label}) · External clients see only the verified report.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleBackToCrm}
+            className="font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <ArrowLeft className="size-3.5" /> Return to CRM
+          </button>
+        </div>
+      )}
+
       {/* ── Executive Branded Header ────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
@@ -368,6 +401,19 @@ export default function ClientPortal() {
           </div>
 
           <div className="flex items-center gap-2">
+            {me && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBackToCrm}
+                className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+                data-testid="portal-back-to-crm"
+              >
+                <ArrowLeft className="size-3.5" />
+                <span className="hidden sm:inline">Back to CRM</span>
+              </Button>
+            )}
+
             <Button
               variant="outline"
               size="sm"

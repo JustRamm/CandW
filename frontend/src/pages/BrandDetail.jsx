@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Building2, ExternalLink, Mail, Pencil, Phone, User } from "lucide-react";
+import { ArrowLeft, Building2, Copy, ExternalLink, Mail, Pencil, Phone, User } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -138,14 +138,23 @@ export default function BrandDetail() {
                 const slug = encodeURIComponent(brand.name.toLowerCase().replace(/\s+/g, "-"));
                 const url = `${window.location.origin}/portal/${slug}`;
                 navigator.clipboard.writeText(url);
-                toast.success("Client Proof-of-Performance link copied!");
-                window.open(`/portal/${slug}`, "_blank");
+                toast.success("Client Proof-of-Performance link copied to clipboard!");
               }}
-              data-testid="client-portal-button"
+              data-testid="copy-client-portal-button"
+            >
+              <Copy className="size-3.5" />
+              Copy Client Link
+            </Button>
+          )}
+          {brand && (
+            <Link
+              to={`/portal/${encodeURIComponent(brand.name.toLowerCase().replace(/\s+/g, "-"))}`}
+              className={cn(buttonVariants({ variant: "outline", size: "xs" }), "gap-1.5 cursor-pointer")}
+              data-testid="view-client-portal-button"
             >
               <ExternalLink className="size-3.5" />
-              Client POP Portal
-            </Button>
+              View Portal
+            </Link>
           )}
           {brand && canEdit && <EditBrandDialog brand={brand} />}
         </div>
