@@ -178,11 +178,11 @@ export default function ClientPortal() {
       attributionControl: false,
     });
 
-    // Dark sleek map tiles
-    L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19 }
-    ).addTo(map);
+    // High-contrast clean OpenStreetMap basemap tiles (no API key required)
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
 
     // TomTom Live Traffic layer
     if (TOMTOM_API_KEY) {
@@ -527,7 +527,7 @@ export default function ClientPortal() {
             <Card className="border-border/60 bg-card/70 backdrop-blur-xs">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">Live TomTom Traffic</span>
+                  <span className="text-xs font-medium text-muted-foreground">Live Traffic Velocity</span>
                   <Navigation className="size-4 text-emerald-500" />
                 </div>
                 <div className="mt-2 font-heading text-2xl font-bold tracking-tight">
@@ -536,7 +536,7 @@ export default function ClientPortal() {
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   {trafficTelemetry
                     ? `Passing speed at ${selectedAsset?.location_code || "site"}`
-                    : "Real-time TomTom stream active"}
+                    : "Real-time traffic flow stream active"}
                 </p>
               </CardContent>
             </Card>
@@ -596,7 +596,7 @@ export default function ClientPortal() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="font-heading text-lg font-bold text-foreground">
-                  Live Billboard Geolocation & TomTom Traffic
+                  Live Billboard Geolocation & Traffic Flow
                 </h2>
                 <p className="text-xs text-muted-foreground">
                   Interactive real-time map displaying all verified installation points with live traffic flow
@@ -606,7 +606,7 @@ export default function ClientPortal() {
               {TOMTOM_API_KEY && (
                 <Badge variant="outline" className="text-[11px] border-border/70 gap-1 text-muted-foreground">
                   <span className="size-2 rounded-full bg-emerald-500" />
-                  TomTom Live Flow Active
+                  Live Traffic Stream Active
                 </Badge>
               )}
             </div>
@@ -659,11 +659,11 @@ export default function ClientPortal() {
                       </div>
                     </div>
 
-                    {/* TomTom Segment Data */}
+                    {/* Real-Time Traffic Telemetry */}
                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-primary flex items-center gap-1.5">
-                          <Navigation className="size-3.5" /> TomTom Real-Time Telemetry
+                          <Navigation className="size-3.5" /> Real-Time Traffic Telemetry
                         </span>
                         <span className="text-[10px] text-muted-foreground">Live</span>
                       </div>

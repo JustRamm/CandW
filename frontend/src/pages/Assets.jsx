@@ -52,7 +52,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 
 import { queryClient } from "@/lib/queryClient";
-import { useAssetTypes, useAssets, useMe } from "@/lib/queries";
+import { useAssetTypes, useAssets, useBrands, useMe } from "@/lib/queries";
 import { downloadAssetCsvTemplate, downloadCsv, errMessage, importAssetsCsv } from "@/lib/helpers";
 import sound from "@/lib/sound";
 
@@ -164,6 +164,7 @@ const BLANK = {
   location_type: "Mall",
   location_code: "",
   location_name: "",
+  brand_name: "",
   city: "Ernakulam",
   district: "Ernakulam",
   width_ft: 8,
@@ -182,6 +183,7 @@ function refreshAssets() {
 /** Shared create/edit form. `asset` present = edit mode. */
 export function AssetDialog({ asset, trigger }) {
   const { data: types } = useAssetTypes();
+  const { data: brands = [] } = useBrands();
   const [open, setOpen] = useState(false);
 
   const getInitialForm = () =>
@@ -191,6 +193,7 @@ export function AssetDialog({ asset, trigger }) {
           location_type: asset.location_type ?? "Metro",
           location_code: asset.location_code,
           location_name: asset.location_name,
+          brand_name: asset.current_brand ?? "",
           city: asset.city ?? "",
           // Bug #21 fix: include district so it's not wiped on edit-save
           district: asset.district ?? asset.city ?? "",
@@ -280,8 +283,20 @@ export function AssetDialog({ asset, trigger }) {
   const save = useMutation({
     mutationFn: async (body) => {
       const { supabase } = await import("@/lib/supabase");
+
+      if (!body.brand_name && !asset) {
+        throw { body: { detail: "Please select a registered brand partner (required)." } };
+      }
+
+      const notesWithBrand = body.brand_name
+        ? `${body.notes ? body.notes + " · " : ""}Brand Partner: ${body.brand_name}`
+        : body.notes;
+
+      const { brand_name, ...dbFields } = body;
+
       const payload = {
-        ...body,
+        ...dbFields,
+        notes: notesWithBrand,
         latitude: body.latitude && !isNaN(Number(body.latitude)) ? Number(body.latitude) : null,
         longitude: body.longitude && !isNaN(Number(body.longitude)) ? Number(body.longitude) : null,
         geofence_radius_m: body.geofence_radius_m ? Number(body.geofence_radius_m) : 500,
@@ -307,12 +322,33 @@ export function AssetDialog({ asset, trigger }) {
         created_at: new Date().toISOString(),
       }).select().single();
       if (error) throw { body: { detail: error.message } };
+
+      // Link brand campaign automatically
+      if (body.brand_name) {
+        const matched = brands.find((b) => b.name === body.brand_name);
+        await supabase.from("campaigns").insert({
+          id: crypto.randomUUID(),
+          asset_id: data.id,
+          asset_code: data.asset_code,
+          brand: body.brand_name,
+          brand_id: matched?.id || null,
+          duration_days: 30,
+          proposed_duration_days: 30,
+          stage: "live",
+          priority: "high",
+          start_date: new Date().toISOString().split("T")[0],
+          end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        });
+      }
+
       return data;
     },
     onSuccess: (a) => {
       sound.success();
       refreshAssets();
       if (asset) queryClient.invalidateQueries({ queryKey: ["asset", asset.id] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
       toast.success(asset ? `Asset ${a.asset_code} updated` : `Asset ${a.asset_code} created`);
       setOpen(false);
       resetAll();
@@ -391,6 +427,39 @@ export function AssetDialog({ asset, trigger }) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Non-optional Registered Brand Partner */}
+          <div className="space-y-1.5">
+            <Label htmlFor="asset-brand-select" className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-foreground">
+                Placeholder Brand Partner <span className="text-destructive">*</span>
+              </span>
+              <span className="text-[10px] text-muted-foreground">Required</span>
+            </Label>
+            <Select
+              value={form.brand_name}
+              onValueChange={(val) => setForm((f) => ({ ...f, brand_name: val }))}
+            >
+              <SelectTrigger id="asset-brand-select" className="bg-background text-xs" data-testid="asset-brand-select">
+                <SelectValue placeholder="Select registered brand partner (required)..." />
+              </SelectTrigger>
+              <SelectContent>
+                {brands.map((b) => (
+                  <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
+                    <span className="font-semibold text-foreground">{b.name}</span>
+                    {b.industry && (
+                      <span className="ml-2 text-[11px] text-muted-foreground">({b.industry})</span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!form.brand_name && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                A registered brand partner is required for all new assets.
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
