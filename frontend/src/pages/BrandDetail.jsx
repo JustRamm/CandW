@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Mail, Pencil, Phone, User } from "lucide-react";
+import { ArrowLeft, Building2, ExternalLink, Mail, Pencil, Phone, User } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -129,6 +129,24 @@ export default function BrandDetail() {
             <ArrowLeft className="size-3.5" />
             Brands
           </Link>
+          {brand && (
+            <Button
+              variant="outline"
+              size="xs"
+              className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer"
+              onClick={() => {
+                const slug = encodeURIComponent(brand.name.toLowerCase().replace(/\s+/g, "-"));
+                const url = `${window.location.origin}/portal/${slug}`;
+                navigator.clipboard.writeText(url);
+                toast.success("Client Proof-of-Performance link copied!");
+                window.open(`/portal/${slug}`, "_blank");
+              }}
+              data-testid="client-portal-button"
+            >
+              <ExternalLink className="size-3.5" />
+              Client POP Portal
+            </Button>
+          )}
           {brand && canEdit && <EditBrandDialog brand={brand} />}
         </div>
       }

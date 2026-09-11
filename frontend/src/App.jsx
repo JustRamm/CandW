@@ -18,6 +18,7 @@ const Campaigns = lazy(() => import("@/pages/Campaigns"));
 const CampaignDetail = lazy(() => import("@/pages/CampaignDetail"));
 const Audit = lazy(() => import("@/pages/Audit"));
 const Admin = lazy(() => import("@/pages/Admin"));
+const ClientPortal = lazy(() => import("@/pages/ClientPortal"));
 
 // ErrorBoundary catches any render-time crash and renders ServerError recovery page
 class ErrorBoundary extends Component {
@@ -80,6 +81,8 @@ export default function App() {
           <Route path="/campaigns/:campaignId" element={<PrivateRoute><CampaignDetail /></PrivateRoute>} />
           <Route path="/audit" element={<PrivateRoute allowedRoles={["admin", "finance", "finance_manager"]}><Audit /></PrivateRoute>} />
           <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><Admin /></PrivateRoute>} />
+          <Route path="/portal/:brandKey" element={<ClientPortal />} />
+          <Route path="/view/:campaignId" element={<ClientPortal />} />
           <Route path="/403" element={<Forbidden />} />
           <Route path="/404" element={<NotFound />} />
           <Route path="*" element={<NotFound />} />

@@ -511,3 +511,138 @@ export function useAssetTypes() {
   });
 }
 
+// ── Client Proof-of-Performance (POP) Portal ─────────────────────────────
+
+export function useClientPortalData(identifier, type = "brand") {
+  return useQuery({
+    queryKey: ["client-portal", identifier, type],
+    queryFn: async () => {
+      if (!identifier) return null;
+
+      let brand = null;
+      let campaigns = [];
+
+      if (type === "campaign") {
+        const { data: c } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("id", identifier)
+          .maybeSingle();
+
+        if (c) {
+          campaigns = [c];
+          if (c.brand_id) {
+            const { data: b } = await supabase
+              .from("brands")
+              .select("*")
+              .eq("id", c.brand_id)
+              .maybeSingle();
+            brand = b ?? { id: c.brand_id, name: c.brand };
+          } else {
+            brand = { id: "direct", name: c.brand };
+          }
+        }
+      } else {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+        let brandQuery = supabase.from("brands").select("*");
+        if (isUuid) {
+          brandQuery = brandQuery.eq("id", identifier);
+        } else {
+          const clean = decodeURIComponent(identifier).replace(/[-_]/g, " ");
+          brandQuery = brandQuery.ilike("name", `%${clean}%`);
+        }
+        const { data: bData } = await brandQuery.limit(1).maybeSingle();
+        brand = bData;
+
+        if (brand) {
+          const { data: cData } = await supabase
+            .from("campaigns")
+            .select("*")
+            .eq("brand_id", brand.id)
+            .order("created_at", { ascending: false });
+          campaigns = cData ?? [];
+        } else {
+          const clean = decodeURIComponent(identifier).replace(/[-_]/g, " ");
+          const { data: cData } = await supabase
+            .from("campaigns")
+            .select("*")
+            .ilike("brand", `%${clean}%`)
+            .order("created_at", { ascending: false });
+          if (cData?.length) {
+            campaigns = cData;
+            brand = { id: cData[0].brand_id || "direct", name: cData[0].brand };
+          }
+        }
+      }
+
+      if (!brand && (!campaigns || !campaigns.length)) {
+        return null;
+      }
+
+      const assetIds = Array.from(new Set(campaigns.map((c) => c.asset_id).filter(Boolean)));
+      let assets = [];
+      if (assetIds.length) {
+        const { data: aData } = await supabase
+          .from("assets")
+          .select("*")
+          .in("id", assetIds);
+        assets = aData ?? [];
+      }
+
+      const assetMap = Object.fromEntries(assets.map((a) => [a.id, a]));
+
+      const docIds = Array.from(
+        new Set(
+          campaigns.flatMap((c) => (c.gtps ?? []).flatMap((g) => g.doc_ids ?? [])),
+        ),
+      );
+      let documents = [];
+      if (docIds.length) {
+        const { data: dData } = await supabase
+          .from("documents")
+          .select("*")
+          .in("id", docIds);
+        documents = dData ?? [];
+      }
+      const docMap = Object.fromEntries(documents.map((d) => [d.id, d]));
+
+      const proofs = [];
+      for (const camp of campaigns) {
+        const asset = assetMap[camp.asset_id];
+        for (const g of camp.gtps ?? []) {
+          for (const dId of g.doc_ids ?? []) {
+            const doc = docMap[dId];
+            if (doc) {
+              proofs.push({
+                id: `${camp.id}-${g.id}-${doc.id}`,
+                campaignId: camp.id,
+                gtpSeq: g.seq,
+                isFinal: g.is_final,
+                dueDate: g.due_date,
+                status: g.status,
+                submittedAt: g.submitted_at,
+                reviewedAt: g.reviewed_at,
+                doc,
+                asset,
+              });
+            }
+          }
+        }
+      }
+
+      return {
+        brand,
+        campaigns,
+        assets,
+        assetMap,
+        documents,
+        proofs,
+      };
+    },
+    enabled: Boolean(identifier),
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+

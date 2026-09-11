@@ -7,6 +7,7 @@ import {
   Camera,
   CheckCircle2,
   CircleDot,
+  ExternalLink,
   Receipt,
   Rocket,
   XCircle,
@@ -811,10 +812,29 @@ export default function CampaignDetail() {
       title={campaign ? `${campaign.brand}` : "Campaign"}
       subtitle={campaign ? `${campaign.asset_code} · ${campaign.duration_days} day campaign` : "Loading…"}
       actions={
-        <Link to="/campaigns" className={cn(buttonVariants({ variant: "outline", size: "xs" }))} data-testid="back-to-campaigns">
-          <ArrowLeft className="size-3.5" />
-          Campaigns
-        </Link>
+        <div className="flex items-center gap-1.5">
+          <Link to="/campaigns" className={cn(buttonVariants({ variant: "outline", size: "xs" }))} data-testid="back-to-campaigns">
+            <ArrowLeft className="size-3.5" />
+            Campaigns
+          </Link>
+          {campaign && (
+            <Button
+              variant="outline"
+              size="xs"
+              className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer"
+              onClick={() => {
+                const url = `${window.location.origin}/view/${campaign.id}`;
+                navigator.clipboard.writeText(url);
+                toast.success("Client Proof-of-Performance link copied!");
+                window.open(`/view/${campaign.id}`, "_blank");
+              }}
+              data-testid="client-pop-portal-button"
+            >
+              <ExternalLink className="size-3.5" />
+              Client POP Portal
+            </Button>
+          )}
+        </div>
       }
     >
       {isError && (
