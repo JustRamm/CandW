@@ -183,7 +183,8 @@ function refreshAssets() {
 export function AssetDialog({ asset, trigger }) {
   const { data: types } = useAssetTypes();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(
+
+  const getInitialForm = () =>
     asset
       ? {
           asset_type: asset.asset_type,
@@ -201,8 +202,9 @@ export function AssetDialog({ asset, trigger }) {
           longitude: asset.longitude ?? "",
           geofence_radius_m: asset.geofence_radius_m ?? 500,
         }
-      : BLANK,
-  );
+      : { ...BLANK };
+
+  const [form, setForm] = useState(getInitialForm);
   const [photos, setPhotos] = useState(
     (asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })),
   );
@@ -215,6 +217,25 @@ export function AssetDialog({ asset, trigger }) {
     latitude: "",
     longitude: "",
   });
+
+  const resetAll = () => {
+    setForm(getInitialForm());
+    setPhotos((asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })));
+    setIsCustomMall(false);
+    setNewMall({
+      name: "",
+      district: "Ernakulam",
+      city: "",
+      section: "",
+      latitude: "",
+      longitude: "",
+    });
+  };
+
+  const handleOpenChange = (nextOpen) => {
+    setOpen(nextOpen);
+    resetAll();
+  };
 
   const handleNewMallChange = (key, val) => {
     const updated = { ...newMall, [key]: val };
@@ -294,10 +315,7 @@ export function AssetDialog({ asset, trigger }) {
       if (asset) queryClient.invalidateQueries({ queryKey: ["asset", asset.id] });
       toast.success(asset ? `Asset ${a.asset_code} updated` : `Asset ${a.asset_code} created`);
       setOpen(false);
-      if (!asset) {
-        setForm(BLANK);
-        setPhotos([]);
-      }
+      resetAll();
     },
     onError: (err) => {
       sound.warning();
@@ -308,7 +326,7 @@ export function AssetDialog({ asset, trigger }) {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
           trigger ?? <Button size="sm" data-testid="add-asset-button" />
@@ -677,7 +695,14 @@ export function AssetDialog({ asset, trigger }) {
             <Label htmlFor="notes">Notes</Label>
             <Textarea id="notes" rows={2} value={form.notes} onChange={set("notes")} data-testid="asset-notes-input" />
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+            >
+              Cancel
+            </Button>
             <Button type="submit" disabled={save.isPending} data-testid="submit-asset-button">
               {save.isPending ? "Saving…" : asset ? "Save changes" : "Create asset"}
             </Button>
