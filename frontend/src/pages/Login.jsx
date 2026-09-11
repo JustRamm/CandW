@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
+import BrandDoodles from "@/components/shared/BrandDoodles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -333,11 +334,12 @@ export default function Login({ initialMode }) {
           layout
           transition={{ type: "spring", stiffness: 180, damping: 25 }}
           className={cn(
-            "flex flex-1 flex-col justify-center px-6 py-10 sm:px-12 lg:px-16 bg-background",
+            "relative flex flex-1 flex-col justify-center px-6 py-10 sm:px-12 lg:px-16 bg-background overflow-hidden",
             isSignUp ? "order-1" : "order-2"
           )}
         >
-          <div className="mx-auto w-full max-w-sm">
+          <BrandDoodles />
+          <div className="relative z-10 mx-auto w-full max-w-sm">
             {/* Mobile Header */}
             <div className="mb-6 flex items-center gap-2.5 lg:hidden">
               <div className="flex size-9 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-xs">

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/skeletons";
+import BrandDoodles from "@/components/shared/BrandDoodles";
 import { useMe, useNotifications } from "@/lib/queries";
 import { supabase } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
@@ -249,19 +250,22 @@ export default function AppShell({ children, title, subtitle, actions }) {
             </div>
           </div>
         </header>
-        <main className="flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full">
-          {isLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-10 w-48 rounded-lg" />
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Skeleton className="h-44 rounded-xl" />
-                <Skeleton className="h-44 rounded-xl" />
-                <Skeleton className="h-44 rounded-xl" />
+        <main className="relative flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full min-h-full">
+          <BrandDoodles />
+          <div className="relative z-10">
+            {isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-48 rounded-lg" />
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Skeleton className="h-44 rounded-xl" />
+                  <Skeleton className="h-44 rounded-xl" />
+                  <Skeleton className="h-44 rounded-xl" />
+                </div>
               </div>
-            </div>
-          ) : (
-            children
-          )}
+            ) : (
+              children
+            )}
+          </div>
         </main>
       </div>
 
