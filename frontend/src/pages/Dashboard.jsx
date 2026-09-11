@@ -66,7 +66,7 @@ function CampaignRow({ campaign, note }) {
 
 export default function Dashboard() {
   const { data: me, isLoading: isMeLoading } = useMe();
-  const { data, isError, isLoading: isDashboardLoading } = useDashboard();
+  const { data, isError, isLoading: isDashboardLoading } = useDashboard(me);
   const role = me?.role;
   const isLoading = isDashboardLoading || (!data && isMeLoading);
 

@@ -89,10 +89,10 @@ function PrioritySelect({ campaign, gtpId, value }) {
   const save = useMutation({
     mutationFn: async (priority) => {
       if (gtpId) {
-        // Update priority of a specific GTP within the JSONB array
+        // Bug #1 fix: Only update the gtps array — do NOT touch the campaign-level priority.
         const { data: c } = await supabase.from("campaigns").select("gtps").eq("id", campaign.id).single();
         const gtps = (c?.gtps ?? []).map((g) => g.id === gtpId ? { ...g, priority } : g);
-        const { error } = await supabase.from("campaigns").update({ gtps, priority }).eq("id", campaign.id);
+        const { error } = await supabase.from("campaigns").update({ gtps }).eq("id", campaign.id);
         if (error) throw { body: { detail: error.message } };
         return { priority };
       }
@@ -119,7 +119,7 @@ function PrioritySelect({ campaign, gtpId, value }) {
         className="h-7 w-28"
         data-testid={gtpId ? `gtp-priority-select-${gtpId}` : "campaign-priority-select"}
       >
-        <SelectValue>{(v) => v ?? "medium"}</SelectValue>
+        <SelectValue placeholder="medium" />
       </SelectTrigger>
       <SelectContent>
         {["high", "medium", "low"].map((p) => (
@@ -231,11 +231,12 @@ function ChecklistItem({ campaign, item }) {
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
-              disabled={save.isPending}
+              disabled={save.isPending || docs.length === 0}
               onClick={() =>
                 save.mutate({ status: "done", notes, doc_ids: docs.map((d) => d.id) })
               }
               data-testid={`checklist-complete-${item.key}`}
+              title={docs.length === 0 ? "Upload at least one attachment to complete this step" : undefined}
             >
               <CheckCircle2 className="size-4" />
               Mark complete
@@ -263,7 +264,9 @@ function ChecklistItem({ campaign, item }) {
 
 function InvoiceDialog({ campaign }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ invoice_number: "", amount: "", gst_percent: 18, notes: "" });
+  // Bug #7 fix: Let Finance pick the actual campaign start date instead of hardcoding to today
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [form, setForm] = useState({ invoice_number: "", amount: "", gst_percent: 18, notes: "", start_date: todayStr });
   const [docs, setDocs] = useState([]);
   const refresh = useRefresh(campaign.id);
 
@@ -272,9 +275,9 @@ function InvoiceDialog({ campaign }) {
       // Invoice: add invoice object, move to live, set start/end dates, generate GTP schedule
       const { data: settingsArr } = await supabase.from("settings").select("*").eq("id", "global").maybeSingle();
       const interval = settingsArr?.gtp_interval_days ?? 28;
-      const today = new Date().toISOString().split("T")[0];
-      const startDate = today;
-      const endDate = new Date(Date.now() + campaign.duration_days * 86400000).toISOString().split("T")[0];
+      // Bug #7 fix: use Finance-selected start date, not today
+      const startDate = body.start_date;
+      const endDate = new Date(new Date(startDate).getTime() + campaign.duration_days * 86400000).toISOString().split("T")[0];
       // Generate GTP schedule
       const gtps = [];
       let dueDateMs = new Date(startDate).getTime() + interval * 86400000;
@@ -331,6 +334,7 @@ function InvoiceDialog({ campaign }) {
               gst_percent: Number(form.gst_percent),
               notes: form.notes,
               doc_ids: docs.map((d) => d.id),
+              start_date: form.start_date,
             });
           }}
           data-testid="invoice-form"
@@ -345,6 +349,18 @@ function InvoiceDialog({ campaign }) {
               placeholder="INV-2026-0042"
               data-testid="invoice-number-input"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="start_date">Campaign start date</Label>
+            <Input
+              id="start_date"
+              type="date"
+              required
+              value={form.start_date}
+              onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
+              data-testid="invoice-start-date-input"
+            />
+            <p className="text-[11px] text-muted-foreground">Actual installation date — anchors the GTP schedule.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

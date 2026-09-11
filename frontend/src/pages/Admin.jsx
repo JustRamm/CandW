@@ -153,7 +153,7 @@ function UsersPanel() {
               <Label>Role</Label>
               <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}>
                 <SelectTrigger data-testid="invite-role-select">
-                  <SelectValue>{(v) => roleLabel(v)}</SelectValue>
+                  <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
                   {(roles ?? []).map((r) => (
@@ -168,6 +168,7 @@ function UsersPanel() {
               <Label htmlFor="u-password">Temporary password</Label>
               <Input
                 id="u-password"
+                type="password"
                 required
                 minLength={6}
                 value={form.password}

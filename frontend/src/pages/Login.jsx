@@ -42,7 +42,7 @@ const ROLES = [
 export default function Login({ initialMode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { data: me, isSuccess } = useMe();
+  const { data: me, isLoading: meLoading } = useMe();
 
   // Mode: "signin" | "signup" | "forgot"
   const [mode, setMode] = useState(
@@ -55,7 +55,9 @@ export default function Login({ initialMode }) {
     } else if (location.pathname === "/login" && mode !== "forgot") {
       setMode("signin");
     }
-  }, [location.pathname]);
+  // Bug #13 fix: include `mode` in deps to avoid stale closure
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, mode]);
 
   // Sign In state
   const [email, setEmail] = useState("");
@@ -182,13 +184,25 @@ export default function Login({ initialMode }) {
     },
     onSuccess: () => {
       setForgotSubmitted(true);
-      toast.success("Password reset instructions dispatched!");
+      toast.success("Password reset instructions sent to your email.");
     },
-    onError: (err) => toast.error(err?.message ?? "Failed to request reset"),
+    onError: (err) => toast.error(err?.message ?? "Failed to send reset email"),
   });
 
-  // If already signed in, redirect to dashboard
-  if (isSuccess && me) return <Navigate to="/dashboard" replace />;
+  // Bug #14 fix: show a minimal spinner while session is resolving — do not render the full form
+  if (meLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  // If already logged in, redirect to dashboard (placed after all hooks)
+  if (me?.id) {
+    const from = location.state?.from || "/dashboard";
+    return <Navigate to={from} replace />;
+  }
 
   const isSignUp = mode === "signup";
 
@@ -208,10 +222,9 @@ export default function Login({ initialMode }) {
           )}
         >
           <div
-            className="absolute inset-0 opacity-15 mix-blend-overlay"
+            className="absolute inset-0 opacity-35 mix-blend-overlay transition-all duration-500"
             style={{
-              backgroundImage:
-                "url(https://images.unsplash.com/photo-1558910034-2145cd06626f?crop=entropy&cs=srgb&fm=jpg&w=1200&q=80)",
+              backgroundImage: isSignUp ? "url(/auth/signup.png)" : "url(/auth/signin.png)",
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}

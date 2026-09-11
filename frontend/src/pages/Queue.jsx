@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, Download, ListOrdered } from "lucide-react";
+import { CheckCircle2, ListOrdered, Upload } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -203,19 +203,57 @@ export default function Queue() {
   const withdraw = useMutation({
     mutationFn: async (id) => {
       const { data: e } = await supabase.from("queue_entries").select("*").eq("id", id).single();
-      await supabase.from("queue_entries").update({ state: "cancelled", closed_at: new Date().toISOString(), cancel_reason: "Withdrawn by sales" }).eq("id", id);
+      await supabase
+        .from("queue_entries")
+        .update({ state: "cancelled", closed_at: new Date().toISOString(), cancel_reason: "Withdrawn by sales" })
+        .eq("id", id);
+
       if (e?.state === "active") {
-        const { data: next } = await supabase.from("queue_entries").select("*").eq("asset_id", e.asset_id).eq("state", "pending").order("created_at").limit(1).maybeSingle();
+        // Active slot withdrawn — promote next pending entry by position
+        const { data: next } = await supabase
+          .from("queue_entries").select("*").eq("asset_id", e.asset_id)
+          .eq("state", "pending").order("position").limit(1).maybeSingle();
         if (next) {
           const { data: settingsArr } = await supabase.from("settings").select("queue_active_business_days").eq("id", "global").maybeSingle();
           const holdDays = settingsArr?.queue_active_business_days ?? 5;
           const { data: holidays } = await supabase.from("holidays").select("date");
           const holidaySet = new Set((holidays ?? []).map((h) => h.date));
           let d = new Date(); let counted = 0;
-          while (counted < holdDays) { d.setDate(d.getDate() + 1); const ds = d.toISOString().split("T")[0]; const dow = d.getDay(); if (dow !== 0 && dow !== 6 && !holidaySet.has(ds)) counted++; }
-          await supabase.from("queue_entries").update({ state: "active", position: 0, expires_on: d.toISOString().split("T")[0] }).eq("id", next.id);
+          while (counted < holdDays) {
+            d.setDate(d.getDate() + 1);
+            const ds = d.toISOString().split("T")[0];
+            const dow = d.getDay();
+            if (dow !== 0 && dow !== 6 && !holidaySet.has(ds)) counted++;
+          }
+          await supabase.from("queue_entries")
+            .update({ state: "active", position: 0, expires_on: d.toISOString().split("T")[0] })
+            .eq("id", next.id);
+          // Bug #4 fix: resequence remaining pending entries (1, 2, 3…)
+          const { data: remaining } = await supabase
+            .from("queue_entries").select("id").eq("asset_id", e.asset_id)
+            .eq("state", "pending").neq("id", next.id).order("position");
+          for (let i = 0; i < (remaining ?? []).length; i++) {
+            await supabase.from("queue_entries").update({ position: i + 1 }).eq("id", remaining[i].id);
+          }
         } else {
-          await supabase.from("assets").update({ status: "available" }).eq("id", e.asset_id).eq("status", "reserved");
+          await supabase.from("assets").update({ status: "available" }).eq("id", e.asset_id);
+        }
+      } else if (e?.state === "pending") {
+        // Bug #4 fix: compact positions for remaining pending entries to remove gap
+        const { data: remaining } = await supabase
+          .from("queue_entries").select("id, position").eq("asset_id", e.asset_id)
+          .eq("state", "pending").order("position");
+        for (let i = 0; i < (remaining ?? []).length; i++) {
+          if (remaining[i].position !== i + 1) {
+            await supabase.from("queue_entries").update({ position: i + 1 }).eq("id", remaining[i].id);
+          }
+        }
+        // If no active slot and no more pending entries, free the asset
+        const { count: activeCount } = await supabase
+          .from("queue_entries").select("*", { count: "exact", head: true })
+          .eq("asset_id", e.asset_id).eq("state", "active");
+        if (!activeCount && !(remaining ?? []).length) {
+          await supabase.from("assets").update({ status: "available" }).eq("id", e.asset_id);
         }
       }
       return { ok: true };
@@ -276,7 +314,7 @@ export default function Queue() {
             }
             data-testid="export-queue-button"
           >
-            <Download className="size-3.5" />
+            <Upload className="size-3.5" />
             Export
           </Button>
         </div>

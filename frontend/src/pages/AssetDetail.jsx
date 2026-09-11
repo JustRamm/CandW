@@ -58,8 +58,19 @@ function AddInterestDialog({ asset }) {
         if (existing) { brandId = existing.id; brandName = existing.name; }
         else {
           const { data: newBrand, error: bErr } = await supabase.from("brands").insert({ id: crypto.randomUUID(), name: body.brand.trim(), created_at: new Date().toISOString() }).select().single();
-          if (bErr) throw { body: { detail: bErr.message } };
-          brandId = newBrand.id; brandName = newBrand.name;
+          if (bErr) {
+            // Bug #18 fix: handle race condition — another user may have created the brand between our check and insert
+            if (bErr.code === "23505") {
+              // unique violation — fetch the one that was just created
+              const { data: raceWinner } = await supabase.from("brands").select("id, name").ilike("name", body.brand.trim()).maybeSingle();
+              if (raceWinner) { brandId = raceWinner.id; brandName = raceWinner.name; }
+              else throw { body: { detail: bErr.message } };
+            } else {
+              throw { body: { detail: bErr.message } };
+            }
+          } else {
+            brandId = newBrand.id; brandName = newBrand.name;
+          }
         }
       }
       // 2. Check for existing open entry from same brand
@@ -89,13 +100,20 @@ function AddInterestDialog({ asset }) {
         expiresOn = d.toISOString().split("T")[0];
       }
 
+      // Bug #9 fix: call getUser() once and reuse
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: myProfile } = await supabase.from("profiles").select("name").eq("id", user?.id).single();
+
       const entry = {
         id: crypto.randomUUID(),
         asset_id: body.asset_id,
+        // Bug #2 fix: store asset_code and asset_location so Queue page and ConfirmDialog can read them
+        asset_code: asset.asset_code,
+        asset_location: asset.location_name ?? "",
         brand_id: brandId,
         brand: brandName,
-        salesperson_id: (await supabase.auth.getUser()).data.user?.id,
-        salesperson_name: (await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single()).data?.name ?? "",
+        salesperson_id: user?.id,
+        salesperson_name: myProfile?.name ?? user?.email?.split("@")[0] ?? "",
         proposed_duration_days: body.proposed_duration_days,
         proposed_start_date: body.proposed_start_date || null,
         proposed_end_date: body.proposed_end_date || null,

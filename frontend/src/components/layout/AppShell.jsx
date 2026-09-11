@@ -20,7 +20,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Skeleton } from "@/components/skeletons";
 import BrandDoodles from "@/components/shared/BrandDoodles";
 import { useMe, useNotifications } from "@/lib/queries";
-import { supabase } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { endSession } from "@/lib/session";
 import { fmtDateTime } from "@/lib/helpers";
@@ -106,17 +106,21 @@ function NotificationDrawer() {
             <li
               key={n.id}
               className={cn(
-                "rounded-lg border px-3 py-2.5 transition-colors duration-150",
-                n.read ? "border-border/60 bg-card/40" : "border-primary/40 bg-primary/5",
+                "rounded-xl border p-3 transition-all duration-150",
+                n.read
+                  ? "border-border/60 bg-card/60"
+                  : "border-primary/30 bg-primary/5 shadow-xs shadow-primary/5",
               )}
               data-testid="notification-item"
             >
               <div className="flex items-start justify-between gap-2">
-                <p className="font-heading text-sm font-medium">{n.title}</p>
-                {!n.read && <span className="mt-1 size-2 shrink-0 rounded-full bg-primary" />}
+                <p className="font-heading text-xs font-semibold text-foreground">{n.title}</p>
+                {!n.read && (
+                  <span className="mt-1 size-2 shrink-0 rounded-full bg-primary ring-2 ring-primary/20" />
+                )}
               </div>
-              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{n.body}</p>
-              <p className="mono-label mt-1.5 text-muted-foreground">{fmtDateTime(n.created_at)}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{n.body}</p>
+              <p className="mono-label mt-2 text-[10px] text-muted-foreground/80">{fmtDateTime(n.created_at)}</p>
             </li>
           ))}
         </ul>
@@ -126,13 +130,23 @@ function NotificationDrawer() {
 }
 
 export default function AppShell({ children, title, subtitle, actions }) {
-  const { data: me, isError, isLoading } = useMe();
+  const { data: me, isLoading } = useMe();
   const location = useLocation();
   const [signingOut, setSigningOut] = useState(false);
 
-  if (isError) {
-    // Not authenticated (or the session expired) — send the visitor straight to sign in
-    // instead of parking them on a dead-end panel.
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background select-none">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="font-heading text-xs font-medium text-muted-foreground">Loading workspace…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!me || !me.id) {
+    // Not authenticated — send visitor straight to sign in
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
@@ -213,7 +227,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col min-w-0 h-screen overflow-y-auto pb-20 md:pb-0">
+      <div className="flex flex-1 flex-col min-w-0 h-screen overflow-y-auto pb-28 md:pb-0">
         <header className="sticky top-0 z-20 border-b border-border/70 bg-background/85 px-4 py-3 sm:py-4 backdrop-blur-xl md:px-8">
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center justify-between gap-3 min-w-0">
@@ -250,21 +264,10 @@ export default function AppShell({ children, title, subtitle, actions }) {
             </div>
           </div>
         </header>
-        <main className="relative flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full min-h-full">
+        <main className="relative flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full min-h-full pb-36 md:pb-8">
           <BrandDoodles />
           <div className="relative z-10">
-            {isLoading ? (
-              <div className="space-y-4">
-                <Skeleton className="h-10 w-48 rounded-lg" />
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <Skeleton className="h-44 rounded-xl" />
-                  <Skeleton className="h-44 rounded-xl" />
-                  <Skeleton className="h-44 rounded-xl" />
-                </div>
-              </div>
-            ) : (
-              children
-            )}
+            {children}
           </div>
         </main>
       </div>

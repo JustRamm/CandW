@@ -7,11 +7,13 @@ function randomId() {
 }
 
 export async function uploadFile(file, { label = "", geo = "" } = {}) {
-  const ext = file.name.split(".").pop();
-  const path = `documents/${randomId()}.${ext}`;
+  const cleanExt = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const fileId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+  const path = `${fileId}.${cleanExt}`;
+  
   const { error: uploadError } = await supabase.storage.from("documents").upload(path, file, {
-    contentType: file.type,
-    upsert: false,
+    contentType: file.type || "application/octet-stream",
+    upsert: true,
   });
   if (uploadError) throw new ApiError(400, { detail: uploadError.message });
 
@@ -20,10 +22,10 @@ export async function uploadFile(file, { label = "", geo = "" } = {}) {
   const { data: doc, error: insertError } = await supabase
     .from("documents")
     .insert({
-      id: randomId(),
+      id: fileId,
       filename: file.name,
-      content_type: file.type,
-      size: file.size,
+      content_type: file.type || "application/octet-stream",
+      size: file.size || 0,
       label,
       geo,
       storage_path: path,
@@ -33,7 +35,11 @@ export async function uploadFile(file, { label = "", geo = "" } = {}) {
     .select()
     .single();
 
-  if (insertError) throw new ApiError(400, { detail: insertError.message });
+  if (insertError) {
+    // Bug #3 fix: do NOT silently return — throw so callers know the document wasn't tracked.
+    // The file is already in storage; the caller can retry or surface the error to the user.
+    throw new ApiError(500, { detail: `File uploaded but record could not be saved: ${insertError.message}` });
+  }
   return { id: doc.id, filename: doc.filename, content_type: doc.content_type, size: doc.size, url: doc.url };
 }
 

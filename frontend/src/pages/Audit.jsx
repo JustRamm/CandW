@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download } from "lucide-react";
+import { Upload } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import AuditTrail from "@/components/shared/AuditTrail";
 import { AuditSkeleton } from "@/components/skeletons";
@@ -22,7 +22,8 @@ export default function Audit() {
   const { data: me } = useMe();
   const [entityType, setEntityType] = useState("all");
   const [actorId, setActorId] = useState("all");
-  const { data: entries, isError, isLoading } = useAuditLog({ entity_type: entityType, actor_id: actorId });
+  const [limit, setLimit] = useState(100);
+  const { data: entries, isError, isLoading } = useAuditLog({ entity_type: entityType, actor_id: actorId, limit });
   const { data: users } = useUsers(me?.role === "admin");
 
   return (
@@ -50,7 +51,7 @@ export default function Audit() {
           }
           data-testid="export-audit-button"
         >
-          <Download className="size-3.5" />
+          <Upload className="size-3.5" />
           Export
         </Button>
       }
@@ -59,7 +60,7 @@ export default function Audit() {
         <div className="flex flex-col gap-2 sm:flex-row">
           <Select value={entityType} onValueChange={setEntityType}>
             <SelectTrigger className="w-full sm:w-56" data-testid="audit-entity-filter">
-              <SelectValue>{(v) => ENTITY_TYPES.find(([k]) => k === v)?.[1] ?? "All entities"}</SelectValue>
+              <SelectValue placeholder="All entities" />
             </SelectTrigger>
             <SelectContent>
               {ENTITY_TYPES.map(([k, label]) => (
@@ -72,9 +73,7 @@ export default function Audit() {
           {me?.role === "admin" && (
             <Select value={actorId} onValueChange={setActorId}>
               <SelectTrigger className="w-full sm:w-56" data-testid="audit-actor-filter">
-                <SelectValue>
-                  {(v) => (v === "all" ? "All actors" : users?.find((u) => u.id === v)?.name ?? "Actor")}
-                </SelectValue>
+                <SelectValue placeholder="All actors" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All actors</SelectItem>
@@ -91,14 +90,28 @@ export default function Audit() {
         {isLoading ? (
           <AuditSkeleton count={5} />
         ) : (
-          <AuditTrail
-            entries={isError ? [] : (entries ?? [])}
-            emptyHint={
-              isError
-                ? "The audit service could not be reached. Try again shortly."
-                : "Nothing recorded for this filter yet."
-            }
-          />
+          <>
+            <AuditTrail
+              entries={isError ? [] : (entries ?? [])}
+              emptyHint={
+                isError
+                  ? "The audit service could not be reached. Try again shortly."
+                  : "Nothing recorded for this filter yet."
+              }
+            />
+            {entries && entries.length >= limit && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLimit((prev) => prev + 100)}
+                  data-testid="audit-load-more-btn"
+                >
+                  Load next 100 entries (showing {entries.length})
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </AppShell>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -173,7 +173,9 @@ export function AssetDialog({ asset, trigger }) {
           location_type: asset.location_type ?? "Metro",
           location_code: asset.location_code,
           location_name: asset.location_name,
-          city: asset.city,
+          city: asset.city ?? "",
+          // Bug #21 fix: include district so it's not wiped on edit-save
+          district: asset.district ?? asset.city ?? "",
           width_ft: asset.width_ft,
           height_ft: asset.height_ft,
           description: asset.description ?? "",
@@ -258,7 +260,7 @@ export function AssetDialog({ asset, trigger }) {
               width_ft: Number(form.width_ft),
               height_ft: Number(form.height_ft),
               photo_ids: photos.map((p) => p.id),
-              photo_url: asset?.photo_url ?? "",
+              photo_url: photos[0]?.url || asset?.photo_url || "",
             });
           }}
           data-testid={asset ? "edit-asset-form" : "add-asset-form"}
@@ -520,6 +522,9 @@ export function DeleteAssetDialog({ asset }) {
 
 function CsvImport() {
   const [busy, setBusy] = useState(false);
+  // Bug #22 fix: use a ref to reliably reset the file input (plain `e.target.value = ""` fails on Safari iOS)
+  const inputRef = useRef(null);
+
   async function onFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -534,7 +539,8 @@ function CsvImport() {
       toast.error(errMessage(err, "Import failed"));
     } finally {
       setBusy(false);
-      e.target.value = "";
+      // Reset via ref so the same file can be re-imported on all browsers
+      if (inputRef.current) inputRef.current.value = null;
     }
   }
   return (
@@ -542,9 +548,9 @@ function CsvImport() {
       className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border/70 bg-secondary/40 px-2.5 py-1.5 text-xs transition-colors duration-150 hover:border-primary/50"
       data-testid="csv-import-label"
     >
-      <Upload className="size-3.5" />
+      <Download className="size-3.5" />
       {busy ? "Importing…" : "CSV import"}
-      <input type="file" accept=".csv" className="hidden" onChange={onFile} data-testid="csv-import-input" />
+      <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={onFile} data-testid="csv-import-input" />
     </label>
   );
 }
@@ -647,7 +653,7 @@ export default function Assets() {
             }
             data-testid="export-assets-button"
           >
-            <Download className="size-3.5" />
+            <Upload className="size-3.5" />
             Export
           </Button>
           {canManage && <CsvImport />}

@@ -40,8 +40,22 @@ function BrandDialog() {
 
   const create = useMutation({
     mutationFn: async (body) => {
-      const { data, error } = await supabase.from("brands").insert({ id: crypto.randomUUID(), ...body, created_at: new Date().toISOString() }).select().single();
-      if (error) throw { body: { detail: error.message } };
+      const trimmedName = body.name.trim();
+      const { data: existing } = await supabase.from("brands").select("*").ilike("name", trimmedName).maybeSingle();
+      if (existing) {
+        throw { body: { detail: `Brand "${existing.name}" already exists.` } };
+      }
+      const { data, error } = await supabase
+        .from("brands")
+        .insert({ id: crypto.randomUUID(), ...body, name: trimmedName, created_at: new Date().toISOString() })
+        .select()
+        .single();
+      if (error) {
+        if (error.code === "23505") {
+          throw { body: { detail: `Brand "${trimmedName}" already exists.` } };
+        }
+        throw { body: { detail: error.message } };
+      }
       return data;
     },
     onSuccess: (b) => {

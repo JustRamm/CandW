@@ -47,9 +47,9 @@ export function useMe() {
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
 
-export function useDashboard() {
+export function useDashboard(userProfile) {
   return useQuery({
-    queryKey: ["dashboard"],
+    queryKey: ["dashboard", userProfile?.role, userProfile?.id],
     queryFn: async () => {
       const [
         { data: assets },
@@ -57,25 +57,28 @@ export function useDashboard() {
         { data: campaigns },
         { data: settingsArr },
         { data: holidays },
-        authResult,
       ] = await Promise.all([
-        supabase.from("assets").select("*").then((r) => r, () => ({ data: [] })),
+        // Bug #20 fix: select only required columns for KPI calculation rather than all columns
+        supabase.from("assets").select("id, status").then((r) => r, () => ({ data: [] })),
         supabase.from("queue_entries").select("*").in("state", ["active", "pending"]).then((r) => r, () => ({ data: [] })),
-        supabase.from("campaigns").select("*").neq("stage", "closed").then((r) => r, () => ({ data: [] })),
+        supabase.from("campaigns").select("id, brand, asset_code, stage, gtps, checklist, cancellation, duration_days, start_date, end_date").neq("stage", "closed").then((r) => r, () => ({ data: [] })),
         supabase.from("settings").select("*").then((r) => r, () => ({ data: [] })),
         supabase.from("holidays").select("date").then((r) => r, () => ({ data: [] })),
-        supabase.auth.getUser().catch(() => ({ data: null })),
       ]);
 
-      let profile = null;
-      if (authResult?.data?.user?.id) {
+      // Bug #8 fix: use userProfile passed from useMe() cache, avoiding redundant DB fetch
+      let profile = userProfile;
+      if (!profile) {
         try {
-          const { data } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", authResult.data.user.id)
-            .single();
-          profile = data;
+          const authResult = await supabase.auth.getUser();
+          if (authResult?.data?.user?.id) {
+            const { data } = await supabase
+              .from("profiles")
+              .select("id, role, name")
+              .eq("id", authResult.data.user.id)
+              .maybeSingle();
+            profile = data;
+          }
         } catch {
           // ignore
         }
@@ -384,7 +387,9 @@ export function useAuditLog(filters = {}) {
   return useQuery({
     queryKey: ["audit", filters],
     queryFn: async () => {
-      let q = supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(500);
+      // Bug #16 fix: support pagination limit (default 100) instead of hardcoding 500
+      const limit = filters.limit ?? 100;
+      let q = supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(limit);
       if (filters.entity_type && filters.entity_type !== "all") q = q.eq("entity_type", filters.entity_type);
       if (filters.asset_id) q = q.eq("asset_id", filters.asset_id);
       if (filters.actor_id && filters.actor_id !== "all") q = q.eq("actor_id", filters.actor_id);
