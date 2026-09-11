@@ -207,7 +207,40 @@ export function AssetDialog({ asset, trigger }) {
     (asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })),
   );
   const [isCustomMall, setIsCustomMall] = useState(false);
-  const [customMallInput, setCustomMallInput] = useState("");
+  const [newMall, setNewMall] = useState({
+    name: "",
+    district: "Ernakulam",
+    city: "",
+    section: "",
+    latitude: "",
+    longitude: "",
+  });
+
+  const handleNewMallChange = (key, val) => {
+    const updated = { ...newMall, [key]: val };
+    setNewMall(updated);
+
+    const code = (updated.name || "MALL")
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 4);
+
+    const section = updated.section ? ` — ${updated.section}` : " — ";
+    const locName = updated.name ? `${updated.name.trim()}${section}` : "";
+
+    setForm((f) => ({
+      ...f,
+      location_name: locName || f.location_name,
+      location_code: code || f.location_code,
+      district: updated.district || f.district,
+      city: updated.city || updated.district || f.city,
+      latitude: updated.latitude || f.latitude,
+      longitude: updated.longitude || f.longitude,
+    }));
+  };
 
   const DEFAULT_TYPES = [
     "Mall Bench",
@@ -384,7 +417,7 @@ export function AssetDialog({ asset, trigger }) {
                 <Select
                   value=""
                   onValueChange={(mName) => {
-                    if (mName === "__custom__") {
+                    if (mName === "__new__") {
                       setIsCustomMall(true);
                       return;
                     }
@@ -406,11 +439,11 @@ export function AssetDialog({ asset, trigger }) {
                   }}
                 >
                   <SelectTrigger className="bg-background text-xs" data-testid="kerala-mall-picker">
-                    <SelectValue>Select known mall or choose Custom…</SelectValue>
+                    <SelectValue>Select known mall or add new…</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__custom__" className="font-semibold text-primary">
-                      ✨ + Add new / custom mall…
+                    <SelectItem value="__new__" className="font-semibold text-primary cursor-pointer">
+                      + Add new mall...
                     </SelectItem>
                     {KERALA_MALLS.map((m) => (
                       <SelectItem key={m.name} value={m.name}>
@@ -420,41 +453,102 @@ export function AssetDialog({ asset, trigger }) {
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="flex items-center gap-2 animate-in fade-in duration-150">
-                  <Input
-                    placeholder="Enter new mall name (e.g. Nexus Mall Kochi)"
-                    value={customMallInput}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomMallInput(val);
-                      const code = val
-                        .split(" ")
-                        .filter(Boolean)
-                        .map((w) => w[0])
-                        .join("")
-                        .toUpperCase()
-                        .slice(0, 4);
-                      setForm((f) => ({
-                        ...f,
-                        location_name: val ? `${val} — ` : "",
-                        location_code: code || f.location_code,
-                      }));
-                    }}
-                    className="h-8 text-xs bg-background"
-                    autoFocus
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => {
-                      setIsCustomMall(false);
-                      setCustomMallInput("");
-                    }}
-                    className="h-8 px-2 text-xs text-muted-foreground"
-                  >
-                    Cancel
-                  </Button>
+                <div className="space-y-2 rounded-md border border-border/70 bg-background/90 p-2.5 text-xs animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
+                    <span className="font-semibold text-foreground">New Mall Location Details</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomMall(false)}
+                      className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      Back to known malls
+                    </button>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Mall name</Label>
+                    <Input
+                      placeholder="e.g. Nexus Mall Kochi"
+                      value={newMall.name}
+                      onChange={(e) => handleNewMallChange("name", e.target.value)}
+                      className="h-7 text-xs bg-background"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Kerala District</Label>
+                      <Select
+                        value={newMall.district}
+                        onValueChange={(v) => handleNewMallChange("district", v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs bg-background">
+                          <SelectValue>{newMall.district}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {KERALA_DISTRICTS.map((d) => (
+                            <SelectItem key={d} value={d}>
+                              {d}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">City / Area</Label>
+                      <Input
+                        placeholder="e.g. Maradu"
+                        value={newMall.city}
+                        onChange={(e) => handleNewMallChange("city", e.target.value)}
+                        className="h-7 text-xs bg-background"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Mall Section / Atrium</Label>
+                      <Input
+                        placeholder="e.g. Ground Atrium"
+                        value={newMall.section}
+                        onChange={(e) => handleNewMallChange("section", e.target.value)}
+                        className="h-7 text-xs bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Location Code</Label>
+                      <Input
+                        placeholder="Auto-generated (e.g. NMK)"
+                        value={form.location_code}
+                        onChange={set("location_code")}
+                        className="h-7 text-xs uppercase bg-background"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/30">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">GPS Latitude (optional)</Label>
+                      <Input
+                        placeholder="e.g. 9.9676"
+                        value={newMall.latitude}
+                        onChange={(e) => handleNewMallChange("latitude", e.target.value)}
+                        className="h-6 text-[11px] bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">GPS Longitude (optional)</Label>
+                      <Input
+                        placeholder="e.g. 76.3195"
+                        value={newMall.longitude}
+                        onChange={(e) => handleNewMallChange("longitude", e.target.value)}
+                        className="h-6 text-[11px] bg-background"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
