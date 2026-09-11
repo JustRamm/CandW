@@ -141,6 +141,9 @@ create table if not exists public.assets (
   photo_ids      jsonb default '[]',
   description    text default '',
   notes          text default '',
+  latitude       numeric(10, 7),
+  longitude      numeric(10, 7),
+  geofence_radius_m integer default 500,
   status         text not null default 'available'
                  check (status in ('available','reserved','onboarding','live','closing','closed')),
   created_at     timestamptz default now()
@@ -361,3 +364,18 @@ create policy "documents: public update" on storage.objects
 drop policy if exists "documents: public delete" on storage.objects;
 create policy "documents: public delete" on storage.objects
   for delete using (bucket_id = 'documents');
+
+-- ── 16. Realtime Publication Setup ───────────────────────────
+-- Enables live Supabase feeds for queue entries, campaigns, and audit logs
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'queue_entries') then
+    alter publication supabase_realtime add table public.queue_entries;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'campaigns') then
+    alter publication supabase_realtime add table public.campaigns;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'audit_logs') then
+    alter publication supabase_realtime add table public.audit_logs;
+  end if;
+end $$;

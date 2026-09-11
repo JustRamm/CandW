@@ -3,6 +3,7 @@ import { Paperclip, Upload, X, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { errMessage, uploadMany } from "@/lib/helpers";
+import sound from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,6 +24,7 @@ export default function FileUploader({
   async function handleFiles(e) {
     const files = e.target.files;
     if (!files?.length) return;
+    sound.upload();
     setBusy(true);
     try {
       const geo = geotag
@@ -30,8 +32,10 @@ export default function FileUploader({
         : "";
       const docs = await uploadMany(files, { label, geo });
       onChange?.([...value, ...docs]);
+      sound.success();
       toast.success(`${docs.length} file${docs.length === 1 ? "" : "s"} uploaded`);
     } catch (err) {
+      sound.warning();
       toast.error(errMessage(err, "Upload failed"));
     } finally {
       setBusy(false);

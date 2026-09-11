@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload } from "lucide-react";
+import { Download } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import AuditTrail from "@/components/shared/AuditTrail";
 import { AuditSkeleton } from "@/components/skeletons";
@@ -51,7 +51,7 @@ export default function Audit() {
           }
           data-testid="export-audit-button"
         >
-          <Upload className="size-3.5" />
+          <Download className="size-3.5" />
           Export
         </Button>
       }

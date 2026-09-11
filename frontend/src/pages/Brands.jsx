@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { Building2, Mail, Phone, Plus, Search, User } from "lucide-react";
+import { Building2, Download, Mail, Phone, Plus, Search, User } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -23,7 +23,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useBrands, useMe } from "@/lib/queries";
-import { errMessage } from "@/lib/helpers";
+import { downloadCsv, errMessage, fmtDate } from "@/lib/helpers";
 
 const BLANK = {
   name: "",
@@ -156,7 +156,33 @@ export default function Brands() {
     <AppShell
       title="Brands"
       subtitle="Customer records with contacts and the assets they have run on"
-      actions={canCreate ? <BrandDialog /> : null}
+      actions={
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() =>
+              downloadCsv(
+                "brands.csv",
+                (brands ?? []).map((b) => ({
+                  name: b.name,
+                  contact_person: b.contact_person ?? "",
+                  contact_email: b.contact_email ?? "",
+                  contact_phone: b.contact_phone ?? "",
+                  industry: b.industry ?? "",
+                  notes: b.notes ?? "",
+                  created_at: b.created_at ? fmtDate(b.created_at) : "",
+                })),
+              )
+            }
+            data-testid="export-brands-button"
+          >
+            <Download className="size-3.5" />
+            Export
+          </Button>
+          {canCreate && <BrandDialog />}
+        </div>
+      }
     >
       <div className="space-y-4">
         <div className="relative sm:max-w-sm">

@@ -1,15 +1,13 @@
 import { useState, useEffect } from "react";
-import { Navigate, useNavigate, useLocation, Link } from "react-router-dom";
+import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  ArrowRight,
   Check,
   Eye,
   EyeOff,
   Lock,
   Mail,
-  ShieldCheck,
   User,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -29,6 +27,7 @@ import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { beginSession } from "@/lib/session";
 import { useMe } from "@/lib/queries";
+import sound from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 const ROLES = [
@@ -110,13 +109,17 @@ export default function Login({ initialMode }) {
       };
     },
     onSuccess: (user) => {
+      sound.authSuccess();
       beginSession();
       queryClient.invalidateQueries({ queryKey: ["me"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success(`Signed in as ${user.name} · ${user.role_label}`);
       navigate("/dashboard");
     },
-    onError: (err) => toast.error(err?.message ?? "Sign in failed"),
+    onError: (err) => {
+      sound.warning();
+      toast.error(err?.message ?? "Sign in failed");
+    },
   });
 
   // Sign Up Mutation
@@ -165,13 +168,17 @@ export default function Login({ initialMode }) {
       };
     },
     onSuccess: (user) => {
+      sound.authSuccess();
       beginSession();
       queryClient.invalidateQueries({ queryKey: ["me"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success(`Account created! Welcome, ${user.name}`);
       navigate("/dashboard");
     },
-    onError: (err) => toast.error(err?.message ?? "Sign up failed"),
+    onError: (err) => {
+      sound.warning();
+      toast.error(err?.message ?? "Sign up failed");
+    },
   });
 
   // Forgot Password Mutation
@@ -318,8 +325,8 @@ export default function Login({ initialMode }) {
           <BrandDoodles />
           <div className="relative z-10 mx-auto w-full max-w-sm">
             {/* Mobile Header */}
-            <div className="mb-6 flex items-center gap-2.5 lg:hidden">
-              <div className="flex size-9 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-xs">
+            <div className="mb-8 flex items-center justify-center gap-2.5 lg:hidden">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-xs">
                 <img src="/brand/logo.svg" alt="Carbon & Whale" className="h-full w-full object-contain" />
               </div>
               <div>

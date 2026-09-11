@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
+import SmartImage from "@/components/shared/SmartImage";
 import { cn } from "@/lib/utils";
 
 /**
@@ -34,12 +35,14 @@ export default function PhotoSlideshow({ asset, variant = "detail", className })
 
   return (
     <div className={cn("group/slide relative size-full overflow-hidden bg-secondary/60", className)} data-testid="photo-slideshow">
-      <img
+      <SmartImage
         src={current}
         alt={`${asset.location_name} photo ${i + 1} of ${count}`}
-        loading="lazy"
+        preset={variant === "card" ? "card" : "hero"}
+        aspectRatio="aspect-auto"
+        containerClassName="size-full"
         className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-        data-testid="photo-slideshow-image"
+        fallbackText={asset.asset_code}
       />
       {count > 1 && (
         <>

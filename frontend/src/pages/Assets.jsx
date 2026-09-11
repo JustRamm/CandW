@@ -4,11 +4,14 @@ import { useMutation } from "@tanstack/react-query";
 import {
   Building2,
   Download,
+  FileSpreadsheet,
+  LayoutGrid,
   MapPin,
   MapPinned,
   Pencil,
   Plus,
   Search,
+  SlidersHorizontal,
   Trash2,
   Upload,
   Users,
@@ -19,6 +22,7 @@ import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
 import FileUploader from "@/components/shared/FileUploader";
 import PhotoSlideshow from "@/components/shared/PhotoSlideshow";
+import AssetMap from "@/components/assets/AssetMap";
 import { AssetStatusBadge } from "@/components/shared/StatusBadges";
 import { Button } from "@/components/ui/button";
 import { AssetsSkeleton } from "@/components/skeletons";
@@ -35,12 +39,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 import { queryClient } from "@/lib/queryClient";
 import { useAssetTypes, useAssets, useMe } from "@/lib/queries";
-import { downloadCsv, errMessage, importAssetsCsv } from "@/lib/helpers";
+import { downloadAssetCsvTemplate, downloadCsv, errMessage, importAssetsCsv } from "@/lib/helpers";
+import sound from "@/lib/sound";
 
 const STATUS_FILTERS = [
   ["all", "All statuses"],
@@ -121,7 +133,7 @@ export function extractMallName(asset) {
   if (!isMallType && !hasMallKeyword) return null;
 
   // Split by common separators: " — ", " – ", " - ", " | ", or ","
-  const parts = locName.split(/\s*[\u2014\u2013\-\|,]\s*/);
+  const parts = locName.split(/\s*[\u2014\u2013\-|,\s]\s*/);
   if (parts.length > 1) {
     return parts[0].trim();
   }
@@ -156,6 +168,9 @@ const BLANK = {
   height_ft: 3,
   description: "",
   notes: "",
+  latitude: "",
+  longitude: "",
+  geofence_radius_m: 500,
 };
 
 function refreshAssets() {
@@ -180,6 +195,9 @@ export function AssetDialog({ asset, trigger }) {
           height_ft: asset.height_ft,
           description: asset.description ?? "",
           notes: asset.notes ?? "",
+          latitude: asset.latitude ?? "",
+          longitude: asset.longitude ?? "",
+          geofence_radius_m: asset.geofence_radius_m ?? 500,
         }
       : BLANK,
   );
@@ -193,9 +211,16 @@ export function AssetDialog({ asset, trigger }) {
   const save = useMutation({
     mutationFn: async (body) => {
       const { supabase } = await import("@/lib/supabase");
+      const payload = {
+        ...body,
+        latitude: body.latitude && !isNaN(Number(body.latitude)) ? Number(body.latitude) : null,
+        longitude: body.longitude && !isNaN(Number(body.longitude)) ? Number(body.longitude) : null,
+        geofence_radius_m: body.geofence_radius_m ? Number(body.geofence_radius_m) : 500,
+      };
+
       if (asset) {
         // Update existing
-        const { data, error } = await supabase.from("assets").update(body).eq("id", asset.id).select().single();
+        const { data, error } = await supabase.from("assets").update(payload).eq("id", asset.id).select().single();
         if (error) throw { body: { detail: error.message } };
         return data;
       }
@@ -208,7 +233,7 @@ export function AssetDialog({ asset, trigger }) {
       const { data, error } = await supabase.from("assets").insert({
         id: crypto.randomUUID(),
         asset_code: code,
-        ...body,
+        ...payload,
         status: "available",
         created_at: new Date().toISOString(),
       }).select().single();
@@ -216,6 +241,7 @@ export function AssetDialog({ asset, trigger }) {
       return data;
     },
     onSuccess: (a) => {
+      sound.success();
       refreshAssets();
       if (asset) queryClient.invalidateQueries({ queryKey: ["asset", asset.id] });
       toast.success(asset ? `Asset ${a.asset_code} updated` : `Asset ${a.asset_code} created`);
@@ -225,7 +251,10 @@ export function AssetDialog({ asset, trigger }) {
         setPhotos([]);
       }
     },
-    onError: (err) => toast.error(errMessage(err, "Could not save the asset")),
+    onError: (err) => {
+      sound.warning();
+      toast.error(errMessage(err, "Could not save the asset"));
+    },
   });
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -437,6 +466,57 @@ export function AssetDialog({ asset, trigger }) {
               data-testid="asset-description-input"
             />
           </div>
+
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <MapPin className="size-3.5 text-primary" />
+                Map GPS & Geofencing
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono">Optional</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="a-lat" className="text-[11px]">Latitude</Label>
+                <Input
+                  id="a-lat"
+                  type="number"
+                  step="0.000001"
+                  placeholder="e.g. 9.9816"
+                  className="h-8 text-xs font-mono"
+                  value={form.latitude}
+                  onChange={set("latitude")}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="a-lng" className="text-[11px]">Longitude</Label>
+                <Input
+                  id="a-lng"
+                  type="number"
+                  step="0.000001"
+                  placeholder="e.g. 76.2999"
+                  className="h-8 text-xs font-mono"
+                  value={form.longitude}
+                  onChange={set("longitude")}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="a-radius" className="text-[11px]">Geofence (m)</Label>
+                <Input
+                  id="a-radius"
+                  type="number"
+                  placeholder="500"
+                  className="h-8 text-xs font-mono"
+                  value={form.geofence_radius_m}
+                  onChange={set("geofence_radius_m")}
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              If left blank, the interactive map automatically derives location from city / district.
+            </p>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="notes">Notes</Label>
             <Textarea id="notes" rows={2} value={form.notes} onChange={set("notes")} data-testid="asset-notes-input" />
@@ -528,14 +608,27 @@ function CsvImport() {
   async function onFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    sound.upload();
     setBusy(true);
     try {
       const res = await importAssetsCsv(file);
       refreshAssets();
-      toast.success(`${res.created} asset(s) imported`, {
-        description: res.errors?.length ? `${res.errors.length} row(s) skipped` : undefined,
-      });
+      if (res.total > 0) {
+        sound.success();
+        const parts = [];
+        if (res.created > 0) parts.push(`${res.created} created`);
+        if (res.updated > 0) parts.push(`${res.updated} updated`);
+        toast.success(`Import complete: ${parts.join(", ")}`, {
+          description: res.errors?.length ? `${res.errors.length} row(s) skipped due to errors.` : undefined,
+        });
+      } else {
+        sound.warning();
+        toast.error("No assets were imported", {
+          description: res.errors?.length ? res.errors.slice(0, 3).join("; ") : "Check CSV formatting.",
+        });
+      }
     } catch (err) {
+      sound.warning();
       toast.error(errMessage(err, "Import failed"));
     } finally {
       setBusy(false);
@@ -543,15 +636,30 @@ function CsvImport() {
       if (inputRef.current) inputRef.current.value = null;
     }
   }
+
   return (
-    <label
-      className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border/70 bg-secondary/40 px-2.5 py-1.5 text-xs transition-colors duration-150 hover:border-primary/50"
-      data-testid="csv-import-label"
-    >
-      <Download className="size-3.5" />
-      {busy ? "Importing…" : "CSV import"}
-      <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={onFile} data-testid="csv-import-input" />
-    </label>
+    <div className="flex items-center gap-1">
+      <label
+        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border/70 bg-secondary/40 px-2.5 py-1.5 text-xs transition-colors duration-150 hover:border-primary/50"
+        data-testid="csv-import-label"
+      >
+        <Upload className="size-3.5" />
+        {busy ? "Importing…" : "CSV import"}
+        <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={onFile} data-testid="csv-import-input" />
+      </label>
+      <Button
+        variant="ghost"
+        size="xs"
+        type="button"
+        onClick={downloadAssetCsvTemplate}
+        title="Download CSV import template"
+        className="hidden sm:inline-flex text-muted-foreground hover:text-foreground text-[11px] gap-1 px-1.5"
+        data-testid="download-template-button"
+      >
+        <FileSpreadsheet className="size-3.5" />
+        Template
+      </Button>
+    </div>
   );
 }
 
@@ -616,6 +724,12 @@ export default function Assets() {
     });
   }, [rawAssets, status, district, mall]);
 
+  const [viewMode, setViewMode] = useState("grid");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  const activeFilterCount =
+    (district !== "all" ? 1 : 0) + (mall !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0);
+
   const hasActiveFilters =
     status !== "all" || district !== "all" || mall !== "all" || Boolean(q.trim());
 
@@ -641,19 +755,28 @@ export default function Assets() {
                 (assets ?? []).map((a) => ({
                   asset_code: a.asset_code,
                   asset_type: a.asset_type,
-                  location_type: a.location_type ?? "",
+                  location_code: a.location_code ?? (a.asset_code?.split("-")?.[1] || "LOC"),
                   location_name: a.location_name,
+                  location_type: a.location_type ?? "Mall",
                   city: a.city,
+                  district: a.district ?? a.city ?? "Ernakulam",
+                  width_ft: a.width_ft ?? 6,
+                  height_ft: a.height_ft ?? 3,
                   status: a.status,
+                  latitude: a.latitude ?? "",
+                  longitude: a.longitude ?? "",
+                  geofence_radius_m: a.geofence_radius_m ?? 500,
                   current_brand: a.current_brand ?? "",
-                  queue_count: a.queue_count,
+                  queue_count: a.queue_count ?? 0,
                   next_gtp_date: a.next_gtp_date ?? "",
+                  description: a.description ?? "",
+                  notes: a.notes ?? "",
                 })),
               )
             }
             data-testid="export-assets-button"
           >
-            <Upload className="size-3.5" />
+            <Download className="size-3.5" />
             Export
           </Button>
           {canManage && <CsvImport />}
@@ -684,10 +807,163 @@ export default function Assets() {
             )}
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full lg:w-auto">
+          {/* Mobile Filter Bar & View Toggle (sm:hidden) */}
+          <div className="flex sm:hidden items-center justify-between gap-2 w-full">
+            <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+              <SheetTrigger
+                render={
+                  <Button
+                    variant={activeFilterCount > 0 ? "secondary" : "outline"}
+                    size="sm"
+                    className="h-8 gap-1.5 px-3 text-xs font-medium border-border/80"
+                    data-testid="mobile-filter-trigger"
+                  />
+                }
+              >
+                <SlidersHorizontal className="size-3.5 text-primary" />
+                <span>Filters</span>
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 flex size-4.5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </SheetTrigger>
+
+              <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto p-4 space-y-4">
+                <SheetHeader className="pb-2 border-b border-border/60">
+                  <div className="flex items-center justify-between">
+                    <SheetTitle className="text-base font-heading font-bold">Filter Assets</SheetTitle>
+                    {activeFilterCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={clearFilters}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Reset all
+                      </Button>
+                    )}
+                  </div>
+                </SheetHeader>
+
+                <div className="space-y-3.5 pt-1">
+                  {/* 1. District Filter */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                      <MapPin className="size-3.5 text-primary" />
+                      District
+                    </label>
+                    <Select value={district} onValueChange={setDistrict}>
+                      <SelectTrigger className="w-full text-xs">
+                        <SelectValue placeholder="All Kerala districts">
+                          {(v) => (v === "all" ? "All Kerala districts" : v)}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Kerala districts</SelectItem>
+                        {districts.map((d) => {
+                          const cnt = districtCounts[d];
+                          return (
+                            <SelectItem key={d} value={d}>
+                              <span className="flex items-center justify-between w-full gap-2">
+                                <span>{d}</span>
+                                {cnt ? (
+                                  <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                                    {cnt}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 2. Mall Filter */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                      <Building2 className="size-3.5 text-primary" />
+                      Mall / Venue
+                    </label>
+                    <Select value={mall} onValueChange={setMall}>
+                      <SelectTrigger className="w-full text-xs">
+                        <SelectValue placeholder="All Kerala malls">
+                          {(v) => (v === "all" ? "All Kerala malls" : v)}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Kerala malls</SelectItem>
+                        {malls.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 3. Status Filter */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground">Status</label>
+                    <Select value={status} onValueChange={setStatus}>
+                      <SelectTrigger className="w-full text-xs">
+                        <SelectValue placeholder="All statuses">
+                          {(v) => STATUS_FILTERS.find(([k]) => k === v)?.[1] ?? "All statuses"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUS_FILTERS.map(([k, label]) => (
+                          <SelectItem key={k} value={k}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border/50">
+                  <Button
+                    className="w-full"
+                    onClick={() => setMobileFiltersOpen(false)}
+                  >
+                    Apply · Show {assets.length} {assets.length === 1 ? "asset" : "assets"}
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            {/* Mobile View Switcher */}
+            <div className="flex items-center rounded-lg border border-border/80 bg-muted/40 p-0.5 shrink-0">
+              <Button
+                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                size="xs"
+                onClick={() => setViewMode("grid")}
+                className="h-8 px-3 gap-1.5 text-xs font-medium"
+                data-testid="view-grid-btn-mobile"
+              >
+                <LayoutGrid className="size-3.5" />
+                Grid
+              </Button>
+              <Button
+                variant={viewMode === "map" ? "secondary" : "ghost"}
+                size="xs"
+                onClick={() => setViewMode("map")}
+                className="h-8 px-3 gap-1.5 text-xs font-medium"
+                data-testid="view-map-btn-mobile"
+              >
+                <MapPin className="size-3.5 text-emerald-600" />
+                Map
+              </Button>
+            </div>
+          </div>
+
+          {/* Desktop Filter Bar (hidden sm:flex) */}
+          <div className="hidden sm:flex flex-wrap items-center gap-2 w-full lg:w-auto">
             {/* 1. Filter by District (Kerala's 14 districts) */}
             <Select value={district} onValueChange={setDistrict}>
-              <SelectTrigger className="w-full sm:w-48" data-testid="asset-district-filter">
+              <SelectTrigger className="w-48" data-testid="asset-district-filter">
                 <div className="flex items-center gap-1.5 truncate">
                   <MapPin className="size-3.5 shrink-0 text-muted-foreground" />
                   <SelectValue>
@@ -723,7 +999,7 @@ export default function Assets() {
 
             {/* 2. Filter by Mall (Kerala malls) */}
             <Select value={mall} onValueChange={setMall}>
-              <SelectTrigger className="w-full sm:w-52" data-testid="asset-mall-filter">
+              <SelectTrigger className="w-52" data-testid="asset-mall-filter">
                 <div className="flex items-center gap-1.5 truncate">
                   <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
                   <SelectValue>
@@ -749,7 +1025,7 @@ export default function Assets() {
 
             {/* Status Filter */}
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-full sm:w-40" data-testid="asset-status-filter">
+              <SelectTrigger className="w-40" data-testid="asset-status-filter">
                 <SelectValue>
                   {(v) => STATUS_FILTERS.find(([k]) => k === v)?.[1] ?? "All statuses"}
                 </SelectValue>
@@ -776,6 +1052,30 @@ export default function Assets() {
                 Reset
               </Button>
             )}
+
+            {/* View Mode Switcher: Grid vs Map */}
+            <div className="flex items-center rounded-lg border border-border/80 bg-muted/30 p-0.5 shrink-0 ml-auto">
+              <Button
+                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                size="xs"
+                onClick={() => setViewMode("grid")}
+                className="h-7 px-2.5 gap-1.5 text-xs font-medium"
+                data-testid="view-grid-btn"
+              >
+                <LayoutGrid className="size-3.5" />
+                Grid
+              </Button>
+              <Button
+                variant={viewMode === "map" ? "secondary" : "ghost"}
+                size="xs"
+                onClick={() => setViewMode("map")}
+                className="h-7 px-2.5 gap-1.5 text-xs font-medium"
+                data-testid="view-map-btn"
+              >
+                <MapPin className="size-3.5 text-emerald-600" />
+                Map & Geofence
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -798,7 +1098,11 @@ export default function Assets() {
           />
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="asset-grid">
+        {!isLoading && !isError && assets?.length > 0 && (
+          viewMode === "map" ? (
+            <AssetMap assets={assets} />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="asset-grid">
           {(assets ?? []).map((a) => (
             <Card
               key={a.id}
@@ -867,7 +1171,9 @@ export default function Assets() {
               )}
             </Card>
           ))}
-        </div>
+            </div>
+          )
+        )}
       </div>
     </AppShell>
   );

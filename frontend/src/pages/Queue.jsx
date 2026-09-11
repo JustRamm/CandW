@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, ListOrdered, Upload } from "lucide-react";
+import { CheckCircle2, Download, ListOrdered } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -64,8 +64,6 @@ function ConfirmDialog({ entry }) {
 
       // 4. Create campaign
       const campaignId = crypto.randomUUID();
-      const { data: settingsArr } = await supabase.from("settings").select("*").eq("id", "global").maybeSingle();
-      const interval = settingsArr?.gtp_interval_days ?? 28;
       const checklistItems = [
         { key: "creative_brief", label: "Creative brief", mandatory: true, status: "pending" },
         { key: "site_inspection", label: "Site inspection", mandatory: true, status: "pending" },
@@ -314,7 +312,7 @@ export default function Queue() {
             }
             data-testid="export-queue-button"
           >
-            <Upload className="size-3.5" />
+            <Download className="size-3.5" />
             Export
           </Button>
         </div>

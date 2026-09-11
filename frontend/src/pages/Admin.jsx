@@ -85,7 +85,7 @@ function UsersPanel() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="mono-label border-primary/40 text-primary">
-                    {u.role_label}
+                    {u.role_label || roleLabel(u.role)}
                   </Badge>
                   <Badge
                     variant="outline"

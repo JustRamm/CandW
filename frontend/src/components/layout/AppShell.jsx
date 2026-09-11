@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import {
-  Bell,
   Briefcase,
   Building2,
   Clock,
@@ -10,20 +9,19 @@ import {
   LogOut,
   MapPin,
   SlidersHorizontal,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/skeletons";
 import BrandDoodles from "@/components/shared/BrandDoodles";
-import { useMe, useNotifications } from "@/lib/queries";
-import { supabase } from "@/lib/supabase";
-import { queryClient } from "@/lib/queryClient";
+import NotificationCenter from "@/components/shared/NotificationCenter";
+import { useMe } from "@/lib/queries";
 import { endSession } from "@/lib/session";
-import { fmtDateTime } from "@/lib/helpers";
+import { initRealtimeFeed } from "@/lib/realtime";
+import sound from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -40,110 +38,19 @@ function visibleNav(role) {
   return NAV.filter((n) => n.roles === "*" || n.roles.includes(role));
 }
 
-function NotificationDrawer() {
-  const { data } = useNotifications();
-  const items = data?.items ?? [];
-  const unread = data?.unread ?? 0;
-  const readAll = useMutation({
-    mutationFn: async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData?.user) return;
-      const { error } = await supabase
-        .from("notifications")
-        .update({ read: true })
-        .eq("user_id", authData.user.id)
-        .eq("read", false);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-  });
-
-  return (
-    <Sheet>
-      <SheetTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Notifications"
-            className="relative"
-            data-testid="notifications-trigger"
-          />
-        }
-      >
-        <Bell className="size-4" />
-        {unread > 0 && (
-          <span
-            className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-white"
-            data-testid="notifications-unread-count"
-          >
-            {unread}
-          </span>
-        )}
-      </SheetTrigger>
-      <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle className="font-heading">Notifications</SheetTitle>
-        </SheetHeader>
-        <div className="px-4 pb-4">
-          <Button
-            variant="outline"
-            size="xs"
-            disabled={!unread || readAll.isPending}
-            onClick={() => readAll.mutate()}
-            data-testid="notifications-mark-all-read"
-          >
-            Mark all read
-          </Button>
-        </div>
-        <ul className="space-y-2 px-4 pb-8" data-testid="notifications-list">
-          {items.length === 0 && (
-            <li className="text-sm text-muted-foreground" data-testid="notifications-empty">
-              Nothing yet — workflow events will appear here.
-            </li>
-          )}
-          {items.map((n) => (
-            <li
-              key={n.id}
-              className={cn(
-                "rounded-xl border p-3 transition-all duration-150",
-                n.read
-                  ? "border-border/60 bg-card/60"
-                  : "border-primary/30 bg-primary/5 shadow-xs shadow-primary/5",
-              )}
-              data-testid="notification-item"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="font-heading text-xs font-semibold text-foreground">{n.title}</p>
-                {!n.read && (
-                  <span className="mt-1 size-2 shrink-0 rounded-full bg-primary ring-2 ring-primary/20" />
-                )}
-              </div>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{n.body}</p>
-              <p className="mono-label mt-2 text-[10px] text-muted-foreground/80">{fmtDateTime(n.created_at)}</p>
-            </li>
-          ))}
-        </ul>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
 export default function AppShell({ children, title, subtitle, actions }) {
-  const { data: me, isLoading } = useMe();
+  const { data: me } = useMe();
   const location = useLocation();
   const [signingOut, setSigningOut] = useState(false);
+  const [soundOn, setSoundOn] = useState(sound.isEnabled());
 
-  if (isLoading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background select-none">
-        <div className="flex flex-col items-center gap-3">
-          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="font-heading text-xs font-medium text-muted-foreground">Loading workspace…</p>
-        </div>
-      </div>
-    );
-  }
+  const isDashboard = location.pathname === "/dashboard" || location.pathname === "/";
+
+  useEffect(() => {
+    if (me?.id) {
+      initRealtimeFeed();
+    }
+  }, [me?.id]);
 
   if (!me || !me.id) {
     // Not authenticated — send visitor straight to sign in
@@ -178,6 +85,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
               <NavLink
                 key={to}
                 to={to}
+                onClick={() => sound.click()}
                 className={cn(
                   "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150",
                   isActive
@@ -207,17 +115,33 @@ export default function AppShell({ children, title, subtitle, actions }) {
           })}
         </nav>
         <div className="border-t border-sidebar-border px-4 py-4 shrink-0">
-          <p className="truncate font-heading text-sm font-medium" data-testid="sidebar-user-name">
-            {me?.name ?? "…"}
-          </p>
-          <Badge variant="outline" className="mono-label mt-1 border-primary/40 text-primary" data-testid="sidebar-user-role">
-            {me?.role_label ?? ""}
-          </Badge>
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-heading text-sm font-medium" data-testid="sidebar-user-name">
+                {me?.name ?? "…"}
+              </p>
+              <Badge variant="outline" className="mono-label mt-1 border-primary/40 text-primary" data-testid="sidebar-user-role">
+                {me?.role_label ?? ""}
+              </Badge>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSoundOn(sound.toggle())}
+              title={soundOn ? "Mute interface sound effects" : "Enable interface sound effects"}
+              className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+              data-testid="sound-toggle-button"
+            >
+              {soundOn ? <Volume2 className="size-4 text-primary" /> : <VolumeX className="size-4 opacity-50" />}
+            </button>
+          </div>
           <Button
             variant="ghost"
             size="sm"
             disabled={signingOut}
-            onClick={signOut}
+            onClick={() => {
+              sound.click();
+              signOut();
+            }}
             className="mt-3 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
             data-testid="sign-out-button"
           >
@@ -229,40 +153,99 @@ export default function AppShell({ children, title, subtitle, actions }) {
 
       <div className="flex flex-1 flex-col min-w-0 h-screen overflow-y-auto pb-28 md:pb-0">
         <header className="sticky top-0 z-20 border-b border-border/70 bg-background/85 px-4 py-3 sm:py-4 backdrop-blur-xl md:px-8">
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center justify-between gap-3 min-w-0">
-              <div className="min-w-0 flex-1">
-                <h1 className="font-heading text-lg font-bold tracking-tight sm:text-xl md:text-2xl truncate" data-testid="page-title">
-                  {title}
-                </h1>
-                {subtitle && <p className="mt-0.5 text-xs text-muted-foreground truncate sm:whitespace-normal">{subtitle}</p>}
-              </div>
-              <div className="flex items-center gap-1 sm:hidden shrink-0">
-                <NotificationDrawer />
+          {/* Mobile view only */}
+          {isDashboard ? (
+            /* Dashboard Mobile: Carbon & Whale Logo + User Name on left; Bell + Logout on right */
+            <div className="flex sm:hidden items-center justify-between gap-3 min-w-0 w-full py-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  sound.refresh();
+                  setTimeout(() => window.location.reload(), 120);
+                }}
+                title="Click logo to refresh application"
+                className="group flex items-center gap-2.5 min-w-0 cursor-pointer rounded-xl text-left transition-transform active:scale-95 focus:outline-hidden"
+                data-testid="mobile-dashboard-logo-refresh"
+              >
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-xs ring-1 ring-white/10 transition-transform group-hover:rotate-6 group-active:scale-90">
+                  <img src="/brand/logo.svg" alt="Carbon & Whale" className="h-full w-full object-contain" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-heading text-base font-bold tracking-tight text-foreground">
+                    {me?.name ?? "User"}
+                  </p>
+                </div>
+              </button>
+
+              <div className="flex items-center gap-1 shrink-0">
+                <NotificationCenter />
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Sign out"
                   disabled={signingOut}
-                  onClick={signOut}
+                  onClick={() => {
+                    sound.click();
+                    signOut();
+                  }}
                   data-testid="mobile-sign-out-button"
                 >
                   <LogOut className="size-4" />
                 </Button>
               </div>
             </div>
+          ) : (
+            /* Other screens Mobile: Title + Subtitle + NotificationCenter + SignOut */
+            <div className="flex sm:hidden items-center justify-between gap-3 min-w-0">
+              <div className="min-w-0 flex-1">
+                <h1 className="font-heading text-lg font-bold tracking-tight truncate" data-testid="mobile-page-title">
+                  {title}
+                </h1>
+                {subtitle && <p className="mt-0.5 text-xs text-muted-foreground truncate">{subtitle}</p>}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <NotificationCenter />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Sign out"
+                  disabled={signingOut}
+                  onClick={() => {
+                    sound.click();
+                    signOut();
+                  }}
+                  data-testid="mobile-sign-out-button"
+                >
+                  <LogOut className="size-4" />
+                </Button>
+              </div>
+            </div>
+          )}
 
-            <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap min-w-0">
+          {/* Desktop view: Always renders title, subtitle, actions, and notification center */}
+          <div className="hidden sm:flex sm:items-center sm:justify-between sm:gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="font-heading text-lg font-bold tracking-tight sm:text-xl md:text-2xl truncate" data-testid="page-title">
+                {title}
+              </h1>
+              {subtitle && <p className="mt-0.5 text-xs text-muted-foreground truncate sm:whitespace-normal">{subtitle}</p>}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               {actions && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {actions}
                 </div>
               )}
-              <div className="hidden sm:flex items-center gap-1.5 shrink-0">
-                <NotificationDrawer />
-              </div>
+              <NotificationCenter />
             </div>
           </div>
+
+          {/* If mobile and NOT dashboard and actions exist, render them */}
+          {!isDashboard && actions && (
+            <div className="mt-2.5 flex sm:hidden items-center gap-1.5 flex-wrap">
+              {actions}
+            </div>
+          )}
         </header>
         <main className="relative flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full min-h-full pb-36 md:pb-8">
           <BrandDoodles />
@@ -290,6 +273,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
             <Link
               key={to}
               to={to}
+              onClick={() => sound.click()}
               className={cn(
                 "relative flex flex-1 min-w-[48px] max-w-[68px] flex-col items-center justify-center gap-0.5 py-1 text-[10px] font-medium transition-colors duration-150 text-center select-none",
                 active ? "text-[#00668a] font-semibold" : "text-muted-foreground hover:text-foreground",

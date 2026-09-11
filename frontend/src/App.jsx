@@ -1,21 +1,25 @@
-import { useEffect, Component } from "react";
+import { useEffect, Component, lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
-import Login from "@/pages/Login";
-import Dashboard from "@/pages/Dashboard";
-import Assets from "@/pages/Assets";
-import AssetDetail from "@/pages/AssetDetail";
-import Queue from "@/pages/Queue";
-import Brands from "@/pages/Brands";
-import BrandDetail from "@/pages/BrandDetail";
-import Campaigns from "@/pages/Campaigns";
-import CampaignDetail from "@/pages/CampaignDetail";
-import Audit from "@/pages/Audit";
-import Admin from "@/pages/Admin";
+import PageLoadingFallback from "@/components/shared/PageLoadingFallback";
 import { useMe } from "@/lib/queries";
+import { NotFound, Forbidden, ServerError, OfflineBanner } from "@/pages/errors";
 
-// Bug #24: ErrorBoundary catches any render-time crash and shows a recovery UI
+// Route-level Code Splitting for ultra-fast initial bundle loading
+const Login = lazy(() => import("@/pages/Login"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Assets = lazy(() => import("@/pages/Assets"));
+const AssetDetail = lazy(() => import("@/pages/AssetDetail"));
+const Queue = lazy(() => import("@/pages/Queue"));
+const Brands = lazy(() => import("@/pages/Brands"));
+const BrandDetail = lazy(() => import("@/pages/BrandDetail"));
+const Campaigns = lazy(() => import("@/pages/Campaigns"));
+const CampaignDetail = lazy(() => import("@/pages/CampaignDetail"));
+const Audit = lazy(() => import("@/pages/Audit"));
+const Admin = lazy(() => import("@/pages/Admin"));
+
+// ErrorBoundary catches any render-time crash and renders ServerError recovery page
 class ErrorBoundary extends Component {
   state = { hasError: false, error: null };
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -23,36 +27,26 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-background px-4 text-center">
-          <h1 className="font-heading text-2xl font-bold text-foreground">Something went wrong</h1>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            {this.state.error?.message ?? "An unexpected error occurred. Please refresh the page."}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:opacity-90"
-          >
-            Refresh page
-          </button>
-        </div>
+        <ServerError
+          error={this.state.error}
+          onReset={() => this.setState({ hasError: false, error: null })}
+        />
       );
     }
     return this.props.children;
   }
 }
 
-// Bug #19: PrivateRoute guards all protected pages at route level
-// AppShell also guards inside, but this prevents any future page without AppShell from leaking
-function PrivateRoute({ children }) {
+// PrivateRoute guards authentication and role authorization at route level
+function PrivateRoute({ children, allowedRoles }) {
   const { data: me, isLoading } = useMe();
   if (isLoading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
+    return <PageLoadingFallback />;
   }
   if (!me?.id) return <Navigate to="/login" replace />;
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(me.role)) {
+    return <Forbidden requiredRoles={allowedRoles} />;
+  }
   return children;
 }
 
@@ -70,22 +64,27 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Login initialMode="signup" />} />
-        <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-        <Route path="/assets" element={<PrivateRoute><Assets /></PrivateRoute>} />
-        <Route path="/assets/:assetId" element={<PrivateRoute><AssetDetail /></PrivateRoute>} />
-        <Route path="/queue" element={<PrivateRoute><Queue /></PrivateRoute>} />
-        <Route path="/brands" element={<PrivateRoute><Brands /></PrivateRoute>} />
-        <Route path="/brands/:brandId" element={<PrivateRoute><BrandDetail /></PrivateRoute>} />
-        <Route path="/campaigns" element={<PrivateRoute><Campaigns /></PrivateRoute>} />
-        <Route path="/campaigns/:campaignId" element={<PrivateRoute><CampaignDetail /></PrivateRoute>} />
-        <Route path="/audit" element={<PrivateRoute><Audit /></PrivateRoute>} />
-        <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      <OfflineBanner />
+      <Suspense fallback={<PageLoadingFallback />}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Login initialMode="signup" />} />
+          <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/assets" element={<PrivateRoute><Assets /></PrivateRoute>} />
+          <Route path="/assets/:assetId" element={<PrivateRoute><AssetDetail /></PrivateRoute>} />
+          <Route path="/queue" element={<PrivateRoute><Queue /></PrivateRoute>} />
+          <Route path="/brands" element={<PrivateRoute><Brands /></PrivateRoute>} />
+          <Route path="/brands/:brandId" element={<PrivateRoute><BrandDetail /></PrivateRoute>} />
+          <Route path="/campaigns" element={<PrivateRoute><Campaigns /></PrivateRoute>} />
+          <Route path="/campaigns/:campaignId" element={<PrivateRoute><CampaignDetail /></PrivateRoute>} />
+          <Route path="/audit" element={<PrivateRoute allowedRoles={["admin", "finance", "finance_manager"]}><Audit /></PrivateRoute>} />
+          <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><Admin /></PrivateRoute>} />
+          <Route path="/403" element={<Forbidden />} />
+          <Route path="/404" element={<NotFound />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
       <Toaster position="top-right" />
     </ErrorBoundary>
   );
