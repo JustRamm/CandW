@@ -24,19 +24,16 @@ import sound from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import {
   TIME_SLOTS,
-  TRAFFIC_HEAT_NODES,
-  FOOTFALL_HEAT_NODES,
-  ARTERIAL_CORRIDORS,
+  getAssetFootfallPoints,
   calculateAssetImpressions,
 } from "@/lib/densityData";
 import { createHeatmapLayer } from "./HeatmapCanvasLayer";
 
 // TomTom Live Traffic API Key from environment (.env)
-const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_API_KEY || "0uQyln4h6icK3aUXNppJQaEid5tfUrfj";
+const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_API_KEY || "";
 
-// Known city center coordinates (All 14 Kerala Districts with >90% municipal precision)
+// Official Kerala District and major city reference centers
 const CITY_COORDINATES = {
-  // 14 Official Districts of Kerala
   alappuzha: [9.4981, 76.3388],
   alleppey: [9.4981, 76.3388],
   ernakulam: [9.9816, 76.2999],
@@ -62,16 +59,6 @@ const CITY_COORDINATES = {
   trichur: [10.5276, 76.2144],
   wayanad: [11.6103, 76.0827],
   kalpetta: [11.6103, 76.0827],
-
-  // Other major metropolitans
-  bangalore: [12.9716, 77.5946],
-  bengaluru: [12.9716, 77.5946],
-  chennai: [13.0827, 80.2707],
-  coimbatore: [11.0168, 76.9558],
-  madurai: [9.9252, 78.1198],
-  mumbai: [19.076, 72.8777],
-  delhi: [28.6139, 77.209],
-  hyderabad: [17.385, 78.4867],
 };
 
 function getDerivedCoordinates(asset) {
@@ -85,19 +72,7 @@ function getDerivedCoordinates(asset) {
   }
 
   const key = (asset.city || asset.district || "kochi").toLowerCase().trim();
-  const base = CITY_COORDINATES[key] || CITY_COORDINATES.kochi;
-
-  let hash = 0;
-  const str = asset.asset_code || asset.id || "0";
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-
-  const offsetLat = ((Math.abs(hash) % 1000) / 1000 - 0.5) * 0.08;
-  const offsetLng = ((Math.abs(hash >> 3) % 1000) / 1000 - 0.5) * 0.08;
-
-  return [base[0] + offsetLat, base[1] + offsetLng];
+  return CITY_COORDINATES[key] || CITY_COORDINATES.kochi;
 }
 
 const STATUS_THEMES = {
@@ -152,9 +127,12 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
   const heatmapLayerRef = useRef(null);
   const corridorsLayerRef = useRef(null);
   const tomtomTrafficLayerRef = useRef(null);
+  const tomtomIncidentsLayerRef = useRef(null);
   const userMarkerRef = useRef(null);
 
   const [selectedAsset, setSelectedAsset] = useState(null);
+  const [liveTelemetry, setLiveTelemetry] = useState(null);
+  const [loadingTelemetry, setLoadingTelemetry] = useState(false);
   const [geofenceRadius, setGeofenceRadius] = useState(500);
   const [showAllGeofences, setShowAllGeofences] = useState(false);
   const [locatingUser, setLocatingUser] = useState(false);
@@ -240,18 +218,53 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
         map.removeLayer(tomtomTrafficLayerRef.current);
         tomtomTrafficLayerRef.current = null;
       }
+      if (tomtomIncidentsLayerRef.current && map) {
+        map.removeLayer(tomtomIncidentsLayerRef.current);
+        tomtomIncidentsLayerRef.current = null;
+      }
       map.remove();
       mapInstanceRef.current = null;
     };
   }, []);
+
+  // ── 2. Live TomTom Traffic Telemetry for Selected Asset ───────────────────
+  useEffect(() => {
+    if (!selectedAsset?.coords || !TOMTOM_API_KEY) {
+      setLiveTelemetry(null);
+      return;
+    }
+    let isCurrent = true;
+    setLoadingTelemetry(true);
+    const [lat, lng] = selectedAsset.coords;
+
+    fetch(
+      `https://api.tomtom.com/traffic/services/4/flowSegmentData/relative0/10/json?point=${lat},${lng}&key=${TOMTOM_API_KEY}`
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isCurrent) return;
+        setLiveTelemetry(data?.flowSegmentData || null);
+        setLoadingTelemetry(false);
+      })
+      .catch(() => {
+        if (isCurrent) {
+          setLiveTelemetry(null);
+          setLoadingTelemetry(false);
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [selectedAsset?.id]);
 
   // ── 3. Update Heatmap & Live TomTom Satellite Traffic ─────────────────────
   useEffect(() => {
     const map = mapInstanceRef.current;
     const heatmap = heatmapLayerRef.current;
 
-    // Real-Time Live TomTom Satellite Traffic Flow Layer
-    if (map) {
+    // Real-Time Live TomTom Satellite Traffic Flow & Incidents Layers
+    if (map && TOMTOM_API_KEY) {
       if (heatmapMode === "traffic") {
         if (!tomtomTrafficLayerRef.current) {
           const tomtomLayer = L.tileLayer(
@@ -266,80 +279,45 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
           tomtomLayer.addTo(map);
           tomtomTrafficLayerRef.current = tomtomLayer;
         }
+
+        if (!tomtomIncidentsLayerRef.current) {
+          const incidentsLayer = L.tileLayer(
+            `https://api.tomtom.com/traffic/map/4/tile/incidents/s0/{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`,
+            {
+              maxZoom: 19,
+              opacity: 0.95,
+              zIndex: 360,
+            }
+          );
+          incidentsLayer.addTo(map);
+          tomtomIncidentsLayerRef.current = incidentsLayer;
+        }
       } else {
         if (tomtomTrafficLayerRef.current) {
           map.removeLayer(tomtomTrafficLayerRef.current);
           tomtomTrafficLayerRef.current = null;
+        }
+        if (tomtomIncidentsLayerRef.current) {
+          map.removeLayer(tomtomIncidentsLayerRef.current);
+          tomtomIncidentsLayerRef.current = null;
         }
       }
     }
 
     if (!heatmap) return;
 
-    if (heatmapMode === "off") {
+    if (heatmapMode === "off" || heatmapMode === "traffic") {
       heatmap.setPoints([], "off");
       return;
     }
 
     const multiplier = activeTimeSlot.factor;
 
-    if (heatmapMode === "traffic") {
-      const points = TRAFFIC_HEAT_NODES.map((node) => ({
-        coords: node.coords,
-        intensity: Math.min(1.0, node.intensity * (0.8 + multiplier * 0.2)),
-        radius: node.radius * (0.85 + multiplier * 0.15),
-      }));
-      heatmap.setPoints(points, "traffic");
-    } else if (heatmapMode === "footfall") {
-      const points = FOOTFALL_HEAT_NODES.map((node) => ({
-        coords: node.coords,
-        intensity: Math.min(1.0, node.intensity * (0.75 + multiplier * 0.25)),
-        radius: node.radius * (0.9 + multiplier * 0.1),
-      }));
+    if (heatmapMode === "footfall") {
+      const points = getAssetFootfallPoints(mappedAssets, multiplier);
       heatmap.setPoints(points, "footfall");
     }
-  }, [heatmapMode, activeTimeSlot]);
-
-  // ── 4. Update Arterial Corridors ──────────────────────────────────────────
-  useEffect(() => {
-    const layer = corridorsLayerRef.current;
-    if (!layer) return;
-
-    layer.clearLayers();
-
-    if (!showArterials) return;
-
-    ARTERIAL_CORRIDORS.forEach((corridor) => {
-      // Background glow line
-      L.polyline(corridor.points, {
-        color: corridor.color,
-        weight: corridor.weight + 5,
-        opacity: 0.25,
-        lineCap: "round",
-      }).addTo(layer);
-
-      // Core crisp vector corridor
-      const poly = L.polyline(corridor.points, {
-        color: corridor.color,
-        weight: corridor.weight,
-        opacity: 0.9,
-        dashArray: corridor.tier.includes("Expressway") ? undefined : "6, 8",
-      });
-
-      poly.bindPopup(`
-        <div style="font-family: sans-serif; padding: 4px;">
-          <b style="font-size: 13px; color: ${corridor.color}">${corridor.name}</b>
-          <p style="font-size: 11px; margin: 4px 0 2px 0; color: #64748b;">${corridor.tier}</p>
-          <p style="font-size: 12px; margin: 2px 0; font-weight: 600;">Traffic Density: ${corridor.dailyVehicles}</p>
-          <span style="display:inline-block; font-size: 10px; background: rgba(239, 68, 68, 0.15); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-weight: 500;">
-            ${corridor.trafficLevel}
-          </span>
-        </div>
-      `);
-
-      poly.addTo(layer);
-    });
-  }, [showArterials]);
+  }, [heatmapMode, activeTimeSlot, mappedAssets]);
 
   // ── 5. Update Markers & Geofences ─────────────────────────────────────────
   useEffect(() => {
@@ -737,6 +715,31 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
               <span>Dwell: <b className="text-foreground">{selectedImpressions.dwellTime}</b></span>
             </div>
           </div>
+
+          {/* TomTom Real-Time Road Traffic Flow Telemetry */}
+          {liveTelemetry && (
+            <div className="my-1.5 flex items-center justify-between rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] shadow-2xs">
+              <div className="flex items-center gap-1.5 font-medium text-foreground">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                </span>
+                <span>TomTom Flow:</span>
+                <b className="text-foreground">{liveTelemetry.currentSpeed} km/h</b>
+                <span className="text-muted-foreground text-[10px]">(Free-flow: {liveTelemetry.freeFlowSpeed} km/h)</span>
+              </div>
+              <span className={cn(
+                "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                liveTelemetry.roadClosure
+                  ? "bg-red-500/20 text-red-600"
+                  : liveTelemetry.currentSpeed < liveTelemetry.freeFlowSpeed * 0.6
+                  ? "bg-amber-500/20 text-amber-600"
+                  : "bg-emerald-500/20 text-emerald-600"
+              )}>
+                {liveTelemetry.roadClosure ? "Closed" : liveTelemetry.currentSpeed < liveTelemetry.freeFlowSpeed * 0.6 ? "Congested" : "Normal Flow"}
+              </span>
+            </div>
+          )}
 
           {/* Audience Demographic Distribution Bar */}
           <div className="space-y-1 py-1">
