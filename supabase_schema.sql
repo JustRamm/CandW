@@ -13,7 +13,6 @@ create or replace function public.auto_confirm_new_user()
 returns trigger language plpgsql security definer as $$
 begin
   new.email_confirmed_at = coalesce(new.email_confirmed_at, now());
-  new.confirmed_at = coalesce(new.confirmed_at, now());
   return new;
 end;
 $$;
@@ -25,8 +24,7 @@ create trigger on_auth_user_created_confirm
 
 -- Also confirm all existing users immediately
 update auth.users
-set email_confirmed_at = coalesce(email_confirmed_at, now()),
-    confirmed_at = coalesce(confirmed_at, now())
+set email_confirmed_at = coalesce(email_confirmed_at, now())
 where email_confirmed_at is null;
 
 -- ── 3. profiles (mirrors auth.users) ─────────────────────────
