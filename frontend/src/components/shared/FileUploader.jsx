@@ -65,7 +65,7 @@ export default function FileUploader({
         data-testid={`${testId}-button`}
       >
         {geotag ? <MapPin className="size-4" /> : <Upload className="size-4" />}
-        {busy ? "Uploading…" : geotag ? "Capture geo-tagged photo" : label}
+        {busy ? "Uploading…" : label || (geotag ? "Capture geo-tagged photo" : "Attach document")}
       </Button>
       {value.length > 0 && (
         <ul className="space-y-1.5" data-testid={`${testId}-list`}>

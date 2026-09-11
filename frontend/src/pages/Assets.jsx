@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import {
   Building2,
+  Camera,
   Download,
   FileSpreadsheet,
   LayoutGrid,
@@ -217,6 +218,7 @@ export function AssetDialog({ asset, trigger }) {
   const [photos, setPhotos] = useState(
     (asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })),
   );
+  const [proofPhotos, setProofPhotos] = useState([]);
   const [isCustomMall, setIsCustomMall] = useState(false);
   const [newMall, setNewMall] = useState({
     name: "",
@@ -230,6 +232,7 @@ export function AssetDialog({ asset, trigger }) {
   const resetAll = () => {
     setForm(getInitialForm());
     setPhotos((asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })));
+    setProofPhotos([]);
     setIsCustomMall(false);
     setNewMall({
       name: "",
@@ -329,10 +332,59 @@ export function AssetDialog({ asset, trigger }) {
         geofence_radius_m: body.geofence_radius_m ? Number(body.geofence_radius_m) : 500,
       };
 
+      const proofIds = body.proof_photo_ids ?? [];
+      const gtpList = proofIds.length
+        ? [
+            {
+              id: crypto.randomUUID(),
+              seq: 1,
+              status: "approved",
+              due_date: new Date().toISOString().split("T")[0],
+              is_final: false,
+              doc_ids: proofIds,
+              priority: "high",
+              notes: "Initial Geo-Tagged Installation Proof",
+              submitted_at: new Date().toISOString(),
+              reviewed_at: new Date().toISOString(),
+            },
+          ]
+        : [];
+
       if (asset) {
         // Update existing
         const { data, error } = await supabase.from("assets").update(payload).eq("id", asset.id).select().single();
         if (error) throw { body: { detail: error.message } };
+
+        if (proofIds.length) {
+          const { data: camps } = await supabase
+            .from("campaigns")
+            .select("*")
+            .eq("asset_id", asset.id)
+            .neq("stage", "closed");
+          for (const c of camps ?? []) {
+            const existingGtps = c.gtps ?? [];
+            if (existingGtps.length) {
+              const target = existingGtps[0];
+              target.doc_ids = Array.from(new Set([...(target.doc_ids ?? []), ...proofIds]));
+              target.status = "approved";
+              target.reviewed_at = new Date().toISOString();
+            } else {
+              existingGtps.push({
+                id: crypto.randomUUID(),
+                seq: 1,
+                status: "approved",
+                due_date: new Date().toISOString().split("T")[0],
+                is_final: false,
+                doc_ids: proofIds,
+                priority: "high",
+                notes: "Installation Mounting Proof",
+                submitted_at: new Date().toISOString(),
+                reviewed_at: new Date().toISOString(),
+              });
+            }
+            await supabase.from("campaigns").update({ gtps: existingGtps }).eq("id", c.id);
+          }
+        }
         return data;
       }
       // Create new — generate asset code
@@ -366,6 +418,7 @@ export function AssetDialog({ asset, trigger }) {
           start_date: new Date().toISOString().split("T")[0],
           end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
           notes: isDigitalAsset ? "Digital Screen Rotating Ad Loop Slot" : "Exclusive Static Slot",
+          gtps: gtpList,
         });
       }
 
@@ -413,13 +466,18 @@ export function AssetDialog({ asset, trigger }) {
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
+            const allPhotoIds = Array.from(
+              new Set([...photos.map((p) => p.id), ...proofPhotos.map((p) => p.id)]),
+            );
+            const primaryPhoto = proofPhotos[0]?.url || photos[0]?.url || asset?.photo_url || "";
             save.mutate({
               ...form,
               asset_type: activeType,
               width_ft: Number(form.width_ft),
               height_ft: Number(form.height_ft),
-              photo_ids: photos.map((p) => p.id),
-              photo_url: photos[0]?.url || asset?.photo_url || "",
+              photo_ids: allPhotoIds,
+              proof_photo_ids: proofPhotos.map((p) => p.id),
+              photo_url: primaryPhoto,
             });
           }}
           data-testid={asset ? "edit-asset-form" : "add-asset-form"}
@@ -800,18 +858,53 @@ export function AssetDialog({ asset, trigger }) {
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Photo attachments</Label>
-            <FileUploader
-              value={photos}
-              onChange={setPhotos}
-              multiple
-              label="Attach asset photos"
-              testId="asset-photo-uploader"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Attach several angles — they play as a slideshow on the asset page.
-            </p>
+          {/* Photo Attachments & Geo-Tagged Proof Section */}
+          <div className="space-y-3 pt-1">
+            <div className="space-y-1.5">
+              <Label>Photo attachments</Label>
+              <FileUploader
+                value={photos}
+                onChange={setPhotos}
+                multiple
+                label="Attach asset photos"
+                testId="asset-photo-uploader"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Attach several angles — they play as a slideshow on the asset page.
+              </p>
+            </div>
+
+            {/* Geo-Tagged Installation Proof (GTP) Placeholder & Upload */}
+            <div
+              className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2"
+              data-testid="asset-gtp-proof-section"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Camera className="size-4 text-emerald-600 dark:text-emerald-400" />
+                  <Label className="text-xs font-semibold text-foreground">
+                    Geo-Tagged Proof (GTP)
+                  </Label>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="mono-label text-[10px] border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                >
+                  Client POP Portal Proof
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Capture or upload physical mounting proof stamped with live GPS coordinates. Directly populates the Client Proof-of-Performance portal.
+              </p>
+              <FileUploader
+                value={proofPhotos}
+                onChange={setProofPhotos}
+                multiple
+                geotag
+                label="Upload Geo-Tagged Proof (GTP)"
+                testId="asset-gtp-uploader"
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="description">Description</Label>
