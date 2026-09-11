@@ -1,17 +1,67 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import SmartImage from "@/components/shared/SmartImage";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 /**
- * Slideshow over an asset's uploaded photo attachments (falls back to a legacy photo_url).
+ * Slideshow over an asset's uploaded photo attachments.
  * `variant="card"` renders the compact grid-card version without controls.
  */
 export default function PhotoSlideshow({ asset, variant = "detail", className }) {
-  const shots = [
-    ...(asset?.photo_ids ?? []).map((id) => `/api/uploads/${id}`),
-    ...(asset?.photo_url ? [asset.photo_url] : []),
-  ];
+  const initialShots = Array.from(
+    new Set(
+      [
+        ...(asset?.photo_urls ?? []),
+        ...(asset?.photo_url ? [asset.photo_url] : []),
+      ].filter(Boolean),
+    ),
+  );
+
+  const [shots, setShots] = useState(initialShots);
+
+  useEffect(() => {
+    let active = true;
+    const known = Array.from(
+      new Set(
+        [
+          ...(asset?.photo_urls ?? []),
+          ...(asset?.photo_url ? [asset.photo_url] : []),
+        ].filter(Boolean),
+      ),
+    );
+
+    if (known.length > 0 || !asset?.photo_ids?.length) {
+      setShots(known);
+      return;
+    }
+
+    // Fallback: If no direct URLs are available but photo_ids exist, fetch from documents
+    supabase
+      .from("documents")
+      .select("id, url, storage_path")
+      .in("id", asset.photo_ids)
+      .then(({ data }) => {
+        if (!active) return;
+        const fetched = (data ?? [])
+          .map(
+            (d) =>
+              d.url ||
+              (d.storage_path
+                ? supabase.storage.from("documents").getPublicUrl(d.storage_path).data?.publicUrl
+                : null),
+          )
+          .filter(Boolean);
+        setShots(
+          Array.from(new Set([...fetched, ...(asset?.photo_url ? [asset.photo_url] : [])].filter(Boolean))),
+        );
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [asset?.id, asset?.photo_url, JSON.stringify(asset?.photo_urls), JSON.stringify(asset?.photo_ids)]);
+
   const [i, setI] = useState(0);
   const count = shots.length;
   const current = count ? shots[i % count] : null;

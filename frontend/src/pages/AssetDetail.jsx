@@ -627,7 +627,7 @@ export default function AssetDetail() {
                     ["City", asset.city],
                     ["Location code", asset.location_code],
                     ["Size", `${asset.width_ft} × ${asset.height_ft} ft`],
-                    ["Photos", String((asset.photo_ids ?? []).length + (asset.photo_url ? 1 : 0))],
+                    ["Photos", String(asset.photo_urls?.length || Math.max((asset.photo_ids ?? []).length, asset.photo_url ? 1 : 0))],
                   ].map(([k, v]) => (
                     <div key={k}>
                       <dt className="mono-label text-muted-foreground">{k}</dt>

@@ -246,13 +246,38 @@ export function useAssets(params = {}) {
         }
       }
 
-      return assets.map((a) => ({
-        ...a,
-        queue_count: countMap[a.id] ?? a.queue_count ?? 0,
-        current_brand: liveMap[a.id] ?? a.current_brand ?? null,
-        photo_ids: a.photo_ids ?? [],
-        ...(gtpMap[a.id] ?? (a.next_gtp_date ? { next_gtp_date: a.next_gtp_date, gtp_overdue: false } : {})),
-      }));
+      // Fetch document public URLs for all asset photo_ids
+      const allPhotoIds = assets.flatMap((a) => a.photo_ids ?? []);
+      const docUrlMap = {};
+      if (allPhotoIds.length) {
+        const { data: docs } = await supabase
+          .from("documents")
+          .select("id, url, storage_path")
+          .in("id", allPhotoIds);
+        for (const d of docs ?? []) {
+          docUrlMap[d.id] =
+            d.url ||
+            (d.storage_path
+              ? supabase.storage.from("documents").getPublicUrl(d.storage_path).data?.publicUrl
+              : null);
+        }
+      }
+
+      return assets.map((a) => {
+        const resolvedUrls = (a.photo_ids ?? []).map((id) => docUrlMap[id]).filter(Boolean);
+        if (a.photo_url && !resolvedUrls.includes(a.photo_url)) {
+          resolvedUrls.push(a.photo_url);
+        }
+        return {
+          ...a,
+          queue_count: countMap[a.id] ?? a.queue_count ?? 0,
+          current_brand: liveMap[a.id] ?? a.current_brand ?? null,
+          photo_ids: a.photo_ids ?? [],
+          photo_urls: resolvedUrls,
+          photo_url: resolvedUrls[0] || a.photo_url || "",
+          ...(gtpMap[a.id] ?? (a.next_gtp_date ? { next_gtp_date: a.next_gtp_date, gtp_overdue: false } : {})),
+        };
+      });
     },
     retry: false,
   });
@@ -264,12 +289,38 @@ export function useAsset(id) {
     queryFn: async () => {
       if (!id) return null;
       const asset = check(await supabase.from("assets").select("*").eq("id", id).single());
-      const [{ data: campaigns }, { data: audit }, { data: queueEntries }] = await Promise.all([
+      const [{ data: campaigns }, { data: audit }, { data: queueEntries }, { data: docs }] = await Promise.all([
         supabase.from("campaigns").select("*").eq("asset_id", id).order("created_at", { ascending: false }),
         supabase.from("audit_logs").select("*").eq("asset_id", id).order("created_at", { ascending: false }),
         supabase.from("queue_entries").select("*").eq("asset_id", id).order("created_at"),
+        (asset.photo_ids ?? []).length
+          ? supabase.from("documents").select("id, url, storage_path").in("id", asset.photo_ids)
+          : Promise.resolve({ data: [] }),
       ]);
-      return { ...asset, campaigns: campaigns ?? [], audit: audit ?? [], queue: queueEntries ?? [] };
+
+      const docUrls = (docs ?? [])
+        .map(
+          (d) =>
+            d.url ||
+            (d.storage_path
+              ? supabase.storage.from("documents").getPublicUrl(d.storage_path).data?.publicUrl
+              : null),
+        )
+        .filter(Boolean);
+
+      const resolvedUrls = [...docUrls];
+      if (asset.photo_url && !resolvedUrls.includes(asset.photo_url)) {
+        resolvedUrls.push(asset.photo_url);
+      }
+
+      return {
+        ...asset,
+        photo_urls: resolvedUrls,
+        photo_url: resolvedUrls[0] || asset.photo_url || "",
+        campaigns: campaigns ?? [],
+        audit: audit ?? [],
+        queue: queueEntries ?? [],
+      };
     },
     enabled: Boolean(id),
     retry: false,
