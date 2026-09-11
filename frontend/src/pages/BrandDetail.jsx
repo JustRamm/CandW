@@ -200,14 +200,14 @@ export default function BrandDetail() {
               <CardTitle className="font-heading text-base">Campaign history</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {brand.campaigns?.length === 0 ? (
+              {(brand.campaigns ?? []).length === 0 ? (
                 <EmptyState
                   title="No campaigns yet"
                   hint="Once Finance confirms an interest entry for this brand, the campaign appears here permanently."
                   testId="brand-campaigns-empty"
                 />
               ) : (
-                brand.campaigns.map((c) => (
+                (brand.campaigns ?? []).map((c) => (
                   <Link
                     key={c.id}
                     to={`/campaigns/${c.id}`}
@@ -236,10 +236,10 @@ export default function BrandDetail() {
               <CardTitle className="font-heading text-base">Interest queue history</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              {brand.queue_entries?.length === 0 ? (
+              {(brand.queue_entries ?? []).length === 0 ? (
                 <EmptyState title="No queue entries" testId="brand-queue-empty" />
               ) : (
-                brand.queue_entries.map((e) => (
+                (brand.queue_entries ?? []).map((e) => (
                   <div
                     key={e.id}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2 text-xs"

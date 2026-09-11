@@ -481,12 +481,29 @@ export function useBrand(id) {
     queryFn: async () => {
       if (!id) return null;
       const brand = check(await supabase.from("brands").select("*").eq("id", id).single());
-      const { data: campaigns } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("brand_id", id)
-        .order("created_at", { ascending: false });
-      return { ...brand, campaigns: campaigns ?? [] };
+      const [{ data: campaigns }, { data: queueEntries }, { data: audit }] = await Promise.all([
+        supabase
+          .from("campaigns")
+          .select("*")
+          .eq("brand_id", id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("queue_entries")
+          .select("*")
+          .eq("brand_id", id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("audit_logs")
+          .select("*")
+          .eq("entity_id", id)
+          .order("created_at", { ascending: false }),
+      ]);
+      return {
+        ...brand,
+        campaigns: campaigns ?? [],
+        queue_entries: queueEntries ?? [],
+        audit: audit ?? [],
+      };
     },
     enabled: Boolean(id),
     retry: false,
