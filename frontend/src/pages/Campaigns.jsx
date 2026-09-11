@@ -52,7 +52,7 @@ export default function Campaigns() {
     >
       <div className="space-y-4">
         <Select value={stage} onValueChange={setStage}>
-          <SelectTrigger className="sm:w-56" data-testid="campaign-stage-filter">
+          <SelectTrigger className="w-full sm:w-56" data-testid="campaign-stage-filter">
             <SelectValue>{(v) => STAGES.find(([k]) => k === v)?.[1] ?? "All stages"}</SelectValue>
           </SelectTrigger>
           <SelectContent>

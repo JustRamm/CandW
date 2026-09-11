@@ -58,7 +58,7 @@ export default function Audit() {
       <div className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row">
           <Select value={entityType} onValueChange={setEntityType}>
-            <SelectTrigger className="sm:w-56" data-testid="audit-entity-filter">
+            <SelectTrigger className="w-full sm:w-56" data-testid="audit-entity-filter">
               <SelectValue>{(v) => ENTITY_TYPES.find(([k]) => k === v)?.[1] ?? "All entities"}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -71,7 +71,7 @@ export default function Audit() {
           </Select>
           {me?.role === "admin" && (
             <Select value={actorId} onValueChange={setActorId}>
-              <SelectTrigger className="sm:w-56" data-testid="audit-actor-filter">
+              <SelectTrigger className="w-full sm:w-56" data-testid="audit-actor-filter">
                 <SelectValue>
                   {(v) => (v === "all" ? "All actors" : users?.find((u) => u.id === v)?.name ?? "Actor")}
                 </SelectValue>

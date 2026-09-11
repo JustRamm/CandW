@@ -76,14 +76,14 @@ function UsersPanel() {
             {(users ?? []).map((u) => (
               <li
                 key={u.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2.5"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2.5"
                 data-testid={`user-row-${u.email}`}
               >
                 <div className="min-w-0">
                   <p className="truncate font-heading text-sm font-medium">{u.name}</p>
                   <p className="mono-label truncate text-muted-foreground">{u.email}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="mono-label border-primary/40 text-primary">
                     {u.role_label}
                   </Badge>

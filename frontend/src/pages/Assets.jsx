@@ -657,13 +657,13 @@ export default function Assets() {
     >
       <div className="space-y-4">
         <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
-          <div className="relative flex-1 min-w-[220px]">
+          <div className="relative w-full flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search by asset ID or location"
-              className="pl-9 pr-8"
+              className="pl-9 pr-8 w-full"
               data-testid="asset-search-input"
             />
             {q && (
@@ -678,7 +678,7 @@ export default function Assets() {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full lg:w-auto">
             {/* 1. Filter by District (Kerala's 14 districts) */}
             <Select value={district} onValueChange={setDistrict}>
               <SelectTrigger className="w-full sm:w-48" data-testid="asset-district-filter">

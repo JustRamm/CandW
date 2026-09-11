@@ -198,30 +198,43 @@ export default function AppShell({ children, title, subtitle, actions }) {
       </aside>
 
       <div className="flex flex-1 flex-col min-w-0 h-screen overflow-y-auto pb-20 md:pb-0">
-        <header className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-border/70 bg-background/85 px-4 py-4 backdrop-blur-xl md:px-8">
-          <div className="min-w-0">
-            <h1 className="font-heading text-xl font-bold tracking-tight sm:text-2xl" data-testid="page-title">
-              {title}
-            </h1>
-            {subtitle && <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">{subtitle}</p>}
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {actions}
-            <NotificationDrawer />
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Sign out"
-              disabled={signingOut}
-              onClick={signOut}
-              className="md:hidden"
-              data-testid="mobile-sign-out-button"
-            >
-              <LogOut className="size-4" />
-            </Button>
+        <header className="sticky top-0 z-20 border-b border-border/70 bg-background/85 px-4 py-3 sm:py-4 backdrop-blur-xl md:px-8">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-3 min-w-0">
+              <div className="min-w-0 flex-1">
+                <h1 className="font-heading text-lg font-bold tracking-tight sm:text-xl md:text-2xl truncate" data-testid="page-title">
+                  {title}
+                </h1>
+                {subtitle && <p className="mt-0.5 text-xs text-muted-foreground truncate sm:whitespace-normal">{subtitle}</p>}
+              </div>
+              <div className="flex items-center gap-1 sm:hidden shrink-0">
+                <NotificationDrawer />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Sign out"
+                  disabled={signingOut}
+                  onClick={signOut}
+                  data-testid="mobile-sign-out-button"
+                >
+                  <LogOut className="size-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap min-w-0">
+              {actions && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {actions}
+                </div>
+              )}
+              <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+                <NotificationDrawer />
+              </div>
+            </div>
           </div>
         </header>
-        <main className="flex-1 px-4 py-5 md:px-8 md:py-7">
+        <main className="flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full">
           {isLoading ? (
             <div className="space-y-4">
               <Skeleton className="h-10 w-48 rounded-lg" />
@@ -238,23 +251,31 @@ export default function AppShell({ children, title, subtitle, actions }) {
       </div>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-sidebar-border bg-sidebar/95 backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-sidebar-border bg-sidebar/95 backdrop-blur-xl px-1 py-1.5 md:hidden overflow-x-auto scrollbar-none"
         data-testid="mobile-tab-bar"
       >
-        {nav.slice(0, 5).map(({ to, label, icon: Icon }) => {
-          const active = location.pathname.startsWith(to);
+        {nav.map(({ to, label, icon: Icon }) => {
+          const active = location.pathname === to || (to !== "/dashboard" && location.pathname.startsWith(to));
+          const shortLabel =
+            label === "Interest Queue"
+              ? "Queue"
+              : label === "Audit Trail"
+                ? "Audit"
+                : label === "Dashboard"
+                  ? "Dash"
+                  : label.split(" ")[0];
           return (
             <Link
               key={to}
               to={to}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] transition-colors duration-150",
-                active ? "text-primary" : "text-sidebar-foreground/60",
+                "flex flex-1 min-w-[48px] max-w-[68px] flex-col items-center justify-center gap-0.5 py-1 text-[10px] font-medium transition-colors duration-150 text-center select-none",
+                active ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground",
               )}
               data-testid={`mobile-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
             >
-              <Icon className="size-5" />
-              {label.split(" ")[0]}
+              <Icon className={cn("size-4.5 shrink-0", active && "stroke-[2.25]")} />
+              <span className="truncate max-w-full">{shortLabel}</span>
             </Link>
           );
         })}
