@@ -227,7 +227,16 @@ export function useAssets(params = {}) {
       const countMap = {};
       for (const e of queueCounts ?? []) countMap[e.asset_id] = (countMap[e.asset_id] ?? 0) + 1;
       const liveMap = {};
-      for (const c of liveCampaigns ?? []) liveMap[c.asset_id] = c.brand;
+      for (const c of liveCampaigns ?? []) {
+        if (liveMap[c.asset_id]) {
+          const parts = liveMap[c.asset_id].split(", ");
+          if (!parts.includes(c.brand)) {
+            liveMap[c.asset_id] = `${liveMap[c.asset_id]}, ${c.brand}`;
+          }
+        } else {
+          liveMap[c.asset_id] = c.brand;
+        }
+      }
       const gtpMap = {};
       for (const c of gtpCampaigns ?? []) {
         const pending = (c.gtps ?? []).find((g) => ["pending", "rejected"].includes(g.status));
@@ -608,11 +617,10 @@ export function useClientPortalData(identifier, type = "brand") {
 
       const assetMap = Object.fromEntries(assets.map((a) => [a.id, a]));
 
-      const docIds = Array.from(
-        new Set(
-          campaigns.flatMap((c) => (c.gtps ?? []).flatMap((g) => g.doc_ids ?? [])),
-        ),
-      );
+      const gtpDocIds = campaigns.flatMap((c) => (c.gtps ?? []).flatMap((g) => g.doc_ids ?? []));
+      const assetDocIds = assets.flatMap((a) => a.photo_ids ?? []);
+      const docIds = Array.from(new Set([...gtpDocIds, ...assetDocIds]));
+
       let documents = [];
       if (docIds.length) {
         const { data: dData } = await supabase
@@ -643,6 +651,27 @@ export function useClientPortalData(identifier, type = "brand") {
                 asset,
               });
             }
+          }
+        }
+      }
+
+      // Also include asset photos as verified installation proof if not already in GTP cycle
+      for (const asset of assets) {
+        for (const pId of asset.photo_ids ?? []) {
+          const doc = docMap[pId];
+          if (doc && !proofs.some((p) => p.doc?.id === doc.id)) {
+            proofs.push({
+              id: `asset-photo-${asset.id}-${doc.id}`,
+              campaignId: campaigns.find((c) => c.asset_id === asset.id)?.id || asset.id,
+              gtpSeq: 1,
+              isFinal: false,
+              dueDate: doc.created_at?.split("T")[0] || new Date().toISOString().split("T")[0],
+              status: "approved",
+              submittedAt: doc.created_at,
+              reviewedAt: doc.created_at,
+              doc,
+              asset,
+            });
           }
         }
       }

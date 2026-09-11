@@ -165,6 +165,7 @@ const BLANK = {
   location_code: "",
   location_name: "",
   brand_name: "",
+  brand_names: [],
   city: "Ernakulam",
   district: "Ernakulam",
   width_ft: 8,
@@ -186,14 +187,18 @@ export function AssetDialog({ asset, trigger }) {
   const { data: brands = [] } = useBrands();
   const [open, setOpen] = useState(false);
 
-  const getInitialForm = () =>
-    asset
+  const getInitialForm = () => {
+    const existingBrands = asset?.current_brand
+      ? asset.current_brand.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    return asset
       ? {
           asset_type: asset.asset_type,
           location_type: asset.location_type ?? "Metro",
           location_code: asset.location_code,
           location_name: asset.location_name,
-          brand_name: asset.current_brand ?? "",
+          brand_name: existingBrands[0] ?? "",
+          brand_names: existingBrands,
           city: asset.city ?? "",
           // Bug #21 fix: include district so it's not wiped on edit-save
           district: asset.district ?? asset.city ?? "",
@@ -205,7 +210,8 @@ export function AssetDialog({ asset, trigger }) {
           longitude: asset.longitude ?? "",
           geofence_radius_m: asset.geofence_radius_m ?? 500,
         }
-      : { ...BLANK };
+      : { ...BLANK, brand_names: [] };
+  };
 
   const [form, setForm] = useState(getInitialForm);
   const [photos, setPhotos] = useState(
@@ -279,24 +285,45 @@ export function AssetDialog({ asset, trigger }) {
   const dbTypeNames = (types ?? []).map((t) => t.name);
   const typeNames = Array.from(new Set([...dbTypeNames, ...DEFAULT_TYPES]));
   const activeType = form.asset_type || typeNames[0] || "";
+  const isDigital =
+    activeType === "Digital Screen" ||
+    activeType === "Digital Totem" ||
+    form.location_type === "DOOH";
 
   const save = useMutation({
     mutationFn: async (body) => {
       const { supabase } = await import("@/lib/supabase");
 
-      if (!body.brand_name && !asset) {
-        throw { body: { detail: "Please select a registered brand partner (required)." } };
+      const isDigitalAsset =
+        body.asset_type === "Digital Screen" ||
+        body.asset_type === "Digital Totem" ||
+        body.location_type === "DOOH";
+
+      const selectedBrands = isDigitalAsset
+        ? (form.brand_names ?? []).filter(Boolean)
+        : (body.brand_name ? [body.brand_name.trim()] : []);
+
+      if (!selectedBrands.length && !asset) {
+        throw {
+          body: {
+            detail: isDigitalAsset
+              ? "Please select at least one brand partner for the digital ad loop (required)."
+              : "Please select a registered brand partner (required).",
+          },
+        };
       }
 
-      const notesWithBrand = body.brand_name
-        ? `${body.notes ? body.notes + " · " : ""}Brand Partner: ${body.brand_name}`
+      const brandSummary = selectedBrands.join(", ");
+      const notesWithBrand = brandSummary
+        ? `${body.notes ? body.notes + " · " : ""}${isDigitalAsset ? "Digital Ad Loop: " : "Brand Partner: "}${brandSummary}`
         : body.notes;
 
-      const { brand_name, ...dbFields } = body;
+      const { brand_name, brand_names, ...dbFields } = body;
 
       const payload = {
         ...dbFields,
         notes: notesWithBrand,
+        current_brand: brandSummary || null,
         latitude: body.latitude && !isNaN(Number(body.latitude)) ? Number(body.latitude) : null,
         longitude: body.longitude && !isNaN(Number(body.longitude)) ? Number(body.longitude) : null,
         geofence_radius_m: body.geofence_radius_m ? Number(body.geofence_radius_m) : 500,
@@ -323,14 +350,14 @@ export function AssetDialog({ asset, trigger }) {
       }).select().single();
       if (error) throw { body: { detail: error.message } };
 
-      // Link brand campaign automatically
-      if (body.brand_name) {
-        const matched = brands.find((b) => b.name === body.brand_name);
+      // Link brand campaign(s) automatically
+      for (const bName of selectedBrands) {
+        const matched = brands.find((b) => b.name.toLowerCase() === bName.toLowerCase());
         await supabase.from("campaigns").insert({
           id: crypto.randomUUID(),
           asset_id: data.id,
           asset_code: data.asset_code,
-          brand: body.brand_name,
+          brand: bName,
           brand_id: matched?.id || null,
           duration_days: 30,
           proposed_duration_days: 30,
@@ -338,6 +365,7 @@ export function AssetDialog({ asset, trigger }) {
           priority: "high",
           start_date: new Date().toISOString().split("T")[0],
           end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          notes: isDigitalAsset ? "Digital Screen Rotating Ad Loop Slot" : "Exclusive Static Slot",
         });
       }
 
@@ -429,38 +457,125 @@ export function AssetDialog({ asset, trigger }) {
             </div>
           </div>
 
-          {/* Non-optional Registered Brand Partner */}
-          <div className="space-y-1.5">
-            <Label htmlFor="asset-brand-select" className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-foreground">
-                Placeholder Brand Partner <span className="text-destructive">*</span>
-              </span>
-              <span className="text-[10px] text-muted-foreground">Required</span>
-            </Label>
-            <Select
-              value={form.brand_name}
-              onValueChange={(val) => setForm((f) => ({ ...f, brand_name: val }))}
-            >
-              <SelectTrigger id="asset-brand-select" className="bg-background text-xs" data-testid="asset-brand-select">
-                <SelectValue placeholder="Select registered brand partner (required)..." />
-              </SelectTrigger>
-              <SelectContent>
-                {brands.map((b) => (
-                  <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
-                    <span className="font-semibold text-foreground">{b.name}</span>
-                    {b.industry && (
-                      <span className="ml-2 text-[11px] text-muted-foreground">({b.industry})</span>
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!form.brand_name && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                A registered brand partner is required for all new assets.
-              </p>
-            )}
-          </div>
+          {/* Brand Partner Section: Multi-brand loop for Digital Screens, Single-brand for Static */}
+          {isDigital ? (
+            <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3" data-testid="digital-loop-brand-section">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
+                    <span>Digital Screen Ad Loop Brands</span>
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Digital displays showcase rotating ad slots (e.g. 10–20s loop). Select all brands running on this screen.
+                  </p>
+                </div>
+                <Badge variant="outline" className="mono-label text-[10px] border-primary/40 text-primary">
+                  {form.brand_names?.length || 0} in rotation
+                </Badge>
+              </div>
+
+              {/* Selected Brands Roster */}
+              <div className="flex flex-wrap items-center gap-1.5 min-h-[34px] p-1.5 rounded-md border border-input bg-background">
+                {form.brand_names && form.brand_names.length > 0 ? (
+                  form.brand_names.map((bName) => (
+                    <Badge
+                      key={bName}
+                      variant="secondary"
+                      className="gap-1 px-2 py-0.5 text-xs font-medium bg-primary/10 text-foreground hover:bg-primary/20"
+                    >
+                      <span>{bName}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            brand_names: (f.brand_names || []).filter((b) => b !== bName),
+                          }))
+                        }
+                        className="rounded-full hover:bg-destructive/20 hover:text-destructive p-0.5 ml-0.5 text-muted-foreground transition-colors cursor-pointer"
+                        title={`Remove ${bName}`}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-[11px] text-muted-foreground italic px-1">
+                    No brands in rotation yet. Select below to add.
+                  </span>
+                )}
+              </div>
+
+              {/* Brand Selector to Add */}
+              <Select
+                value=""
+                onValueChange={(val) => {
+                  if (val && !(form.brand_names || []).includes(val)) {
+                    setForm((f) => ({
+                      ...f,
+                      brand_names: [...(f.brand_names || []), val],
+                      brand_name: val,
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-background text-xs h-8" data-testid="digital-brand-select">
+                  <SelectValue placeholder="+ Add registered brand to loop rotation..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {brands
+                    .filter((b) => !(form.brand_names || []).includes(b.name))
+                    .map((b) => (
+                      <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
+                        <span className="font-semibold text-foreground">{b.name}</span>
+                        {b.industry && (
+                          <span className="ml-2 text-[11px] text-muted-foreground">({b.industry})</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+
+              {(!form.brand_names || form.brand_names.length === 0) && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  At least one brand partner is required for this digital screen.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="asset-brand-select" className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-foreground">
+                  Placeholder Brand Partner <span className="text-destructive">*</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground">Required</span>
+              </Label>
+              <Select
+                value={form.brand_name}
+                onValueChange={(val) => setForm((f) => ({ ...f, brand_name: val, brand_names: [val] }))}
+              >
+                <SelectTrigger id="asset-brand-select" className="bg-background text-xs" data-testid="asset-brand-select">
+                  <SelectValue placeholder="Select registered brand partner (required)..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {brands.map((b) => (
+                    <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
+                      <span className="font-semibold text-foreground">{b.name}</span>
+                      {b.industry && (
+                        <span className="ml-2 text-[11px] text-muted-foreground">({b.industry})</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!form.brand_name && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  A registered brand partner is required for all new assets.
+                </p>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="location_code">Location code</Label>
@@ -1440,11 +1555,16 @@ export default function Assets() {
                     {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
                   </p>
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                    {a.current_brand && (
-                      <Badge variant="outline" className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs">
-                        {a.current_brand}
-                      </Badge>
-                    )}
+                    {a.current_brand &&
+                      a.current_brand.split(",").map((b) => (
+                        <Badge
+                          key={b.trim()}
+                          variant="outline"
+                          className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs"
+                        >
+                          {b.trim()}
+                        </Badge>
+                      ))}
                     {a.queue_count > 0 && (
                       <Badge
                         variant="outline"

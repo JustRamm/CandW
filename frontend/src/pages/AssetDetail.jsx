@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, History, MapPinned, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Camera, History, MapPinned, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
+import FileUploader from "@/components/shared/FileUploader";
 import { AssetStatusBadge, StageBadge, UrgencyBadge } from "@/components/shared/StatusBadges";
 import PhotoSlideshow from "@/components/shared/PhotoSlideshow";
 import AuditTrail from "@/components/shared/AuditTrail";
+import sound from "@/lib/sound";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { AssetDetailSkeleton } from "@/components/skeletons";
 import { Card, CardContent } from "@/components/ui/card";
@@ -281,6 +283,156 @@ function AddInterestDialog({ asset }) {
   );
 }
 
+export function UploadProofDialog({ asset }) {
+  const [open, setOpen] = useState(false);
+  const [photos, setPhotos] = useState([]);
+  const [notes, setNotes] = useState("");
+
+  const upload = useMutation({
+    mutationFn: async () => {
+      if (!photos.length) throw { body: { detail: "Please capture or select at least one photo" } };
+
+      const newPhotoIds = photos.map((p) => p.id);
+      const existingPhotoIds = asset.photo_ids ?? [];
+      const updatedPhotoIds = Array.from(new Set([...existingPhotoIds, ...newPhotoIds]));
+
+      // 1. Update asset photo_ids
+      const { error: aErr } = await supabase
+        .from("assets")
+        .update({
+          photo_ids: updatedPhotoIds,
+          photo_url: photos[0]?.url || asset.photo_url || "",
+          notes: notes ? `${asset.notes ? asset.notes + "\n" : ""}Installation Proof: ${notes}` : asset.notes,
+        })
+        .eq("id", asset.id);
+
+      if (aErr) throw { body: { detail: aErr.message } };
+
+      // 2. Also link to any active campaigns on this asset
+      const { data: camps } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("asset_id", asset.id)
+        .neq("stage", "closed");
+
+      for (const c of camps ?? []) {
+        const gtps = c.gtps ?? [];
+        if (gtps.length) {
+          const targetGtp = gtps.find((g) => ["pending", "submitted"].includes(g.status)) || gtps[0];
+          targetGtp.doc_ids = Array.from(new Set([...(targetGtp.doc_ids ?? []), ...newPhotoIds]));
+          targetGtp.status = "approved";
+          targetGtp.reviewed_at = new Date().toISOString();
+          targetGtp.submitted_at = new Date().toISOString();
+        } else {
+          gtps.push({
+            id: crypto.randomUUID(),
+            seq: 1,
+            status: "approved",
+            due_date: new Date().toISOString().split("T")[0],
+            is_final: false,
+            doc_ids: newPhotoIds,
+            priority: "high",
+            notes: notes || "Installation mounting proof",
+            submitted_at: new Date().toISOString(),
+            reviewed_at: new Date().toISOString(),
+          });
+        }
+        await supabase.from("campaigns").update({ gtps }).eq("id", c.id);
+      }
+
+      return { ok: true };
+    },
+    onSuccess: () => {
+      sound.success();
+      queryClient.invalidateQueries({ queryKey: ["asset", asset.id] });
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["client-portal"] });
+      toast.success("Installation photo proof uploaded! Synced to Client Portal.");
+      setOpen(false);
+      setPhotos([]);
+      setNotes("");
+    },
+    onError: (err) => {
+      sound.warning();
+      toast.error(errMessage(err, "Could not upload proof"));
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button
+            variant="outline"
+            size="xs"
+            className="gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+            data-testid="upload-proof-button"
+          />
+        }
+      >
+        <Camera className="size-3.5" />
+        Upload Proof (GTP)
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-heading flex items-center gap-2 text-base">
+            <Camera className="size-4 text-emerald-500" />
+            Upload Installation Proof (GTP)
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 pt-2 text-xs">
+          <p className="text-muted-foreground text-xs">
+            Capture or upload geo-tagged installation photos for{" "}
+            <strong className="text-foreground">{asset.asset_code}</strong> ({asset.location_name}).
+            These photos appear in the client’s Proof-of-Performance portal.
+          </p>
+
+          <FileUploader
+            value={photos}
+            onChange={setPhotos}
+            multiple
+            geotag
+            label="Capture or Upload Geo-Tagged Photo"
+            testId="proof-file-uploader"
+          />
+
+          <div className="space-y-1">
+            <Label htmlFor="proof-notes">Site & Mounting Notes</Label>
+            <Input
+              id="proof-notes"
+              placeholder="e.g. Flex mounted cleanly, night illumination 100%"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="h-8 text-xs"
+            />
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={upload.isPending || !photos.length}
+              onClick={() => upload.mutate()}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+            >
+              {upload.isPending ? "Uploading…" : "Save & Sync to Portal"}
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function QueuePanel({ asset }) {
   const { data: me } = useMe();
   const { data: entries } = useAssetQueue(asset.id);
@@ -429,6 +581,7 @@ export default function AssetDetail() {
             Assets
           </Link>
           {canAddInterest && <AddInterestDialog asset={asset} />}
+          {asset && <UploadProofDialog asset={asset} />}
           {asset && (me?.role === "ops" || me?.role === "admin") && (
             <AssetDialog
               asset={asset}
@@ -484,6 +637,24 @@ export default function AssetDetail() {
                 </dl>
                 {asset.description && <p className="text-xs text-foreground">{asset.description}</p>}
                 {asset.notes && <p className="text-xs text-muted-foreground">{asset.notes}</p>}
+                {asset.current_brand && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="mono-label text-[11px] text-muted-foreground">
+                      {asset.asset_type?.includes("Digital") || asset.location_type === "DOOH"
+                        ? "Digital Ad Loop Brands:"
+                        : "Active Brand:"}
+                    </span>
+                    {asset.current_brand.split(",").map((b) => (
+                      <Badge
+                        key={b.trim()}
+                        variant="outline"
+                        className="mono-label rounded-full border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold px-2.5 py-0.5"
+                      >
+                        {b.trim()}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </div>
           </Card>
