@@ -13,7 +13,6 @@ export function beginSession() {
 // state is wiped.
 export async function endSession(redirectTo = "/login") {
   try {
-    localStorage.removeItem("cw_mock_user");
     await supabase.auth.signOut();
   } catch {
     // ignore

@@ -26,17 +26,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
+import { queryClient } from "@/lib/queryClient";
 import { beginSession } from "@/lib/session";
 import { useMe } from "@/lib/queries";
 import { cn } from "@/lib/utils";
-
-const DEMO = [
-  { email: "admin@ims.test", role: "Admin" },
-  { email: "sales@ims.test", role: "Sales" },
-  { email: "ops@ims.test", role: "Operations" },
-  { email: "finance@ims.test", role: "Finance" },
-  { email: "fm@ims.test", role: "Finance Manager" },
-];
 
 const ROLES = [
   { value: "sales", label: "Sales" },
@@ -66,7 +59,7 @@ export default function Login({ initialMode }) {
 
   // Sign In state
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("Password123");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   // Sign Up state
@@ -85,68 +78,43 @@ export default function Login({ initialMode }) {
   // Sign In Mutation
   const login = useMutation({
     mutationFn: async ({ email, password }) => {
-      const ROLE_MAP = {
-        "admin@ims.test": { id: "00000000-0000-0000-0000-000000000001", role: "admin", role_label: "Admin", name: "System Admin" },
-        "sales@ims.test": { id: "00000000-0000-0000-0000-000000000002", role: "sales", role_label: "Sales", name: "Sarah Sales" },
-        "ops@ims.test": { id: "00000000-0000-0000-0000-000000000003", role: "ops", role_label: "Operations", name: "Oliver Ops" },
-        "finance@ims.test": { id: "00000000-0000-0000-0000-000000000004", role: "finance", role_label: "Finance", name: "Fiona Finance" },
-        "fm@ims.test": { id: "00000000-0000-0000-0000-000000000005", role: "finance_manager", role_label: "Finance Manager", name: "Felix Manager" },
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (error) throw error;
+      if (!data?.user) throw new Error("No user returned from authentication.");
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name, role")
+        .eq("id", data.user.id)
+        .maybeSingle();
+
+      const ROLE_LABELS = {
+        admin: "Admin",
+        sales: "Sales",
+        ops: "Operations",
+        finance: "Finance",
+        finance_manager: "Finance Manager",
       };
 
-      let user = null;
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (!error && data?.user) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("name, role")
-            .eq("id", data.user.id)
-            .single();
-          const ROLE_LABELS = { admin: "Admin", sales: "Sales", ops: "Operations", finance: "Finance", finance_manager: "Finance Manager" };
-          user = {
-            id: data.user.id,
-            email: data.user.email,
-            name: profile?.name ?? data.user.email,
-            role: profile?.role ?? "admin",
-            role_label: ROLE_LABELS[profile?.role] ?? profile?.role ?? "Admin",
-          };
-        }
-      } catch {
-        // Fallback to hardcoded mock credentials
-      }
-
-      // Hardcoded credentials fallback
-      if (!user) {
-        const normalized = (email || "").trim().toLowerCase();
-        const demoUser = ROLE_MAP[normalized];
-        if (demoUser) {
-          user = {
-            id: demoUser.id,
-            email: normalized,
-            name: demoUser.name,
-            role: demoUser.role,
-            role_label: demoUser.role_label,
-          };
-        } else {
-          user = {
-            id: "00000000-0000-0000-0000-000000000001",
-            email: normalized || "admin@ims.test",
-            name: normalized ? normalized.split("@")[0] : "System Admin",
-            role: "admin",
-            role_label: "Admin",
-          };
-        }
-      }
-
-      localStorage.setItem("cw_mock_user", JSON.stringify(user));
-      return user;
+      return {
+        id: data.user.id,
+        email: data.user.email,
+        name: profile?.name ?? data.user.email?.split("@")[0] ?? "User",
+        role: profile?.role ?? "sales",
+        role_label: ROLE_LABELS[profile?.role] ?? profile?.role ?? "Sales",
+      };
     },
     onSuccess: (user) => {
       beginSession();
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success(`Signed in as ${user.name} · ${user.role_label}`);
       navigate("/dashboard");
     },
-    onError: (err) => toast.error(err?.body?.detail ?? err?.message ?? "Sign in failed"),
+    onError: (err) => toast.error(err?.message ?? "Sign in failed"),
   });
 
   // Sign Up Mutation
@@ -157,48 +125,47 @@ export default function Login({ initialMode }) {
       if (password.length < 6) throw new Error("Password must be at least 6 characters.");
       if (password !== confirmPassword) throw new Error("Passwords do not match.");
 
-      let user = null;
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { name, role } },
-        });
-        if (!error && data?.user) {
-          await supabase.from("profiles").upsert({
-            id: data.user.id,
-            name,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            name: name.trim(),
             role,
-          });
-          const ROLE_LABELS = { admin: "Admin", sales: "Sales", ops: "Operations", finance: "Finance", finance_manager: "Finance Manager" };
-          user = {
-            id: data.user.id,
-            email,
-            name,
-            role,
-            role_label: ROLE_LABELS[role] ?? "Sales",
-          };
-        }
-      } catch {
-        // Fallback to local mock session
-      }
+          },
+        },
+      });
+      if (error) throw error;
+      if (!data?.user) throw new Error("Sign up failed.");
 
-      if (!user) {
-        const ROLE_LABELS = { admin: "Admin", sales: "Sales", ops: "Operations", finance: "Finance", finance_manager: "Finance Manager" };
-        user = {
-          id: `mock-user-${Date.now()}`,
-          email: email.trim().toLowerCase(),
-          name: name.trim(),
-          role,
-          role_label: ROLE_LABELS[role] ?? "Sales",
-        };
-      }
+      // Ensure profile record is updated/created
+      await supabase.from("profiles").upsert({
+        id: data.user.id,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        role,
+      });
 
-      localStorage.setItem("cw_mock_user", JSON.stringify(user));
-      return user;
+      const ROLE_LABELS = {
+        admin: "Admin",
+        sales: "Sales",
+        ops: "Operations",
+        finance: "Finance",
+        finance_manager: "Finance Manager",
+      };
+
+      return {
+        id: data.user.id,
+        email: data.user.email,
+        name: name.trim(),
+        role,
+        role_label: ROLE_LABELS[role] ?? "Sales",
+      };
     },
     onSuccess: (user) => {
       beginSession();
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success(`Account created! Welcome, ${user.name}`);
       navigate("/dashboard");
     },
@@ -209,11 +176,8 @@ export default function Login({ initialMode }) {
   const forgot = useMutation({
     mutationFn: async (targetEmail) => {
       if (!targetEmail.trim()) throw new Error("Please enter your work email.");
-      try {
-        await supabase.auth.resetPasswordForEmail(targetEmail.trim());
-      } catch {
-        // Mock fallback succeeds gracefully
-      }
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail.trim());
+      if (error) throw error;
       return true;
     },
     onSuccess: () => {
@@ -456,32 +420,6 @@ export default function Login({ initialMode }) {
                     >
                       Sign up
                     </button>
-                  </div>
-
-                  {/* Demo Accounts Pill */}
-                  <div className="mt-7 rounded-xl border border-border/80 bg-card p-4 shadow-xs">
-                    <p className="mono-label flex items-center gap-1.5 text-muted-foreground">
-                      <ShieldCheck className="size-3.5 text-primary" />
-                      Demo accounts · Password123
-                    </p>
-                    <ul className="mt-3 space-y-1" data-testid="demo-accounts-list">
-                      {DEMO.map((d) => (
-                        <li key={d.email}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEmail(d.email);
-                              setPassword("Password123");
-                            }}
-                            className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-150 hover:bg-secondary/70"
-                            data-testid={`demo-account-${d.role.toLowerCase().replace(/\s+/g, "-")}`}
-                          >
-                            <span className="font-mono text-[11px] text-foreground">{d.email}</span>
-                            <span className="text-muted-foreground text-[11px]">{d.role}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
                   </div>
                 </motion.div>
               )}

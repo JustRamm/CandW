@@ -21,38 +21,24 @@ export function useMe() {
   return useQuery({
     queryKey: ["me"],
     queryFn: async () => {
-      // 1. Check hardcoded / local mock session first
-      const stored = localStorage.getItem("cw_mock_user");
-      if (stored) {
-        try {
-          const u = JSON.parse(stored);
-          if (u) return u;
-        } catch {
-          localStorage.removeItem("cw_mock_user");
-        }
-      }
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData?.user) return null;
 
-      // 2. Try Supabase Auth
-      try {
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (!authError && authData?.user) {
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", authData.user.id)
-            .single();
-          if (!profileError && profile) {
-            return {
-              ...profile,
-              role_label: ROLE_LABELS[profile.role] ?? profile.role,
-            };
-          }
-        }
-      } catch {
-        // Fallback
-      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authData.user.id)
+        .maybeSingle();
 
-      return null;
+      const role = profile?.role ?? "sales";
+      return {
+        id: authData.user.id,
+        email: authData.user.email,
+        name: profile?.name ?? authData.user.email?.split("@")[0] ?? "User",
+        role,
+        role_label: ROLE_LABELS[role] ?? "Sales",
+        ...(profile ?? {}),
+      };
     },
     retry: false,
     staleTime: 60_000,
@@ -65,8 +51,6 @@ export function useDashboard() {
   return useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const mockUser = JSON.parse(localStorage.getItem("cw_mock_user") || "null");
-
       const [
         { data: assets },
         { data: queue },
@@ -100,7 +84,7 @@ export function useDashboard() {
       const settings = settingsArr?.[0] ?? { gtp_reminder_days: 5 };
       const holidaySet = new Set((holidays ?? []).map((h) => h.date));
       const today = new Date().toISOString().split("T")[0];
-      const role = profile?.role ?? mockUser?.role ?? "admin";
+      const role = profile?.role ?? "sales";
 
       // Decorate queue entries with urgency
       const decoratedQueue = (queue ?? []).map((e) => {

@@ -21,8 +21,7 @@ export default function App() {
   useEffect(() => {
     // Redirect to /login whenever Supabase session is invalidated
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      const mockUser = localStorage.getItem("cw_mock_user");
-      if (event === "SIGNED_OUT" && !mockUser) navigate("/login", { replace: true });
+      if (event === "SIGNED_OUT") navigate("/login", { replace: true });
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
