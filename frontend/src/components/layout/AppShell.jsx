@@ -18,7 +18,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import BrandDoodles from "@/components/shared/BrandDoodles";
 import NotificationCenter from "@/components/shared/NotificationCenter";
+import OfflineSyncModal from "@/components/shared/OfflineSyncModal";
 import { useMe } from "@/lib/queries";
+
 import { endSession } from "@/lib/session";
 import { initRealtimeFeed } from "@/lib/realtime";
 import sound from "@/lib/sound";
@@ -177,7 +179,8 @@ export default function AppShell({ children, title, subtitle, actions }) {
                 </div>
               </button>
 
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <OfflineSyncModal />
                 <NotificationCenter />
                 <Button
                   variant="ghost"
@@ -195,7 +198,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
               </div>
             </div>
           ) : (
-            /* Other screens Mobile: Title + Subtitle + NotificationCenter + SignOut */
+            /* Other screens Mobile: Title + Subtitle + OfflineSyncModal + NotificationCenter + SignOut */
             <div className="flex sm:hidden items-center justify-between gap-3 min-w-0">
               <div className="min-w-0 flex-1">
                 <h1 className="font-heading text-lg font-bold tracking-tight truncate" data-testid="mobile-page-title">
@@ -203,7 +206,8 @@ export default function AppShell({ children, title, subtitle, actions }) {
                 </h1>
                 {subtitle && <p className="mt-0.5 text-xs text-muted-foreground truncate">{subtitle}</p>}
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <OfflineSyncModal />
                 <NotificationCenter />
                 <Button
                   variant="ghost"
@@ -222,7 +226,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
             </div>
           )}
 
-          {/* Desktop view: Always renders title, subtitle, actions, and notification center */}
+          {/* Desktop view: Always renders title, subtitle, actions, OfflineSyncModal and notification center */}
           <div className="hidden sm:flex sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="font-heading text-lg font-bold tracking-tight sm:text-xl md:text-2xl truncate" data-testid="page-title">
@@ -236,6 +240,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
                   {actions}
                 </div>
               )}
+              <OfflineSyncModal />
               <NotificationCenter />
             </div>
           </div>

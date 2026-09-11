@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Receipt,
   Rocket,
+  WifiOff,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -41,8 +42,10 @@ import PriorityBadge from "@/components/shared/PriorityBadge";
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useCampaign, useMe } from "@/lib/queries";
+import { enqueueOfflineGtp, cacheCampaignsOffline } from "@/lib/offlineStore";
 import { errMessage, fmtDate, fmtDateTime, fmtMoney } from "@/lib/helpers";
 import { cn } from "@/lib/utils";
+
 
 const STAGE_ORDER = ["onboarding", "invoicing", "live", "closing", "closed"];
 
@@ -143,6 +146,21 @@ function ChecklistItem({ campaign, item }) {
 
   const save = useMutation({
     mutationFn: async (body) => {
+      const hasOfflineDocs = docs.some((d) => d.isOffline);
+      if (!navigator.onLine || hasOfflineDocs) {
+        await enqueueOfflineGtp({
+          campaignId: campaign.id,
+          campaignName: campaign.brand,
+          assetCode: campaign.asset_code,
+          checklistKey: item.key,
+          checklistItemLabel: item.label,
+          notes: body.notes,
+          files: docs,
+          userProfile: me,
+        });
+        return { isOfflineQueued: true };
+      }
+
       const { data: c } = await supabase.from("campaigns").select("checklist").eq("id", campaign.id).single();
 
       // Resolve the current user's name before .map() so we don't need await inside a sync callback
@@ -169,13 +187,18 @@ function ChecklistItem({ campaign, item }) {
       if (error) throw { body: { detail: error.message } };
       return { checklist };
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       refresh();
       setDocs([]);
-      toast.success(`${item.label} updated`);
+      if (res?.isOfflineQueued) {
+        toast.success(`${item.label} saved to Offline Queue (will auto-sync when connected)`);
+      } else {
+        toast.success(`${item.label} updated`);
+      }
     },
     onError: (err) => toast.error(errMessage(err, "Could not update the checklist")),
   });
+
 
   const done = item.status === "done";
 
@@ -425,6 +448,21 @@ function GtpCard({ campaign, gtp }) {
 
   const submit = useMutation({
     mutationFn: async (body) => {
+      const hasOfflineDocs = docs.some((d) => d.isOffline);
+      if (!navigator.onLine || hasOfflineDocs) {
+        await enqueueOfflineGtp({
+          campaignId: campaign.id,
+          campaignName: campaign.brand,
+          assetCode: campaign.asset_code,
+          gtpId: gtp.id,
+          gtpSeq: gtp.seq,
+          notes: body.notes,
+          files: docs,
+          userProfile: me,
+        });
+        return { isOfflineQueued: true };
+      }
+
       const { data: c } = await supabase.from("campaigns").select("gtps").eq("id", campaign.id).single();
       const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
       const gtps = (c?.gtps ?? []).map((g) =>
@@ -436,13 +474,18 @@ function GtpCard({ campaign, gtp }) {
       if (error) throw { body: { detail: error.message } };
       return { ok: true };
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       refresh();
       setDocs([]);
-      toast.success(`GTP #${gtp.seq} submitted for approval`);
+      if (res?.isOfflineQueued) {
+        toast.success(`GTP #${gtp.seq} saved to Offline Queue (will auto-sync when connected)`);
+      } else {
+        toast.success(`GTP #${gtp.seq} submitted for approval`);
+      }
     },
     onError: (err) => toast.error(errMessage(err, "Could not submit the GTP")),
   });
+
 
   const review = useMutation({
     mutationFn: async (body) => {
@@ -807,6 +850,13 @@ export default function CampaignDetail() {
   const isOps = me?.role === "ops" || me?.role === "admin";
   const isFinance = ["finance", "finance_manager", "admin"].includes(me?.role);
   const [tab, setTab] = useState("checklist");
+
+  useEffect(() => {
+    if (campaign?.id) {
+      cacheCampaignsOffline([campaign]);
+    }
+  }, [campaign]);
+
 
   return (
     <AppShell

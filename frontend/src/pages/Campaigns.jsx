@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ClipboardList, Download } from "lucide-react";
+import { ClipboardList, Download, WifiOff } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
 import { StageBadge } from "@/components/shared/StatusBadges";
@@ -11,12 +11,31 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCampaigns } from "@/lib/queries";
 import { STAGE_LABELS, downloadCsv, fmtDate, fmtMoney } from "@/lib/helpers";
+import { cacheCampaignsOffline, getCachedCampaignsOffline } from "@/lib/offlineStore";
 
 const STAGES = [["all", "All stages"], ...Object.entries(STAGE_LABELS)];
 
 export default function Campaigns() {
   const [stage, setStage] = useState("all");
-  const { data: campaigns, isError, isLoading } = useCampaigns(stage);
+  const { data: rawCampaigns, isError, isLoading } = useCampaigns(stage);
+  const [offlineData, setOfflineData] = useState([]);
+
+  useEffect(() => {
+    if (rawCampaigns?.length) {
+      cacheCampaignsOffline(rawCampaigns);
+    } else if (isError || !navigator.onLine) {
+      getCachedCampaignsOffline().then((cached) => {
+        if (stage === "all") {
+          setOfflineData(cached);
+        } else {
+          setOfflineData(cached.filter((c) => c.stage === stage));
+        }
+      });
+    }
+  }, [rawCampaigns, isError, stage]);
+
+  const campaigns = rawCampaigns ?? (offlineData.length > 0 ? offlineData : []);
+
 
   return (
     <AppShell

@@ -5,6 +5,10 @@ import { BrowserRouter } from "react-router-dom";
 import "./index.css";
 import App from "./App.jsx";
 import { queryClient } from "./lib/queryClient";
+import { registerServiceWorker } from "./lib/pwa";
+
+registerServiceWorker();
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -14,3 +18,4 @@ createRoot(document.getElementById("root")).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
