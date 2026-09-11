@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
+import { motion } from "motion/react";
+import { cn } from "@/lib/utils";
 import {
   Building2,
   Download,
@@ -935,27 +937,60 @@ export default function Assets() {
             </Sheet>
 
             {/* Mobile View Switcher */}
-            <div className="flex items-center rounded-lg border border-border/80 bg-muted/40 p-0.5 shrink-0">
-              <Button
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="xs"
-                onClick={() => setViewMode("grid")}
-                className="h-8 px-3 gap-1.5 text-xs font-medium"
+            <div className="relative flex items-center rounded-xl border border-border/80 bg-muted/60 p-0.5 shrink-0 shadow-inner">
+              <button
+                type="button"
+                onClick={() => {
+                  sound.click();
+                  setViewMode("grid");
+                }}
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
+                  viewMode === "grid"
+                    ? "text-primary-foreground font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
                 data-testid="view-grid-btn-mobile"
               >
-                <LayoutGrid className="size-3.5" />
-                Grid
-              </Button>
-              <Button
-                variant={viewMode === "map" ? "secondary" : "ghost"}
-                size="xs"
-                onClick={() => setViewMode("map")}
-                className="h-8 px-3 gap-1.5 text-xs font-medium"
+                {viewMode === "grid" && (
+                  <motion.div
+                    layoutId="active-viewmode-pill-mobile"
+                    className="absolute inset-0 rounded-lg bg-primary shadow-xs"
+                    transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <LayoutGrid className="size-3.5" />
+                  Grid
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  sound.click();
+                  setViewMode("map");
+                }}
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
+                  viewMode === "map"
+                    ? "text-primary-foreground font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
                 data-testid="view-map-btn-mobile"
               >
-                <MapPin className="size-3.5 text-emerald-600" />
-                Map
-              </Button>
+                {viewMode === "map" && (
+                  <motion.div
+                    layoutId="active-viewmode-pill-mobile"
+                    className="absolute inset-0 rounded-lg bg-primary shadow-xs"
+                    transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <MapPin className="size-3.5" />
+                  Map & Geofence
+                </span>
+              </button>
             </div>
           </div>
 
@@ -1054,27 +1089,60 @@ export default function Assets() {
             )}
 
             {/* View Mode Switcher: Grid vs Map */}
-            <div className="flex items-center rounded-lg border border-border/80 bg-muted/30 p-0.5 shrink-0 ml-auto">
-              <Button
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="xs"
-                onClick={() => setViewMode("grid")}
-                className="h-7 px-2.5 gap-1.5 text-xs font-medium"
+            <div className="relative flex items-center rounded-xl border border-border/80 bg-muted/60 p-1 shrink-0 ml-auto shadow-inner">
+              <button
+                type="button"
+                onClick={() => {
+                  sound.click();
+                  setViewMode("grid");
+                }}
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
+                  viewMode === "grid"
+                    ? "text-primary-foreground font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
                 data-testid="view-grid-btn"
               >
-                <LayoutGrid className="size-3.5" />
-                Grid
-              </Button>
-              <Button
-                variant={viewMode === "map" ? "secondary" : "ghost"}
-                size="xs"
-                onClick={() => setViewMode("map")}
-                className="h-7 px-2.5 gap-1.5 text-xs font-medium"
+                {viewMode === "grid" && (
+                  <motion.div
+                    layoutId="active-viewmode-pill-desktop"
+                    className="absolute inset-0 rounded-lg bg-primary shadow-sm"
+                    transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <LayoutGrid className="size-3.5" />
+                  Grid View
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  sound.click();
+                  setViewMode("map");
+                }}
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
+                  viewMode === "map"
+                    ? "text-primary-foreground font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
                 data-testid="view-map-btn"
               >
-                <MapPin className="size-3.5 text-emerald-600" />
-                Map & Geofence
-              </Button>
+                {viewMode === "map" && (
+                  <motion.div
+                    layoutId="active-viewmode-pill-desktop"
+                    className="absolute inset-0 rounded-lg bg-primary shadow-sm"
+                    transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <MapPin className="size-3.5" />
+                  Map & Geofence
+                </span>
+              </button>
             </div>
           </div>
         </div>
