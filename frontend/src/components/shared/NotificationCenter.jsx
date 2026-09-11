@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Bell,
@@ -8,6 +8,9 @@ import {
   Info,
   CheckCircle2,
   AlertTriangle,
+  Clock,
+  Briefcase,
+  Layers,
   Sparkles,
   X,
 } from "lucide-react";
@@ -17,9 +20,12 @@ import {
   markNotificationRead,
   clearAllNotifications,
   triggerTestNotification,
+  evaluateSystemAlerts,
 } from "@/lib/realtime";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useMe } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 function timeAgo(isoString) {
@@ -35,8 +41,10 @@ function timeAgo(isoString) {
 }
 
 export default function NotificationCenter() {
+  const { data: me } = useMe();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [activeTab, setActiveTab] = useState("all");
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -45,6 +53,13 @@ export default function NotificationCenter() {
     });
     return unsubscribe;
   }, []);
+
+  // Check system alerts when opened
+  useEffect(() => {
+    if (open) {
+      evaluateSystemAlerts(me);
+    }
+  }, [open, me]);
 
   // Close on outside click
   useEffect(() => {
@@ -60,6 +75,29 @@ export default function NotificationCenter() {
   }, [open]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const filteredNotifications = notifications.filter((item) => {
+    if (activeTab === "all") return true;
+    if (activeTab === "expiry") return item.category === "queue_expiry";
+    if (activeTab === "gtp") return item.category === "gtp_overdue";
+    if (activeTab === "campaigns") return item.category === "campaign_stage" || item.category === "new_interest";
+    return true;
+  });
+
+  const getCategoryBadge = (category) => {
+    switch (category) {
+      case "queue_expiry":
+        return <Badge variant="outline" className="text-[9px] px-1 py-0 text-amber-500 border-amber-500/30">Queue Expiry</Badge>;
+      case "gtp_overdue":
+        return <Badge variant="outline" className="text-[9px] px-1 py-0 text-rose-500 border-rose-500/30">GTP Overdue</Badge>;
+      case "campaign_stage":
+        return <Badge variant="outline" className="text-[9px] px-1 py-0 text-sky-500 border-sky-500/30">Campaign</Badge>;
+      case "new_interest":
+        return <Badge variant="outline" className="text-[9px] px-1 py-0 text-emerald-500 border-emerald-500/30">Interest</Badge>;
+      default:
+        return null;
+    }
+  };
 
   return (
     <div ref={containerRef} className="relative inline-block">
@@ -94,11 +132,11 @@ export default function NotificationCenter() {
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-3 bg-muted/25 rounded-t-2xl">
             <div className="flex items-center gap-2">
               <span className="font-heading text-sm font-semibold text-foreground">
-                Live updates
+                Notification Center
               </span>
               {unreadCount > 0 && (
                 <Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0 h-4.5">
-                  {unreadCount} new
+                  {unreadCount} unread
                 </Badge>
               )}
             </div>
@@ -138,16 +176,62 @@ export default function NotificationCenter() {
             </div>
           </div>
 
+          {/* Category Tabs */}
+          <div className="px-3 pt-2 pb-1 border-b border-border/40 bg-muted/10">
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setActiveTab("all")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors shrink-0",
+                  activeTab === "all" ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60"
+                )}
+              >
+                All ({notifications.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("expiry")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors shrink-0",
+                  activeTab === "expiry" ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60"
+                )}
+              >
+                Queue Expiry
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("gtp")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors shrink-0",
+                  activeTab === "gtp" ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60"
+                )}
+              >
+                GTP Alerts
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("campaigns")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors shrink-0",
+                  activeTab === "campaigns" ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60"
+                )}
+              >
+                Campaigns
+              </button>
+            </div>
+          </div>
+
           {/* List */}
           <div className="max-h-[380px] overflow-y-auto divide-y divide-border/40 p-1">
-            {notifications.length === 0 ? (
+            {filteredNotifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
                 <div className="rounded-full bg-muted/60 p-3 mb-2">
                   <Sparkles className="size-5 text-muted-foreground/60" />
                 </div>
-                <p className="text-xs font-medium">All caught up!</p>
+                <p className="text-xs font-medium">All caught up</p>
                 <p className="text-[11px] text-muted-foreground/70 mt-0.5 max-w-[240px]">
-                  Live queue promotions, approvals, and campaign stage updates will surface here.
+                  Queue expiry warnings, GTP overdue alerts, and campaign stage updates will surface here.
                 </p>
                 <Button
                   variant="outline"
@@ -157,11 +241,11 @@ export default function NotificationCenter() {
                   data-testid="test-notification-button"
                 >
                   <Sparkles className="size-3 text-primary" />
-                  Test live alert
+                  Test notification
                 </Button>
               </div>
             ) : (
-              notifications.map((item) => {
+              filteredNotifications.map((item) => {
                 const isUnread = !item.read;
                 const Icon =
                   item.type === "success"
@@ -195,15 +279,18 @@ export default function NotificationCenter() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <p className={cn("text-xs font-semibold truncate", isUnread ? "text-foreground" : "text-foreground/80")}>
-                          {item.title}
-                        </p>
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className={cn("text-xs font-semibold truncate", isUnread ? "text-foreground" : "text-foreground/80")}>
+                            {item.title}
+                          </p>
+                          {getCategoryBadge(item.category)}
+                        </div>
                         <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
                           {timeAgo(item.timestamp)}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
                         {item.message}
                       </p>
                     </div>

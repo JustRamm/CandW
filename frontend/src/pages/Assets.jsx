@@ -173,6 +173,8 @@ const BLANK = {
   height_ft: 3,
   description: "",
   notes: "",
+  start_date: "",
+  end_date: "",
   latitude: "",
   longitude: "",
   geofence_radius_m: 500,
@@ -207,12 +209,15 @@ export function AssetDialog({ asset, trigger }) {
           height_ft: asset.height_ft,
           description: asset.description ?? "",
           notes: asset.notes ?? "",
+          start_date: asset.start_date ?? "",
+          end_date: asset.end_date ?? "",
           latitude: asset.latitude ?? "",
           longitude: asset.longitude ?? "",
           geofence_radius_m: asset.geofence_radius_m ?? 500,
         }
       : { ...BLANK, brand_names: [] };
   };
+
 
   const [form, setForm] = useState(getInitialForm);
   const [photos, setPhotos] = useState(
@@ -403,6 +408,10 @@ export function AssetDialog({ asset, trigger }) {
       if (error) throw { body: { detail: error.message } };
 
       // Link brand campaign(s) automatically
+      const campaignStartDate = body.start_date || new Date().toISOString().split("T")[0];
+      const campaignEndDate = body.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const calculatedDuration = Math.max(1, Math.round((new Date(campaignEndDate) - new Date(campaignStartDate)) / (1000 * 60 * 60 * 24)));
+
       for (const bName of selectedBrands) {
         const matched = brands.find((b) => b.name.toLowerCase() === bName.toLowerCase());
         await supabase.from("campaigns").insert({
@@ -411,16 +420,17 @@ export function AssetDialog({ asset, trigger }) {
           asset_code: data.asset_code,
           brand: bName,
           brand_id: matched?.id || null,
-          duration_days: 30,
-          proposed_duration_days: 30,
+          duration_days: calculatedDuration,
+          proposed_duration_days: calculatedDuration,
           stage: "live",
           priority: "high",
-          start_date: new Date().toISOString().split("T")[0],
-          end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          start_date: campaignStartDate,
+          end_date: campaignEndDate,
           notes: isDigitalAsset ? "Digital Screen Rotating Ad Loop Slot" : "Exclusive Static Slot",
           gtps: gtpList,
         });
       }
+
 
       return data;
     },
@@ -858,6 +868,42 @@ export function AssetDialog({ asset, trigger }) {
               />
             </div>
           </div>
+
+          {/* Active Display Schedule (Start & Stop) */}
+          <div className="rounded-lg border border-border/70 bg-secondary/30 p-3 space-y-2" data-testid="asset-schedule-section">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground">Display Schedule (Start & Stop)</Label>
+              <span className="text-[10px] text-muted-foreground">Active run dates</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="asset_start_date" className="text-[11px]">Start Date</Label>
+                <Input
+                  id="asset_start_date"
+                  type="date"
+                  value={form.start_date}
+                  onChange={set("start_date")}
+                  data-testid="asset-start-date-input"
+                  className="bg-background text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="asset_end_date" className="text-[11px]">Stop / End Date</Label>
+                <Input
+                  id="asset_end_date"
+                  type="date"
+                  value={form.end_date}
+                  onChange={set("end_date")}
+                  data-testid="asset-end-date-input"
+                  className="bg-background text-xs"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Define the campaign run window. Anchors interest queues and live occupancy.
+            </p>
+          </div>
+
           {/* Photo Attachments & Geo-Tagged Proof Section */}
           <div className="space-y-3 pt-1">
             <div className="space-y-1.5">

@@ -2,8 +2,9 @@ import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { toast } from "sonner";
 import sound from "@/lib/sound";
+import { fmtDate } from "@/lib/helpers";
 
-const STORAGE_KEY = "ims_notifications_v1";
+const STORAGE_KEY = "ims_notifications_v2";
 
 // In-memory subscribers for UI updates
 const listeners = new Set();
@@ -19,7 +20,7 @@ export function getStoredNotifications() {
 
 function saveNotifications(notifications) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications.slice(0, 50)));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications.slice(0, 60)));
   } catch {}
   listeners.forEach((fn) => fn(notifications));
 }
@@ -32,23 +33,33 @@ export function subscribeToNotificationFeed(callback) {
 
 export function addNotification(notif) {
   const current = getStoredNotifications();
+  const notifId = notif.id || (notif.key ? `notif_${notif.key}` : crypto.randomUUID());
+
+  // Prevent duplicate notifications if key exists
+  const existing = current.find((n) => (notif.key && n.key === notif.key) || n.id === notifId);
+  if (existing) {
+    return existing;
+  }
+
   const newItem = {
-    id: notif.id || crypto.randomUUID(),
+    id: notifId,
+    key: notif.key || null,
     title: notif.title || "Update",
     message: notif.message || "",
     link: notif.link || null,
+    category: notif.category || "general", // "queue_expiry" | "gtp_overdue" | "campaign_stage" | "new_interest" | "general"
     type: notif.type || "info", // "info" | "success" | "warning" | "error"
     timestamp: notif.timestamp || new Date().toISOString(),
     read: false,
   };
 
-  const updated = [newItem, ...current.filter((n) => n.id !== newItem.id)].slice(0, 50);
+  const updated = [newItem, ...current].slice(0, 60);
   saveNotifications(updated);
 
-  // Play gentle crystal glass notification chime
-  sound.notification();
+  // Play notification chime
+  sound?.notification?.();
 
-  // Surface modern toast notification
+  // Surface toast notification
   if (newItem.type === "success") {
     toast.success(newItem.title, { description: newItem.message });
   } else if (newItem.type === "warning") {
@@ -76,17 +87,105 @@ export function clearAllNotifications() {
   saveNotifications([]);
 }
 
+/**
+ * Evaluates system state across:
+ * 1. Queue expiry warnings (Slot expires in <= 2 days)
+ * 2. GTP overdue alerts (Pending GTP with due_date <= today)
+ * 3. Urgent onboarding & campaign tasks
+ */
+export async function evaluateSystemAlerts(currentUser = null) {
+  try {
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    // 1. Check Queue Expiry Warnings
+    const { data: queueEntries } = await supabase
+      .from("queue_entries")
+      .select("*")
+      .eq("state", "active");
+
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("*")
+      .eq("id", "global")
+      .maybeSingle();
+
+    const { data: holidays } = await supabase.from("holidays").select("date");
+    const holidaySet = new Set((holidays ?? []).map((h) => h.date));
+    const allowedDays = settings?.queue_active_business_days ?? 5;
+
+    for (const q of queueEntries ?? []) {
+      const createdDate = new Date(q.created_at);
+      let businessDaysUsed = 0;
+      const cur = new Date(createdDate);
+      cur.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      while (cur < today) {
+        cur.setDate(cur.getDate() + 1);
+        const dayOfWeek = cur.getDay();
+        const iso = cur.toISOString().split("T")[0];
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidaySet.has(iso)) {
+          businessDaysUsed++;
+        }
+      }
+
+      const daysRemaining = Math.max(0, allowedDays - businessDaysUsed);
+
+      if (daysRemaining <= 2) {
+        addNotification({
+          key: `queue_expiry_${q.id}_day_${daysRemaining}`,
+          title: "Queue Slot Expiring Soon",
+          message: `Slot for ${q.brand} on ${q.asset_code} expires in ${daysRemaining} business day${daysRemaining === 1 ? "" : "s"}. Action required before forfeiture.`,
+          link: "/queue",
+          category: "queue_expiry",
+          type: "warning",
+        });
+      }
+    }
+
+    // 2. Check GTP Overdue Alerts for Live Campaigns
+    const { data: liveCampaigns } = await supabase
+      .from("campaigns")
+      .select("id, brand, asset_code, gtps, stage")
+      .in("stage", ["live", "closing"]);
+
+    for (const c of liveCampaigns ?? []) {
+      for (const g of c.gtps ?? []) {
+        if (g.status === "pending" && g.due_date) {
+          const isOverdue = g.due_date <= todayStr;
+          if (isOverdue) {
+            addNotification({
+              key: `gtp_overdue_${c.id}_${g.id}_${g.due_date}`,
+              title: "GTP Overdue Alert",
+              message: `GTP #${g.seq} for ${c.brand} (${c.asset_code}) is overdue since ${fmtDate(g.due_date)}. Field proof capture required.`,
+              link: `/campaigns/${c.id}`,
+              category: "gtp_overdue",
+              type: "warning",
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Error evaluating system alerts:", err);
+  }
+}
+
 let activeChannel = null;
 
 /**
  * Initializes Supabase Realtime Channel
- * Listens to postgres_changes across queue_entries, campaigns, and audit_logs
+ * Listens to postgres_changes across queue_entries, campaigns, and assets
  */
-export function initRealtimeFeed() {
+export function initRealtimeFeed(currentUser = null) {
+  // Always evaluate initial system alerts
+  evaluateSystemAlerts(currentUser);
+
   if (activeChannel) return activeChannel;
 
   activeChannel = supabase
-    .channel("ims-realtime-feed")
+    .channel("ims-realtime-feed-v2")
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "queue_entries" },
@@ -100,32 +199,40 @@ export function initRealtimeFeed() {
 
         if (eventType === "INSERT") {
           addNotification({
-            title: "New Queue Interest",
-            message: `${record.brand || "A brand"} added to queue for ${record.asset_code || "an asset"}.`,
+            key: `new_queue_${record.id}`,
+            title: "New Interest Queue Entry",
+            message: `${record.salesperson_name || "Sales"} added ${record.brand || "Brand"} to interest queue for ${record.asset_code || "Asset"}.`,
             link: "/queue",
+            category: "new_interest",
             type: "info",
           });
         } else if (eventType === "UPDATE") {
-          if (oldRecord.state !== record.state) {
+          if (oldRecord && oldRecord.state !== record.state) {
             if (record.state === "active") {
               addNotification({
+                key: `queue_promoted_${record.id}`,
                 title: "Queue Slot Promoted",
                 message: `${record.brand || "Brand"} is now ACTIVE for asset ${record.asset_code || ""}.`,
                 link: "/queue",
+                category: "queue_expiry",
                 type: "warning",
               });
             } else if (record.state === "confirmed") {
               addNotification({
+                key: `queue_confirmed_${record.id}`,
                 title: "Queue Slot Confirmed",
                 message: `${record.brand || "Brand"} confirmed into live campaign!`,
                 link: "/campaigns",
+                category: "campaign_stage",
                 type: "success",
               });
             } else if (record.state === "cancelled") {
               addNotification({
+                key: `queue_cancelled_${record.id}`,
                 title: "Queue Slot Withdrawn",
                 message: `Reservation for ${record.brand || "Brand"} was closed or withdrawn.`,
                 link: "/queue",
+                category: "new_interest",
                 type: "info",
               });
             }
@@ -146,18 +253,30 @@ export function initRealtimeFeed() {
         const { eventType, new: record, old: oldRecord } = payload;
         if (eventType === "UPDATE") {
           if (oldRecord && oldRecord.stage !== record.stage) {
+            const STAGE_NAMES = {
+              onboarding: "Onboarding",
+              invoicing: "Invoicing",
+              live: "Live",
+              closing: "Closing",
+              closed: "Closed",
+            };
+            const stageLabel = STAGE_NAMES[record.stage] || record.stage;
             addNotification({
-              title: `Campaign Stage: ${record.stage.toUpperCase()}`,
-              message: `${record.brand} advanced from ${oldRecord.stage} to ${record.stage}.`,
+              key: `campaign_stage_${record.id}_${record.stage}`,
+              title: `Campaign Stage: ${stageLabel}`,
+              message: `Campaign '${record.brand}' (${record.asset_code}) moved to ${stageLabel}.`,
               link: `/campaigns/${record.id}`,
-              type: "info",
+              category: "campaign_stage",
+              type: record.stage === "live" ? "success" : "info",
             });
           }
         } else if (eventType === "INSERT") {
           addNotification({
-            title: "New Campaign Created",
+            key: `new_campaign_${record.id}`,
+            title: "New Campaign Initialized",
             message: `Campaign for ${record.brand} initialized on asset ${record.asset_code || ""}.`,
             link: `/campaigns/${record.id}`,
+            category: "campaign_stage",
             type: "success",
           });
         }
@@ -173,17 +292,21 @@ export function initRealtimeFeed() {
         const { eventType, new: record, old: oldRecord } = payload;
         if (eventType === "INSERT") {
           addNotification({
+            key: `new_asset_${record.id}`,
             title: "New Asset Added",
-            message: `${record.asset_code || "Asset"} (${record.location_name || "New Location"}) added to network inventory.`,
+            message: `${record.asset_code || "Asset"} (${record.location_name || "New Location"}) added to inventory.`,
             link: `/assets/${record.id}`,
+            category: "general",
             type: "success",
           });
         } else if (eventType === "UPDATE") {
           if (oldRecord && oldRecord.status !== record.status) {
             addNotification({
+              key: `asset_status_${record.id}_${record.status}`,
               title: "Asset Status Changed",
               message: `${record.asset_code} moved from ${oldRecord.status} to ${record.status}.`,
               link: `/assets/${record.id}`,
+              category: "general",
               type: "info",
             });
           }
@@ -198,7 +321,7 @@ export function initRealtimeFeed() {
       }
     )
     .subscribe((_status) => {
-      // Realtime subscription status
+      // Realtime subscription active
     });
 
   return activeChannel;
@@ -207,9 +330,10 @@ export function initRealtimeFeed() {
 /** Utility to test sound chime, sonner toast, and live panel updates */
 export function triggerTestNotification() {
   return addNotification({
-    title: "Realtime Notification Connected",
+    title: "System Notification Connected",
     message: "Live telemetry and operational alerts are active across queues, campaigns, and assets.",
     link: "/dashboard",
+    category: "general",
     type: "success",
   });
 }

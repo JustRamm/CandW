@@ -50,9 +50,10 @@ export default function AppShell({ children, title, subtitle, actions }) {
 
   useEffect(() => {
     if (me?.id) {
-      initRealtimeFeed();
+      initRealtimeFeed(me);
     }
   }, [me?.id]);
+
 
   if (!me || !me.id) {
     // Not authenticated — send visitor straight to sign in
