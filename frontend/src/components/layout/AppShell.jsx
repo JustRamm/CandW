@@ -151,7 +151,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col min-w-0 h-screen overflow-y-auto pb-28 md:pb-0">
+      <div className="flex flex-1 flex-col min-w-0 h-[100dvh] md:h-screen overflow-y-auto overflow-x-hidden">
         <header className="sticky top-0 z-20 border-b border-border/70 bg-background/85 px-4 py-3 sm:py-4 backdrop-blur-xl md:px-8">
           {/* Mobile view only */}
           {isDashboard ? (
@@ -247,16 +247,18 @@ export default function AppShell({ children, title, subtitle, actions }) {
             </div>
           )}
         </header>
-        <main className="relative flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full min-h-full pb-36 md:pb-8">
+        <main className="relative flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full pb-40 md:pb-12">
           <BrandDoodles />
-          <div className="relative z-10">
+          <div className="relative z-10 pb-6 md:pb-0">
             {children}
+            {/* Safe area spacer to guarantee last cards are never hidden behind fixed mobile nav */}
+            <div className="h-20 md:hidden w-full pointer-events-none" aria-hidden="true" />
           </div>
         </main>
       </div>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-sidebar-border bg-sidebar/95 backdrop-blur-xl px-1 py-1.5 md:hidden overflow-x-auto scrollbar-none"
+        className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-sidebar-border bg-sidebar/95 backdrop-blur-xl px-1 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden overflow-x-auto scrollbar-none shadow-lg"
         data-testid="mobile-tab-bar"
       >
         {nav.map(({ to, label, icon: Icon }) => {

@@ -31,6 +31,9 @@ import {
 } from "@/lib/densityData";
 import { createHeatmapLayer } from "./HeatmapCanvasLayer";
 
+// TomTom Live Traffic API Key from environment (.env)
+const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_API_KEY || "0uQyln4h6icK3aUXNppJQaEid5tfUrfj";
+
 // Known city center coordinates (All 14 Kerala Districts with >90% municipal precision)
 const CITY_COORDINATES = {
   // 14 Official Districts of Kerala
@@ -148,6 +151,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
   const geofenceLayerRef = useRef(null);
   const heatmapLayerRef = useRef(null);
   const corridorsLayerRef = useRef(null);
+  const tomtomTrafficLayerRef = useRef(null);
   const userMarkerRef = useRef(null);
 
   const [selectedAsset, setSelectedAsset] = useState(null);
@@ -232,14 +236,44 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
     mapInstanceRef.current = map;
 
     return () => {
+      if (tomtomTrafficLayerRef.current && map) {
+        map.removeLayer(tomtomTrafficLayerRef.current);
+        tomtomTrafficLayerRef.current = null;
+      }
       map.remove();
       mapInstanceRef.current = null;
     };
   }, []);
 
-  // ── 3. Update Heatmap Layer Data & Mode ────────────────────────────────────
+  // ── 3. Update Heatmap & Live TomTom Satellite Traffic ─────────────────────
   useEffect(() => {
+    const map = mapInstanceRef.current;
     const heatmap = heatmapLayerRef.current;
+
+    // Real-Time Live TomTom Satellite Traffic Flow Layer
+    if (map) {
+      if (heatmapMode === "traffic") {
+        if (!tomtomTrafficLayerRef.current) {
+          const tomtomLayer = L.tileLayer(
+            `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`,
+            {
+              maxZoom: 19,
+              opacity: 0.92,
+              zIndex: 350,
+              attribution: '&copy; <a href="https://www.tomtom.com/">TomTom</a> Live Traffic',
+            }
+          );
+          tomtomLayer.addTo(map);
+          tomtomTrafficLayerRef.current = tomtomLayer;
+        }
+      } else {
+        if (tomtomTrafficLayerRef.current) {
+          map.removeLayer(tomtomTrafficLayerRef.current);
+          tomtomTrafficLayerRef.current = null;
+        }
+      }
+    }
+
     if (!heatmap) return;
 
     if (heatmapMode === "off") {
@@ -429,183 +463,190 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
       {/* Map Canvas */}
       <div ref={mapContainerRef} className="h-full w-full z-0" />
 
-      {/* ── TOP CONTROL BAR: Geospatial Layer & Presentation Deck ────────── */}
-      <div className="absolute top-3 inset-x-3 z-[400] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        {/* Left Cluster: Layers & Heatmap Mode */}
-        <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl border border-border/70 bg-background/95 p-1 shadow-lg backdrop-blur-md">
-          {/* Heatmap Layer Selector */}
-          <div className="flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5">
-            <button
-              type="button"
-              onClick={() => {
-                sound.click();
-                setHeatmapMode("traffic");
-              }}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
-                heatmapMode === "traffic"
-                  ? "bg-red-500/90 text-white shadow-xs"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/60"
-              )}
-            >
-              <Flame className="size-3.5 text-amber-300" />
-              Traffic Heatmap
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                sound.click();
-                setHeatmapMode("footfall");
-              }}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
-                heatmapMode === "footfall"
-                  ? "bg-purple-600/90 text-white shadow-xs"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/60"
-              )}
-            >
-              <Users className="size-3.5 text-pink-300" />
-              Footfall Density
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                sound.click();
-                setHeatmapMode("off");
-              }}
-              className={cn(
-                "rounded-md px-2 py-1 text-xs font-medium transition-all cursor-pointer",
-                heatmapMode === "off"
-                  ? "bg-background text-foreground shadow-2xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Off
-            </button>
-          </div>
-
-          <div className="h-4 w-[1px] bg-border/80 mx-0.5 hidden sm:block" />
-
-          {/* Highways & Corridors (Arterials) Toggle */}
-          <button
-            type="button"
-            onClick={() => {
-              sound.click();
-              setShowArterials((prev) => !prev);
-            }}
-            title="Toggle major high-capacity arterial highways and bypass corridors (NH66, MG Road, Infopark)"
-            className={cn(
-              "hidden sm:flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
-              showArterials ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
-            )}
-          >
-            <Activity className="size-3 text-red-500" />
-            Highways: {showArterials ? "ON" : "OFF"}
-          </button>
-
-          {/* Geofences Toggle */}
-          <button
-            type="button"
-            onClick={() => {
-              sound.click();
-              setShowAllGeofences((prev) => !prev);
-            }}
-            className={cn(
-              "hidden sm:flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
-              showAllGeofences ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
-            )}
-          >
-            <Layers className="size-3" />
-            Geofences: {showAllGeofences ? "All" : "Active"}
-          </button>
-
-          {showAllGeofences && (
-            <div className="hidden md:flex items-center gap-0.5 pl-1 text-[11px] text-muted-foreground font-mono">
-              {[300, 500, 1000].map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => {
-                    sound.click();
-                    setGeofenceRadius(r);
-                  }}
-                  className={cn(
-                    "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer",
-                    geofenceRadius === r
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  {r >= 1000 ? `${r / 1000}km` : `${r}m`}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Fit Bounds */}
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={handleFitAll}
-            className="h-7 gap-1 px-2 text-xs font-medium cursor-pointer"
-          >
-            <Maximize2 className="size-3.5" />
-            Fit ({mappedAssets.length})
-          </Button>
-        </div>
-
-        {/* Right Cluster: GPS Locate Me */}
-        <div className="pointer-events-auto flex items-center rounded-xl border border-border/70 bg-background/95 p-1 shadow-lg backdrop-blur-md">
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={handleLocateMe}
-            disabled={locatingUser}
-            className="h-7 gap-1 px-2.5 text-xs font-medium text-sky-600 hover:text-sky-700 cursor-pointer"
-          >
-            <Crosshair className={cn("size-3.5", locatingUser && "animate-spin")} />
-            <span>{locatingUser ? "Locating..." : "Locate Me"}</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* ── PEAK FOOTFALL & TRAFFIC HOURS SIMULATION BAR ──────────────────── */}
-      {heatmapMode !== "off" && (
-        <div className="absolute top-16 left-3 z-[400] flex flex-wrap items-center gap-1.5 rounded-xl border border-border/80 bg-background/95 px-2.5 py-1.5 shadow-md backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-1 text-[11px] font-semibold text-foreground pr-1">
-            <Clock className="size-3.5 text-primary" />
-            <span>Peak Simulation:</span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            {TIME_SLOTS.map((slot) => (
+      {/* ── TOP UNIFIED CONTROL STACK (No collision on mobile & desktop) ── */}
+      <div className="absolute top-2.5 inset-x-2.5 z-[400] flex flex-col gap-2 pointer-events-none">
+        {/* Row 1: Primary Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5 w-full">
+          {/* Left Cluster: Layers & Heatmap Mode */}
+          <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl border border-border/70 bg-background/95 p-1 shadow-lg backdrop-blur-md">
+            {/* Heatmap Layer Selector */}
+            <div className="flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5">
               <button
-                key={slot.id}
                 type="button"
                 onClick={() => {
                   sound.click();
-                  setTimeSlotId(slot.id);
+                  setHeatmapMode("traffic");
                 }}
                 className={cn(
-                  "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
-                  timeSlotId === slot.id
-                    ? "bg-primary text-primary-foreground font-bold shadow-2xs"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                  heatmapMode === "traffic"
+                    ? "bg-red-500/90 text-white shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
                 )}
               >
-                <span>{slot.label}</span>
-                <span className="font-mono text-[9px] opacity-80">({slot.time.split(" ")[0]})</span>
+                <span className="relative flex size-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
+                </span>
+                <Flame className="size-3.5 text-amber-300" />
+                Live Traffic
               </button>
-            ))}
+
+              <button
+                type="button"
+                onClick={() => {
+                  sound.click();
+                  setHeatmapMode("footfall");
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                  heatmapMode === "footfall"
+                    ? "bg-purple-600/90 text-white shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                )}
+              >
+                <Users className="size-3.5 text-pink-300" />
+                Footfall
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  sound.click();
+                  setHeatmapMode("off");
+                }}
+                className={cn(
+                  "rounded-md px-2 py-1 text-xs font-medium transition-all cursor-pointer",
+                  heatmapMode === "off"
+                    ? "bg-background text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Off
+              </button>
+            </div>
+
+            <div className="h-4 w-[1px] bg-border/80 mx-0.5 hidden sm:block" />
+
+            {/* Highways & Corridors (Arterials) Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                sound.click();
+                setShowArterials((prev) => !prev);
+              }}
+              title="Toggle major high-capacity arterial highways and bypass corridors (NH66, MG Road, Infopark)"
+              className={cn(
+                "hidden sm:flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
+                showArterials ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <Activity className="size-3 text-red-500" />
+              Highways: {showArterials ? "ON" : "OFF"}
+            </button>
+
+            {/* Geofences Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                sound.click();
+                setShowAllGeofences((prev) => !prev);
+              }}
+              className={cn(
+                "hidden sm:flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
+                showAllGeofences ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <Layers className="size-3" />
+              Geofences: {showAllGeofences ? "All" : "Active"}
+            </button>
+
+            {showAllGeofences && (
+              <div className="hidden md:flex items-center gap-0.5 pl-1 text-[11px] text-muted-foreground font-mono">
+                {[300, 500, 1000].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => {
+                      sound.click();
+                      setGeofenceRadius(r);
+                    }}
+                    className={cn(
+                      "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer",
+                      geofenceRadius === r
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    {r >= 1000 ? `${r / 1000}km` : `${r}m`}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Fit Bounds */}
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleFitAll}
+              className="h-7 gap-1 px-2 text-xs font-medium cursor-pointer"
+            >
+              <Maximize2 className="size-3.5" />
+              Fit ({mappedAssets.length})
+            </Button>
           </div>
 
-          <Badge variant="outline" className="text-[10px] font-mono border-primary/40 bg-primary/5 text-primary ml-1 hidden lg:inline-flex">
-            {activeTimeSlot.factor}× Traffic Multiplier
-          </Badge>
+          {/* Right Cluster: GPS Locate Me */}
+          <div className="pointer-events-auto flex items-center rounded-xl border border-border/70 bg-background/95 p-1 shadow-lg backdrop-blur-md">
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleLocateMe}
+              disabled={locatingUser}
+              className="h-7 gap-1 px-2.5 text-xs font-medium text-sky-600 hover:text-sky-700 cursor-pointer"
+            >
+              <Crosshair className={cn("size-3.5", locatingUser && "animate-spin")} />
+              <span>{locatingUser ? "Locating..." : "Locate Me"}</span>
+            </Button>
+          </div>
         </div>
-      )}
+
+        {/* Row 2: Peak Simulation Bar (Flows naturally below Row 1) */}
+        {heatmapMode !== "off" && (
+          <div className="pointer-events-auto self-start flex flex-wrap items-center gap-1.5 rounded-xl border border-border/80 bg-background/95 px-2.5 py-1.5 shadow-md backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-foreground pr-1">
+              <Clock className="size-3.5 text-primary" />
+              <span>Peak Simulation:</span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              {TIME_SLOTS.map((slot) => (
+                <button
+                  key={slot.id}
+                  type="button"
+                  onClick={() => {
+                    sound.click();
+                    setTimeSlotId(slot.id);
+                  }}
+                  className={cn(
+                    "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
+                    timeSlotId === slot.id
+                      ? "bg-primary text-primary-foreground font-bold shadow-2xs"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <span>{slot.label}</span>
+                  <span className="font-mono text-[9px] opacity-80">({slot.time.split(" ")[0]})</span>
+                </button>
+              ))}
+            </div>
+
+            <Badge variant="outline" className="text-[10px] font-mono border-primary/40 bg-primary/5 text-primary ml-1 hidden lg:inline-flex">
+              {activeTimeSlot.factor}× Multiplier
+            </Badge>
+          </div>
+        )}
+      </div>
 
       {/* ── BOTTOM LEFT: Dynamic Heatmap Density Legend ──────────────────── */}
       <div className="absolute bottom-3 left-3 z-[400] flex flex-col gap-1 rounded-xl border border-border/80 bg-background/95 p-2 shadow-lg backdrop-blur-md">
