@@ -2,16 +2,16 @@ import { useState } from "react";
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import {
   Bell,
+  Briefcase,
   Building2,
-  ClipboardList,
-  Cog,
-  LayoutDashboard,
-  Leaf,
-  ListOrdered,
+  Clock,
+  History,
+  LayoutGrid,
   LogOut,
-  MapPinned,
-  ScrollText,
+  MapPin,
+  SlidersHorizontal,
 } from "lucide-react";
+import { motion } from "motion/react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,13 +26,13 @@ import { fmtDateTime } from "@/lib/helpers";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: "*" },
-  { to: "/assets", label: "Assets", icon: MapPinned, roles: "*" },
-  { to: "/queue", label: "Interest Queue", icon: ListOrdered, roles: "*" },
-  { to: "/campaigns", label: "Campaigns", icon: ClipboardList, roles: "*" },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutGrid, roles: "*" },
+  { to: "/assets", label: "Assets", icon: MapPin, roles: "*" },
+  { to: "/queue", label: "Interest Queue", icon: Clock, roles: "*" },
+  { to: "/campaigns", label: "Campaigns", icon: Briefcase, roles: "*" },
   { to: "/brands", label: "Brands", icon: Building2, roles: "*" },
-  { to: "/audit", label: "Audit Trail", icon: ScrollText, roles: "*" },
-  { to: "/admin", label: "Admin", icon: Cog, roles: ["admin"] },
+  { to: "/audit", label: "Audit Trail", icon: History, roles: "*" },
+  { to: "/admin", label: "Admin", icon: SlidersHorizontal, roles: ["admin"] },
 ];
 
 function visibleNav(role) {
@@ -157,24 +157,39 @@ export default function AppShell({ children, title, subtitle, actions }) {
           </div>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-3 overflow-y-auto">
-          {nav.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150",
+          {nav.map(({ to, label, icon: Icon }) => {
+            const isActive = location.pathname === to || (to !== "/dashboard" && location.pathname.startsWith(to));
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                className={cn(
+                  "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150",
                   isActive
-                    ? "bg-sky-50 font-semibold text-[#00668a] border border-sky-200/60 shadow-xs"
+                    ? "font-semibold text-[#00668a]"
                     : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
-                )
-              }
-              data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-            >
-              <Icon className="size-4" />
-              {label}
-            </NavLink>
-          ))}
+                )}
+                data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebarActive"
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                    className="absolute inset-0 rounded-lg bg-sky-50 border border-sky-200/80 shadow-xs dark:bg-sky-950/40 dark:border-sky-800"
+                  />
+                )}
+                {isActive && (
+                  <motion.span
+                    layoutId="sidebarIndicator"
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                    className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-[#00668a]"
+                  />
+                )}
+                <Icon className={cn("size-4 relative z-10", isActive && "stroke-[2.25] text-[#00668a]")} />
+                <span className="relative z-10">{label}</span>
+              </NavLink>
+            );
+          })}
         </nav>
         <div className="border-t border-sidebar-border px-4 py-4 shrink-0">
           <p className="truncate font-heading text-sm font-medium" data-testid="sidebar-user-name">
@@ -269,13 +284,20 @@ export default function AppShell({ children, title, subtitle, actions }) {
               key={to}
               to={to}
               className={cn(
-                "flex flex-1 min-w-[48px] max-w-[68px] flex-col items-center justify-center gap-0.5 py-1 text-[10px] font-medium transition-colors duration-150 text-center select-none",
-                active ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground",
+                "relative flex flex-1 min-w-[48px] max-w-[68px] flex-col items-center justify-center gap-0.5 py-1 text-[10px] font-medium transition-colors duration-150 text-center select-none",
+                active ? "text-[#00668a] font-semibold" : "text-muted-foreground hover:text-foreground",
               )}
               data-testid={`mobile-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
             >
-              <Icon className={cn("size-4.5 shrink-0", active && "stroke-[2.25]")} />
-              <span className="truncate max-w-full">{shortLabel}</span>
+              {active && (
+                <motion.div
+                  layoutId="mobileActiveTab"
+                  transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                  className="absolute inset-x-1 inset-y-0.5 rounded-xl bg-sky-100/70 border border-sky-200/80 shadow-xs dark:bg-sky-950/50 dark:border-sky-800"
+                />
+              )}
+              <Icon className={cn("size-4.5 shrink-0 relative z-10 transition-transform duration-200", active && "scale-110 stroke-[2.25] text-[#00668a]")} />
+              <span className="truncate max-w-full relative z-10">{shortLabel}</span>
             </Link>
           );
         })}

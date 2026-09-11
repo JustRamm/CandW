@@ -1,13 +1,35 @@
 -- ============================================================
--- OOH-Sync — Supabase Schema Bootstrap
--- Run this in your Supabase project: SQL Editor → New query
+-- Carbon & Whale · OOH-Sync — Complete Supabase Schema Bootstrap
+-- Run this in your Supabase project: SQL Editor → New query → Run
 -- ============================================================
 
--- ── Extensions ────────────────────────────────────────────
+-- ── 1. Extensions ────────────────────────────────────────────
 create extension if not exists "uuid-ossp";
 create extension if not exists pgcrypto;
 
--- ── profiles (mirrors auth.users) ─────────────────────────
+-- ── 2. Disable Email Verification Requirement in SQL ───────────
+-- Auto-confirms any new signup immediately so no confirmation email is required
+create or replace function public.auto_confirm_new_user()
+returns trigger language plpgsql security definer as $$
+begin
+  new.email_confirmed_at = coalesce(new.email_confirmed_at, now());
+  new.confirmed_at = coalesce(new.confirmed_at, now());
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created_confirm on auth.users;
+create trigger on_auth_user_created_confirm
+  before insert on auth.users
+  for each row execute function public.auto_confirm_new_user();
+
+-- Also confirm all existing users immediately
+update auth.users
+set email_confirmed_at = coalesce(email_confirmed_at, now()),
+    confirmed_at = coalesce(confirmed_at, now())
+where email_confirmed_at is null;
+
+-- ── 3. profiles (mirrors auth.users) ─────────────────────────
 create table if not exists public.profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
   name        text not null default '',
@@ -23,8 +45,12 @@ create policy "profiles: authenticated read" on public.profiles
   for select using (auth.role() = 'authenticated');
 create policy "profiles: own update" on public.profiles
   for update using (auth.uid() = id);
+create policy "profiles: admin write" on public.profiles
+  for all using (
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
 
--- ── settings ───────────────────────────────────────────────
+-- ── 4. settings ───────────────────────────────────────────────
 create table if not exists public.settings (
   id                          text primary key default 'global',
   gtp_interval_days           integer not null default 28,
@@ -40,7 +66,7 @@ create policy "settings: admin write" on public.settings
   );
 insert into public.settings (id) values ('global') on conflict (id) do nothing;
 
--- ── holidays ───────────────────────────────────────────────
+-- ── 5. holidays ───────────────────────────────────────────────
 create table if not exists public.holidays (
   id    uuid primary key default uuid_generate_v4(),
   date  date not null unique,
@@ -54,7 +80,7 @@ create policy "holidays: admin write" on public.holidays
     exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
   );
 
--- ── asset_types ────────────────────────────────────────────
+-- ── 6. asset_types ────────────────────────────────────────────
 create table if not exists public.asset_types (
   id                uuid primary key default uuid_generate_v4(),
   name              text not null unique,
@@ -70,7 +96,7 @@ create policy "asset_types: admin/ops write" on public.asset_types
     exists (select 1 from public.profiles where id = auth.uid() and role in ('admin','ops'))
   );
 
--- ── assets ─────────────────────────────────────────────────
+-- ── 7. assets ─────────────────────────────────────────────────
 create table if not exists public.assets (
   id             uuid primary key default uuid_generate_v4(),
   asset_code     text not null unique,
@@ -98,7 +124,7 @@ create policy "assets: ops/admin write" on public.assets
     exists (select 1 from public.profiles where id = auth.uid() and role in ('admin','ops'))
   );
 
--- ── brands ─────────────────────────────────────────────────
+-- ── 8. brands ─────────────────────────────────────────────────
 create table if not exists public.brands (
   id              uuid primary key default uuid_generate_v4(),
   name            text not null,
@@ -117,10 +143,10 @@ create policy "brands: sales/admin write" on public.brands
     exists (select 1 from public.profiles where id = auth.uid() and role in ('admin','sales'))
   );
 
--- ── queue_entries ──────────────────────────────────────────
+-- ── 9. queue_entries ──────────────────────────────────────────
 create table if not exists public.queue_entries (
   id                     uuid primary key default uuid_generate_v4(),
-  asset_id               uuid not null references public.assets(id),
+  asset_id               uuid not null references public.assets(id) on delete cascade,
   asset_code             text not null,
   asset_location         text not null default '',
   brand                  text not null,
@@ -150,10 +176,10 @@ create policy "queue_entries: sales insert" on public.queue_entries
 create policy "queue_entries: all update" on public.queue_entries
   for update using (auth.role() = 'authenticated');
 
--- ── campaigns ─────────────────────────────────────────────
+-- ── 10. campaigns ─────────────────────────────────────────────
 create table if not exists public.campaigns (
   id                     uuid primary key default uuid_generate_v4(),
-  asset_id               uuid not null references public.assets(id),
+  asset_id               uuid not null references public.assets(id) on delete cascade,
   asset_code             text not null,
   brand                  text not null,
   brand_id               uuid references public.brands(id),
@@ -179,7 +205,7 @@ create policy "campaigns: authenticated read" on public.campaigns
 create policy "campaigns: authenticated write" on public.campaigns
   for all using (auth.role() = 'authenticated');
 
--- ── documents ─────────────────────────────────────────────
+-- ── 11. documents ─────────────────────────────────────────────
 create table if not exists public.documents (
   id            uuid primary key default uuid_generate_v4(),
   filename      text not null,
@@ -197,10 +223,10 @@ create policy "documents: authenticated read" on public.documents
 create policy "documents: authenticated insert" on public.documents
   for insert with check (auth.role() = 'authenticated');
 
--- ── notifications ─────────────────────────────────────────
+-- ── 12. notifications ─────────────────────────────────────────
 create table if not exists public.notifications (
   id          uuid primary key default uuid_generate_v4(),
-  user_id     uuid not null references public.profiles(id),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
   title       text not null,
   body        text not null default '',
   kind        text not null default 'info'
@@ -217,7 +243,7 @@ create policy "notifications: authenticated insert" on public.notifications
 create policy "notifications: own update" on public.notifications
   for update using (auth.uid() = user_id);
 
--- ── audit_logs ────────────────────────────────────────────
+-- ── 13. audit_logs ────────────────────────────────────────────
 create table if not exists public.audit_logs (
   id           uuid primary key default uuid_generate_v4(),
   entity_type  text not null,
@@ -238,7 +264,7 @@ create policy "audit_logs: authenticated read" on public.audit_logs
 create policy "audit_logs: authenticated insert" on public.audit_logs
   for insert with check (auth.role() = 'authenticated');
 
--- ── Trigger: sync email to profiles on signup ─────────────
+-- ── 14. Trigger: auto-sync user metadata to profiles ─────────
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer as $$
 begin
@@ -251,7 +277,9 @@ begin
     true,
     now()
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update
+  set name = coalesce(excluded.name, profiles.name),
+      email = excluded.email;
   return new;
 end;
 $$;
@@ -261,7 +289,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- ── Storage bucket ────────────────────────────────────────
--- Create this manually in: Supabase Dashboard → Storage → New bucket
--- Name: documents
--- Public: true
+-- ── 15. Storage bucket instructions ───────────────────────────
+-- Ensure you have created a public bucket named 'documents' in Supabase:
+-- Supabase Dashboard → Storage → Create bucket → Name: "documents" → Toggle "Public bucket" to ON.
