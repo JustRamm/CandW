@@ -49,14 +49,14 @@ export default function Login({ initialMode }) {
   );
 
   useEffect(() => {
-    if (location.pathname === "/signup") {
+    if (initialMode) {
+      setMode(initialMode);
+    } else if (location.pathname === "/signup") {
       setMode("signup");
-    } else if (location.pathname === "/login" && mode !== "forgot") {
-      setMode("signin");
+    } else if (location.pathname === "/login") {
+      setMode((prev) => (prev === "forgot" ? "forgot" : "signin"));
     }
-  // Bug #13 fix: include `mode` in deps to avoid stale closure
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, mode]);
+  }, [location.pathname, initialMode]);
 
   // Sign In state
   const [email, setEmail] = useState("");
@@ -387,8 +387,11 @@ export default function Login({ initialMode }) {
                         <Label htmlFor="password">Password</Label>
                         <button
                           type="button"
-                          onClick={() => setMode("forgot")}
-                          className="text-xs font-medium text-primary hover:underline"
+                          onClick={() => {
+                            sound.click();
+                            setMode("forgot");
+                          }}
+                          className="text-xs font-medium text-primary hover:underline cursor-pointer"
                           data-testid="forgot-password-link"
                         >
                           Forgot password?
@@ -434,8 +437,12 @@ export default function Login({ initialMode }) {
                     Don't have an account?{" "}
                     <button
                       type="button"
-                      onClick={() => setMode("signup")}
-                      className="font-semibold text-primary hover:underline"
+                      onClick={() => {
+                        sound.click();
+                        setMode("signup");
+                        navigate("/signup");
+                      }}
+                      className="font-semibold text-primary hover:underline cursor-pointer"
                       data-testid="switch-to-signup"
                     >
                       Sign up
@@ -593,8 +600,12 @@ export default function Login({ initialMode }) {
                     Already have an account?{" "}
                     <button
                       type="button"
-                      onClick={() => setMode("signin")}
-                      className="font-semibold text-primary hover:underline"
+                      onClick={() => {
+                        sound.click();
+                        setMode("signin");
+                        navigate("/login");
+                      }}
+                      className="font-semibold text-primary hover:underline cursor-pointer"
                       data-testid="switch-to-signin"
                     >
                       Sign in
@@ -617,10 +628,14 @@ export default function Login({ initialMode }) {
                   <button
                     type="button"
                     onClick={() => {
+                      sound.click();
                       setMode("signin");
                       setForgotSubmitted(false);
+                      if (location.pathname !== "/login") {
+                        navigate("/login");
+                      }
                     }}
-                    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4"
+                    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4 cursor-pointer"
                   >
                     <ArrowLeft className="size-3.5" />
                     Back to sign in
@@ -646,8 +661,12 @@ export default function Login({ initialMode }) {
                         size="sm"
                         className="mt-4 w-full border-emerald-300 text-[#006d37] hover:bg-emerald-100"
                         onClick={() => {
+                          sound.click();
                           setMode("signin");
                           setForgotSubmitted(false);
+                          if (location.pathname !== "/login") {
+                            navigate("/login");
+                          }
                         }}
                       >
                         Return to sign in
