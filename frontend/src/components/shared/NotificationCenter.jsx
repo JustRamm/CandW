@@ -16,6 +16,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   clearAllNotifications,
+  triggerTestNotification,
 } from "@/lib/realtime";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -145,9 +146,19 @@ export default function NotificationCenter() {
                   <Sparkles className="size-5 text-muted-foreground/60" />
                 </div>
                 <p className="text-xs font-medium">All caught up!</p>
-                <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                <p className="text-[11px] text-muted-foreground/70 mt-0.5 max-w-[240px]">
                   Live queue promotions, approvals, and campaign stage updates will surface here.
                 </p>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={triggerTestNotification}
+                  className="mt-3 text-[11px] gap-1 cursor-pointer"
+                  data-testid="test-notification-button"
+                >
+                  <Sparkles className="size-3 text-primary" />
+                  Test live alert
+                </Button>
               </div>
             ) : (
               notifications.map((item) => {

@@ -165,6 +165,33 @@ export function initRealtimeFeed() {
     )
     .on(
       "postgres_changes",
+      { event: "*", schema: "public", table: "assets" },
+      (payload) => {
+        queryClient.invalidateQueries({ queryKey: ["assets"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+
+        const { eventType, new: record, old: oldRecord } = payload;
+        if (eventType === "INSERT") {
+          addNotification({
+            title: "New Asset Added",
+            message: `${record.asset_code || "Asset"} (${record.location_name || "New Location"}) added to network inventory.`,
+            link: `/assets/${record.id}`,
+            type: "success",
+          });
+        } else if (eventType === "UPDATE") {
+          if (oldRecord && oldRecord.status !== record.status) {
+            addNotification({
+              title: "Asset Status Changed",
+              message: `${record.asset_code} moved from ${oldRecord.status} to ${record.status}.`,
+              link: `/assets/${record.id}`,
+              type: "info",
+            });
+          }
+        }
+      }
+    )
+    .on(
+      "postgres_changes",
       { event: "INSERT", schema: "public", table: "audit_logs" },
       () => {
         queryClient.invalidateQueries({ queryKey: ["audit"] });
@@ -175,4 +202,14 @@ export function initRealtimeFeed() {
     });
 
   return activeChannel;
+}
+
+/** Utility to test sound chime, sonner toast, and live panel updates */
+export function triggerTestNotification() {
+  return addNotification({
+    title: "Realtime Notification Connected",
+    message: "Live telemetry and operational alerts are active across queues, campaigns, and assets.",
+    link: "/dashboard",
+    type: "success",
+  });
 }
