@@ -4,6 +4,23 @@
 -- across ALL 14 districts of Kerala with >90% geographical precision.
 -- ==============================================================================
 
+-- ── 1. Relax location_type check on asset_types if present ──────────────────
+alter table public.asset_types drop constraint if exists asset_types_location_type_check;
+
+-- ── 2. Seed All OOH & DOOH Asset Types ───────────────────────────────────────
+insert into public.asset_types (name, location_type, default_width_ft, default_height_ft)
+values
+  ('Digital Screen', 'DOOH', 12.0, 6.0),
+  ('Digital Totem', 'Mall', 4.0, 7.0),
+  ('Unipole', 'Highway', 20.0, 10.0),
+  ('Hoarding', 'Commercial', 16.0, 8.0),
+  ('Mall Bench', 'Mall', 8.0, 3.0),
+  ('Metro Bench', 'Metro', 6.0, 3.0),
+  ('Bus Shelter', 'Transit', 15.0, 4.0),
+  ('Backlit Static', 'Metro', 10.0, 4.0)
+on conflict (name) do nothing;
+
+-- ── 3. Seed Statewide Billboard & DOOH Assets Across All 14 Districts ────────
 insert into public.assets (
   asset_code,
   asset_type,
@@ -92,6 +109,23 @@ values
     'https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=800&q=80',
     'Prime atrium display opposite anchor department stores in the heart of MG Road Kochi.',
     'live'
+  ),
+  (
+    'DIGIT-LULU-001',
+    'Digital Screen',
+    'Mall',
+    'LULU-EKM',
+    'Lulu Mall Kochi — Grand Atrium 4K Video Wall',
+    'Kochi',
+    'Ernakulam',
+    16.0,
+    9.0,
+    10.0275,
+    76.3081,
+    550,
+    'https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=800&q=80',
+    'Ultra-high definition P4 indoor LED video wall suspended over the primary atrium with 65,000+ daily impressions.',
+    'available'
   ),
 
   -- 3. Idukki

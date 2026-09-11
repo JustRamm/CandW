@@ -207,7 +207,18 @@ export function AssetDialog({ asset, trigger }) {
     (asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })),
   );
 
-  const typeNames = (types ?? []).map((t) => t.name);
+  const DEFAULT_TYPES = [
+    "Mall Bench",
+    "Metro Bench",
+    "Digital Screen",
+    "Digital Totem",
+    "Unipole",
+    "Hoarding",
+    "Bus Shelter",
+    "Backlit Static",
+  ];
+  const dbTypeNames = (types ?? []).map((t) => t.name);
+  const typeNames = Array.from(new Set([...dbTypeNames, ...DEFAULT_TYPES]));
   const activeType = form.asset_type || typeNames[0] || "";
 
   const save = useMutation({
@@ -319,7 +330,7 @@ export function AssetDialog({ asset, trigger }) {
                   <SelectValue>{(v) => v || "Metro"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {["Metro", "Mall"].map((t) => (
+                  {["Mall", "Metro", "Highway", "Commercial", "Transit", "DOOH"].map((t) => (
                     <SelectItem key={t} value={t} data-testid={`location-type-option-${t.toLowerCase()}`}>
                       {t}
                     </SelectItem>
