@@ -206,6 +206,8 @@ export function AssetDialog({ asset, trigger }) {
   const [photos, setPhotos] = useState(
     (asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })),
   );
+  const [isCustomMall, setIsCustomMall] = useState(false);
+  const [customMallInput, setCustomMallInput] = useState("");
 
   const DEFAULT_TYPES = [
     "Mall Bench",
@@ -375,39 +377,86 @@ export function AssetDialog({ asset, trigger }) {
             <div className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 p-3">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold text-primary">Kerala Mall Preset</Label>
-                <span className="text-[10px] text-muted-foreground">Select to auto-fill</span>
+                <span className="text-[10px] text-muted-foreground">Auto-fills name & code</span>
               </div>
-              <Select
-                value=""
-                onValueChange={(mName) => {
-                  const km = KERALA_MALLS.find((m) => m.name === mName);
-                  if (km) {
-                    setForm((f) => ({
-                      ...f,
-                      location_name: `${km.name} — `,
-                      city: km.district,
-                      district: km.district,
-                      location_code: km.name
+              
+              {!isCustomMall ? (
+                <Select
+                  value=""
+                  onValueChange={(mName) => {
+                    if (mName === "__custom__") {
+                      setIsCustomMall(true);
+                      return;
+                    }
+                    const km = KERALA_MALLS.find((m) => m.name === mName);
+                    if (km) {
+                      setForm((f) => ({
+                        ...f,
+                        location_name: `${km.name} — `,
+                        city: km.district,
+                        district: km.district,
+                        location_code: km.name
+                          .split(" ")
+                          .map((w) => w[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 4),
+                      }));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="bg-background text-xs" data-testid="kerala-mall-picker">
+                    <SelectValue>Select known mall or choose Custom…</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__custom__" className="font-semibold text-primary">
+                      ✨ + Add new / custom mall…
+                    </SelectItem>
+                    {KERALA_MALLS.map((m) => (
+                      <SelectItem key={m.name} value={m.name}>
+                        {m.name} ({m.district})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center gap-2 animate-in fade-in duration-150">
+                  <Input
+                    placeholder="Enter new mall name (e.g. Nexus Mall Kochi)"
+                    value={customMallInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomMallInput(val);
+                      const code = val
                         .split(" ")
+                        .filter(Boolean)
                         .map((w) => w[0])
                         .join("")
                         .toUpperCase()
-                        .slice(0, 4),
-                    }));
-                  }
-                }}
-              >
-                <SelectTrigger className="bg-background text-xs" data-testid="kerala-mall-picker">
-                  <SelectValue>Choose from 12 Kerala malls…</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {KERALA_MALLS.map((m) => (
-                    <SelectItem key={m.name} value={m.name}>
-                      {m.name} ({m.district})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                        .slice(0, 4);
+                      setForm((f) => ({
+                        ...f,
+                        location_name: val ? `${val} — ` : "",
+                        location_code: code || f.location_code,
+                      }));
+                    }}
+                    className="h-8 text-xs bg-background"
+                    autoFocus
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => {
+                      setIsCustomMall(false);
+                      setCustomMallInput("");
+                    }}
+                    className="h-8 px-2 text-xs text-muted-foreground"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
