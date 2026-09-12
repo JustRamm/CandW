@@ -1,9 +1,7 @@
 import { getAppBaseUrl } from "@/lib/helpers";
 
 // Resend Email Service for Carbon & Whale IMS
-const RESEND_API_KEY =
-  import.meta.env.VITE_RESEND_API_KEY ||
-  ["re", "cK3FAVam", "PURnaLJtYU3GGPiJFF2cmdHi"].join("_");
+const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY || "";
 
 /**
  * Sends a branded Proof-of-Performance (PoP) notification email to client brands via Resend
@@ -20,6 +18,12 @@ export async function sendClientPortalEmail({
   portalUrl,
   customMessage = "",
 }) {
+  if (!RESEND_API_KEY) {
+    throw new Error(
+      "Resend API key is not configured. Please add VITE_RESEND_API_KEY to your environment variables (Vercel / .env).",
+    );
+  }
+
   if (!to || !to.trim()) {
     throw new Error("Recipient email address is required.");
   }
