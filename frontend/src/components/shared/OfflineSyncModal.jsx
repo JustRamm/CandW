@@ -91,43 +91,45 @@ export default function OfflineSyncModal({ trigger }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-8 gap-2 rounded-full px-3 text-xs font-medium transition-all",
-              !isOnline
-                ? "border-amber-400 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20"
-                : pendingCount > 0
-                  ? "border-sky-400 bg-sky-500/10 text-sky-500 hover:bg-sky-500/20"
-                  : "border-border/70 text-muted-foreground hover:bg-secondary/60"
-            )}
-            data-testid="offline-sync-pill"
-          >
-            {isOnline ? (
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
-              </span>
-            ) : (
-              <WifiOff className="size-3.5 text-amber-500 animate-pulse" />
-            )}
+      <DialogTrigger
+        render={
+          trigger || (
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-2 rounded-full px-3 text-xs font-medium transition-all",
+                !isOnline
+                  ? "border-amber-400 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20"
+                  : pendingCount > 0
+                    ? "border-sky-400 bg-sky-500/10 text-sky-500 hover:bg-sky-500/20"
+                    : "border-border/70 text-muted-foreground hover:bg-secondary/60"
+              )}
+              data-testid="offline-sync-pill"
+            >
+              {isOnline ? (
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
+                </span>
+              ) : (
+                <WifiOff className="size-3.5 text-amber-500 animate-pulse" />
+              )}
 
-            <span>{isOnline ? (pendingCount > 0 ? `${pendingCount} Queued` : "Live") : "Field Mode"}</span>
+              <span>{isOnline ? (pendingCount > 0 ? `${pendingCount} Queued` : "Live") : "Field Mode"}</span>
 
-            {pendingCount > 0 && (
-              <Badge
-                variant="secondary"
-                className="h-4 min-w-4 px-1 text-[10px] font-bold bg-primary text-primary-foreground rounded-full"
-              >
-                {pendingCount}
-              </Badge>
-            )}
-          </Button>
-        )}
-      </DialogTrigger>
+              {pendingCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="h-4 min-w-4 px-1 text-[10px] font-bold bg-primary text-primary-foreground rounded-full"
+                >
+                  {pendingCount}
+                </Badge>
+              )}
+            </Button>
+          )
+        }
+      />
 
       <DialogContent className="max-w-md max-h-[90vh] flex flex-col overflow-hidden p-0 sm:max-w-lg">
         {/* Header with Connectivity Status */}

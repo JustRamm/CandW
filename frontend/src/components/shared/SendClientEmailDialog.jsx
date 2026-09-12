@@ -69,19 +69,21 @@ export default function SendClientEmailDialog({ brand, campaign, trigger }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button
-            variant="outline"
-            size="xs"
-            className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer"
-            data-testid="send-client-email-button"
-          >
-            <Mail className="size-3.5" />
-            Email PoP Link
-          </Button>
-        )}
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          trigger || (
+            <Button
+              variant="outline"
+              size="xs"
+              className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer"
+              data-testid="send-client-email-button"
+            >
+              <Mail className="size-3.5" />
+              Email PoP Link
+            </Button>
+          )
+        }
+      />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-heading text-lg">
