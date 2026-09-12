@@ -15,18 +15,20 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { sendClientPortalEmail } from "@/lib/resend";
+import { getAppBaseUrl } from "@/lib/helpers";
 import sound from "@/lib/sound";
 
 export default function SendClientEmailDialog({ brand, campaign, trigger }) {
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
 
+  const baseUrl = getAppBaseUrl();
   const defaultEmail = brand?.contact_email || brand?.email || "";
   const brandName = brand?.name || campaign?.brand || "Brand Partner";
   const slug = encodeURIComponent(brandName.toLowerCase().replace(/\s+/g, "-"));
   const portalUrl = campaign
-    ? `${window.location.origin}/view/${campaign.id}`
-    : `${window.location.origin}/portal/${slug}`;
+    ? `${baseUrl}/view/${campaign.id}`
+    : `${baseUrl}/portal/${slug}`;
 
   const [toEmail, setToEmail] = useState(defaultEmail);
   const [customNote, setCustomNote] = useState("");

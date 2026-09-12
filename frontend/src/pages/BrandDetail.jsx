@@ -26,7 +26,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useBrand, useMe } from "@/lib/queries";
-import { errMessage, fmtDate } from "@/lib/helpers";
+import { errMessage, fmtDate, getAppBaseUrl } from "@/lib/helpers";
 import { cn } from "@/lib/utils";
 
 function EditBrandDialog({ brand }) {
@@ -42,6 +42,9 @@ function EditBrandDialog({ brand }) {
 
   const save = useMutation({
     mutationFn: async (body) => {
+      if (!body.contact_email?.trim()) {
+        throw { body: { detail: "Brand contact email is required." } };
+      }
       const { data, error } = await supabase.from("brands").update(body).eq("id", brand.id).select().single();
       if (error) throw { body: { detail: error.message } };
       return data;
@@ -89,8 +92,11 @@ function EditBrandDialog({ brand }) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="eb-email">Email</Label>
-              <Input id="eb-email" type="email" value={form.contact_email} onChange={set("contact_email")} data-testid="edit-brand-email-input" />
+              <Label htmlFor="eb-email" className="flex items-center gap-1 font-medium">
+                <span>Email</span>
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input id="eb-email" type="email" required value={form.contact_email} onChange={set("contact_email")} data-testid="edit-brand-email-input" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="eb-phone">Phone</Label>
@@ -118,7 +124,7 @@ export default function BrandDetail() {
   const { data: brand, isError, isLoading } = useBrand(brandId);
   const canEdit = me?.role === "sales" || me?.role === "admin";
 
-  const assetById = Object.fromEntries((brand?.assets ?? []).map((a) => [a.id, a]));
+  const assetById = Object.fromEntries((brand?.assets || []).map((a) => [a.id, a]));
 
   return (
     <AppShell
@@ -137,7 +143,7 @@ export default function BrandDetail() {
               className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer"
               onClick={() => {
                 const slug = encodeURIComponent(brand.name.toLowerCase().replace(/\s+/g, "-"));
-                const url = `${window.location.origin}/portal/${slug}`;
+                const url = `${getAppBaseUrl()}/portal/${slug}`;
                 navigator.clipboard.writeText(url);
                 toast.success("Client Proof-of-Performance link copied to clipboard!");
               }}

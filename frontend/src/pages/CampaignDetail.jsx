@@ -45,7 +45,7 @@ import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useCampaign, useMe } from "@/lib/queries";
 import { enqueueOfflineGtp, cacheCampaignsOffline } from "@/lib/offlineStore";
-import { errMessage, fmtDate, fmtDateTime, fmtMoney } from "@/lib/helpers";
+import { errMessage, fmtDate, fmtDateTime, fmtMoney, getAppBaseUrl } from "@/lib/helpers";
 import { cn } from "@/lib/utils";
 
 
@@ -876,7 +876,7 @@ export default function CampaignDetail() {
               size="xs"
               className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer"
               onClick={() => {
-                const url = `${window.location.origin}/view/${campaign.id}`;
+                const url = `${getAppBaseUrl()}/view/${campaign.id}`;
                 navigator.clipboard.writeText(url);
                 toast.success("Client Proof-of-Performance link copied to clipboard!");
               }}

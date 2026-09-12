@@ -1,3 +1,5 @@
+import { getAppBaseUrl } from "@/lib/helpers";
+
 // Resend Email Service for Carbon & Whale IMS
 const RESEND_API_KEY =
   import.meta.env.VITE_RESEND_API_KEY ||
@@ -22,9 +24,10 @@ export async function sendClientPortalEmail({
     throw new Error("Recipient email address is required.");
   }
 
+  const baseUrl = getAppBaseUrl();
   const cleanPortalUrl =
     portalUrl ||
-    `${window.location.origin}/portal/${encodeURIComponent(
+    `${baseUrl}/portal/${encodeURIComponent(
       (brandName || "client").toLowerCase().replace(/\s+/g, "-")
     )}`;
 

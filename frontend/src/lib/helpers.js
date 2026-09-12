@@ -822,6 +822,130 @@ export function downloadAssetCsvTemplate() {
   return downloadCsv("assets_import_template.csv", sampleRows);
 }
 
+/** Downloads a ready-to-use CSV template for importing brands */
+export function downloadBrandCsvTemplate() {
+  sound.click();
+  const sampleRows = [
+    {
+      name: "DDRC Agilus Pathlabs",
+      contact_email: "marketing@ddrcagilus.com",
+      contact_person: "Ajith Kumar",
+      contact_phone: "+91 98470 12345",
+      industry: "Healthcare & Diagnostics",
+      notes: "Annual state-wide display partner across Metro & Malls",
+    },
+    {
+      name: "Tata Motors Passenger Vehicles",
+      contact_email: "south.media@tatamotors.com",
+      contact_person: "Rohan Varma",
+      contact_phone: "+91 98950 54321",
+      industry: "Automotive",
+      notes: "Electric vehicle campaign sponsor",
+    },
+    {
+      name: "Kalyan Silks",
+      contact_email: "brand@kalyansilks.com",
+      contact_person: "Sunil Pillai",
+      contact_phone: "+91 97440 98765",
+      industry: "Retail & Fashion",
+      notes: "Festival season prime placement",
+    },
+  ];
+  return downloadCsv("brands_import_template.csv", sampleRows);
+}
+
+/** Bulk CSV parser and importer for Brands */
+export async function importBrandsCsv(file) {
+  const text = await file.text();
+  const rawRows = parseCsv(text);
+  if (!rawRows || rawRows.length < 2) {
+    throw new Error("CSV file is empty or missing data rows");
+  }
+
+  const headers = rawRows[0].map((h) => h.toLowerCase().trim().replace(/[\s_-]+/g, "_"));
+  const created = [];
+  const updated = [];
+  const errors = [];
+
+  for (let i = 1; i < rawRows.length; i++) {
+    const values = rawRows[i];
+    if (!values || !values.some((v) => v.trim().length > 0)) continue;
+
+    const row = {};
+    headers.forEach((h, idx) => {
+      row[h] = values[idx] !== undefined ? values[idx].trim() : "";
+    });
+
+    const name = (row.name || row.brand_name || row.brand || "").trim();
+    const contactEmail = (row.contact_email || row.email || row.brand_email || "").trim();
+    const contactPerson = (row.contact_person || row.contact || row.person || "").trim();
+    const contactPhone = (row.contact_phone || row.phone || row.mobile || "").trim();
+    const industry = (row.industry || row.category || "").trim();
+    const notes = (row.notes || row.description || "").trim();
+
+    if (!name) {
+      errors.push(`Row ${i + 1}: Brand name is missing.`);
+      continue;
+    }
+    if (!contactEmail) {
+      errors.push(`Row ${i + 1} (${name}): Contact email is required.`);
+      continue;
+    }
+
+    try {
+      const { data: existing } = await supabase
+        .from("brands")
+        .select("id")
+        .ilike("name", name)
+        .maybeSingle();
+
+      const payload = {
+        name,
+        contact_email: contactEmail,
+        contact_person: contactPerson || null,
+        contact_phone: contactPhone || null,
+        industry: industry || null,
+        notes: notes || null,
+      };
+
+      if (existing) {
+        const { error } = await supabase.from("brands").update(payload).eq("id", existing.id);
+        if (error) throw error;
+        updated.push(name);
+      } else {
+        const { error } = await supabase.from("brands").insert({
+          id: randomId(),
+          ...payload,
+          created_at: new Date().toISOString(),
+        });
+        if (error) throw error;
+        created.push(name);
+      }
+    } catch (err) {
+      errors.push(`Row ${i + 1} (${name}): ${err.message}`);
+    }
+  }
+
+  return {
+    created: created.length,
+    updated: updated.length,
+    total: created.length + updated.length,
+    names: [...created, ...updated],
+    errors,
+  };
+}
+
+/** Resolves the production or live web application base URL */
+export function getAppBaseUrl() {
+  if (typeof window !== "undefined") {
+    const origin = window.location.origin;
+    if (origin && !origin.includes("localhost") && !origin.includes("127.0.0.1")) {
+      return origin;
+    }
+  }
+  return import.meta.env.VITE_SITE_URL || "https://cand-l6wcj7coe-justramms-projects.vercel.app";
+}
+
 export const STAGE_LABELS = {
   onboarding: "Onboarding",
   invoicing: "Invoice Pending",

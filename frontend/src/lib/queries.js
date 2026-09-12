@@ -558,8 +558,28 @@ export function useBrand(id) {
           .eq("entity_id", id)
           .order("created_at", { ascending: false }),
       ]);
+
+      const assetIds = Array.from(
+        new Set(
+          [
+            ...(campaigns ?? []).map((c) => c.asset_id),
+            ...(queueEntries ?? []).map((q) => q.asset_id),
+          ].filter(Boolean),
+        ),
+      );
+
+      let assets = [];
+      if (assetIds.length) {
+        const { data: aData } = await supabase
+          .from("assets")
+          .select("*")
+          .in("id", assetIds);
+        assets = aData ?? [];
+      }
+
       return {
         ...brand,
+        assets: assets ?? [],
         campaigns: campaigns ?? [],
         queue_entries: queueEntries ?? [],
         audit: audit ?? [],

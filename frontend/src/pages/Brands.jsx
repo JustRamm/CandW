@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { Building2, Download, Mail, Phone, Plus, Search, User } from "lucide-react";
+import { Building2, Download, FileSpreadsheet, Loader2, Mail, Phone, Plus, Search, Upload, User } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -23,7 +23,8 @@ import {
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useBrands, useMe } from "@/lib/queries";
-import { downloadCsv, errMessage, fmtDate } from "@/lib/helpers";
+import { downloadBrandCsvTemplate, downloadCsv, errMessage, fmtDate, importBrandsCsv } from "@/lib/helpers";
+import sound from "@/lib/sound";
 
 const BLANK = {
   name: "",
@@ -41,13 +42,23 @@ function BrandDialog() {
   const create = useMutation({
     mutationFn: async (body) => {
       const trimmedName = body.name.trim();
+      const trimmedEmail = body.contact_email?.trim();
+      if (!trimmedEmail) {
+        throw { body: { detail: "Brand contact email is required." } };
+      }
       const { data: existing } = await supabase.from("brands").select("*").ilike("name", trimmedName).maybeSingle();
       if (existing) {
         throw { body: { detail: `Brand "${existing.name}" already exists.` } };
       }
       const { data, error } = await supabase
         .from("brands")
-        .insert({ id: crypto.randomUUID(), ...body, name: trimmedName, created_at: new Date().toISOString() })
+        .insert({
+          id: crypto.randomUUID(),
+          ...body,
+          name: trimmedName,
+          contact_email: trimmedEmail,
+          created_at: new Date().toISOString(),
+        })
         .select()
         .single();
       if (error) {
@@ -60,11 +71,15 @@ function BrandDialog() {
     },
     onSuccess: (b) => {
       queryClient.invalidateQueries({ queryKey: ["brands"] });
+      sound.success();
       toast.success(`${b.name} added`);
       setForm(BLANK);
       setOpen(false);
     },
-    onError: (err) => toast.error(errMessage(err, "Could not create the brand")),
+    onError: (err) => {
+      sound.warning();
+      toast.error(errMessage(err, "Could not create the brand"));
+    },
   });
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -88,8 +103,26 @@ function BrandDialog() {
           data-testid="brand-form"
         >
           <div className="space-y-1.5">
-            <Label htmlFor="b-name">Brand name</Label>
+            <Label htmlFor="b-name" className="flex items-center gap-1 font-medium">
+              <span>Brand name</span>
+              <span className="text-destructive">*</span>
+            </Label>
             <Input id="b-name" required value={form.name} onChange={set("name")} data-testid="brand-name-input" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="b-email" className="flex items-center gap-1 font-medium">
+              <span>Brand contact email</span>
+              <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="b-email"
+              type="email"
+              required
+              placeholder="e.g. marketing@brand.com"
+              value={form.contact_email}
+              onChange={set("contact_email")}
+              data-testid="brand-email-input"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="b-industry">Industry</Label>
@@ -101,24 +134,14 @@ function BrandDialog() {
               data-testid="brand-industry-input"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="b-contact">Contact person</Label>
-            <Input
-              id="b-contact"
-              value={form.contact_person}
-              onChange={set("contact_person")}
-              data-testid="brand-contact-input"
-            />
-          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="b-email">Email</Label>
+              <Label htmlFor="b-contact">Contact person</Label>
               <Input
-                id="b-email"
-                type="email"
-                value={form.contact_email}
-                onChange={set("contact_email")}
-                data-testid="brand-email-input"
+                id="b-contact"
+                value={form.contact_person}
+                onChange={set("contact_person")}
+                data-testid="brand-contact-input"
               />
             </div>
             <div className="space-y-1.5">
@@ -151,13 +174,69 @@ export default function Brands() {
   const [q, setQ] = useState("");
   const { data: brands, isError, isLoading } = useBrands(q);
   const canCreate = me?.role === "sales" || me?.role === "admin";
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleCsvImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const res = await importBrandsCsv(file);
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+      sound.success();
+      toast.success(`Import complete: ${res.created} created, ${res.updated} updated`, {
+        description: res.errors.length
+          ? `${res.errors.length} row error(s):\n${res.errors.slice(0, 3).join("\n")}`
+          : undefined,
+      });
+    } catch (err) {
+      sound.warning();
+      toast.error(err.message || "Failed to import brands CSV");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   return (
     <AppShell
       title="Brands"
       subtitle="Customer records with contacts and the assets they have run on"
       actions={
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleCsvImport}
+            className="hidden"
+            data-testid="brand-csv-file-input"
+          />
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={downloadBrandCsvTemplate}
+            title="Download CSV Template for Brands"
+            className="gap-1.5"
+            data-testid="download-brand-csv-template"
+          >
+            <FileSpreadsheet className="size-3.5 text-muted-foreground" />
+            Template
+          </Button>
+          {canCreate && (
+            <Button
+              variant="outline"
+              size="xs"
+              disabled={importing}
+              onClick={() => fileInputRef.current?.click()}
+              className="gap-1.5"
+              data-testid="import-brands-button"
+            >
+              {importing ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+              {importing ? "Importing…" : "Import CSV"}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="xs"
@@ -166,8 +245,8 @@ export default function Brands() {
                 "brands.csv",
                 (brands ?? []).map((b) => ({
                   name: b.name,
-                  contact_person: b.contact_person ?? "",
                   contact_email: b.contact_email ?? "",
+                  contact_person: b.contact_person ?? "",
                   contact_phone: b.contact_phone ?? "",
                   industry: b.industry ?? "",
                   notes: b.notes ?? "",
