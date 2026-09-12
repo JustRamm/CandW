@@ -9,6 +9,7 @@ import AuditTrail from "@/components/shared/AuditTrail";
 import { AssetStatusBadge, StageBadge } from "@/components/shared/StatusBadges";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { BrandDetailSkeleton } from "@/components/skeletons";
+import SendClientEmailDialog from "@/components/shared/SendClientEmailDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -156,6 +157,7 @@ export default function BrandDetail() {
               View Portal
             </Link>
           )}
+          {brand && <SendClientEmailDialog brand={brand} />}
           {brand && canEdit && <EditBrandDialog brand={brand} />}
         </div>
       }

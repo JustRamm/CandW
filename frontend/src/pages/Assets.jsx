@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -1368,10 +1368,19 @@ function CsvImport() {
 
 export default function Assets() {
   const { data: me } = useMe();
-  const [status, setStatus] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStatus = searchParams.get("status") || "all";
+  const [status, setStatus] = useState(urlStatus);
   const [district, setDistrict] = useState("all");
   const [mall, setMall] = useState("all");
   const [q, setQ] = useState("");
+
+  useEffect(() => {
+    const current = searchParams.get("status");
+    if (current && current !== status) {
+      setStatus(current);
+    }
+  }, [searchParams]);
 
   const { data: rawAssets, isError, isLoading } = useAssets({ q });
   const canManage = me?.role === "ops" || me?.role === "admin";

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardList, Download, WifiOff } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -16,9 +16,18 @@ import { cacheCampaignsOffline, getCachedCampaignsOffline } from "@/lib/offlineS
 const STAGES = [["all", "All stages"], ...Object.entries(STAGE_LABELS)];
 
 export default function Campaigns() {
-  const [stage, setStage] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStage = searchParams.get("stage") || "all";
+  const [stage, setStage] = useState(urlStage);
   const { data: rawCampaigns, isError, isLoading } = useCampaigns(stage);
   const [offlineData, setOfflineData] = useState([]);
+
+  useEffect(() => {
+    const current = searchParams.get("stage");
+    if (current && current !== stage) {
+      setStage(current);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (rawCampaigns?.length) {

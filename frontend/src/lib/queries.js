@@ -152,26 +152,26 @@ export function useDashboard(userProfile) {
       if (role === "sales" || role === "admin") {
         const mine = decoratedQueue.filter((q) => q.salesperson_id === profile?.id);
         kpis.push(
-          { label: "My active slots", value: mine.filter((q) => q.state === "active").length },
-          { label: "My waitlisted", value: mine.filter((q) => q.state === "pending").length },
-          { label: "Available assets", value: a.filter((x) => x.status === "available").length },
-          { label: "Live campaigns", value: enrichedCampaigns.filter((c) => c.stage === "live").length },
+          { label: "My active slots", value: mine.filter((q) => q.state === "active").length, href: "/queue" },
+          { label: "My waitlisted", value: mine.filter((q) => q.state === "pending").length, href: "/queue" },
+          { label: "Available assets", value: a.filter((x) => x.status === "available").length, href: "/assets?status=available" },
+          { label: "Live campaigns", value: enrichedCampaigns.filter((c) => c.stage === "live").length, href: "/campaigns?stage=live" },
         );
       }
       if (role === "ops" || role === "admin") {
         kpis.push(
-          { label: "Onboarding tasks", value: enrichedCampaigns.filter((c) => c.stage === "onboarding").length },
-          { label: "GTPs due soon", value: gtpsDue.length },
-          { label: "Overdue GTPs", value: enrichedCampaigns.filter((c) => c.overdue).length },
-          { label: "Closure tasks", value: enrichedCampaigns.filter((c) => c.stage === "closing").length },
+          { label: "Onboarding tasks", value: enrichedCampaigns.filter((c) => c.stage === "onboarding").length, href: "/campaigns?stage=onboarding" },
+          { label: "GTPs due soon", value: gtpsDue.length, href: "/campaigns?stage=live" },
+          { label: "Overdue GTPs", value: enrichedCampaigns.filter((c) => c.overdue).length, href: "/campaigns?stage=live" },
+          { label: "Closure tasks", value: enrichedCampaigns.filter((c) => c.stage === "closing").length, href: "/campaigns?stage=closing" },
         );
       }
       if (role === "finance" || role === "finance_manager" || role === "admin") {
         kpis.push(
-          { label: "Confirmation queue", value: decoratedQueue.filter((q) => q.state === "active").length },
-          { label: "Invoice requests", value: enrichedCampaigns.filter((c) => c.stage === "invoicing").length },
-          { label: "GTP approvals", value: gtpPendingReview.length },
-          { label: "Cancellations", value: cancellations.length },
+          { label: "Confirmation queue", value: decoratedQueue.filter((q) => q.state === "active").length, href: "/queue" },
+          { label: "Invoice requests", value: enrichedCampaigns.filter((c) => c.stage === "invoicing").length, href: "/campaigns?stage=invoicing" },
+          { label: "GTP approvals", value: gtpPendingReview.length, href: "/campaigns?stage=live" },
+          { label: "Cancellations", value: cancellations.length, href: "/campaigns" },
         );
       }
 

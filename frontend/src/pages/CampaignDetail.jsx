@@ -9,6 +9,7 @@ import {
   CircleDot,
   Copy,
   ExternalLink,
+  Mail,
   Receipt,
   Rocket,
   WifiOff,
@@ -20,6 +21,7 @@ import EmptyState from "@/components/shared/EmptyState";
 import FileUploader from "@/components/shared/FileUploader";
 import DocumentList from "@/components/shared/DocumentList";
 import AuditTrail from "@/components/shared/AuditTrail";
+import SendClientEmailDialog from "@/components/shared/SendClientEmailDialog";
 import { GtpStatusBadge, StageBadge } from "@/components/shared/StatusBadges";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CampaignDetailSkeleton } from "@/components/skeletons";
@@ -894,6 +896,7 @@ export default function CampaignDetail() {
               View Portal
             </Link>
           )}
+          {campaign && <SendClientEmailDialog campaign={campaign} />}
         </div>
       }
     >

@@ -14,18 +14,38 @@ import { cn } from "@/lib/utils";
 function KpiGrid({ kpis }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="kpi-grid">
-      {kpis.map((k) => (
-        <Card
-          key={k.label}
-          className="border-border/80 bg-card shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/40 rounded-xl"
-          data-testid={`kpi-${k.label.toLowerCase().replace(/\s+/g, "-")}`}
-        >
-          <CardContent className="px-4 py-4">
-            <p className="font-heading text-3xl font-bold tracking-tight text-foreground">{k.value}</p>
-            <p className="mono-label mt-1 text-muted-foreground">{k.label}</p>
-          </CardContent>
-        </Card>
-      ))}
+      {kpis.map((k) => {
+        const cardContent = (
+          <Card
+            className="border-border/80 bg-card shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/50 rounded-xl cursor-pointer group h-full"
+            data-testid={`kpi-${k.label.toLowerCase().replace(/\s+/g, "-")}`}
+          >
+            <CardContent className="px-4 py-4 flex flex-col justify-between h-full">
+              <div>
+                <p className="font-heading text-3xl font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
+                  {k.value}
+                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="mono-label text-muted-foreground group-hover:text-foreground transition-colors">
+                    {k.label}
+                  </p>
+                  <ArrowRight className="size-3.5 text-muted-foreground opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+
+        if (k.href) {
+          return (
+            <Link key={k.label} to={k.href} className="block no-underline">
+              {cardContent}
+            </Link>
+          );
+        }
+
+        return <div key={k.label}>{cardContent}</div>;
+      })}
     </div>
   );
 }
