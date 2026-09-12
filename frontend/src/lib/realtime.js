@@ -88,6 +88,184 @@ export function clearAllNotifications() {
 }
 
 /**
+ * Automated Queue SLA Expiry & Waitlist Promotion Engine
+ * 1. Checks all active queue slots against SLA (business days excluding weekends/holidays, or expires_on).
+ * 2. If expired (daysRemaining <= 0 or expires_on < today), marks active slot as forfeited.
+ * 3. Records an immutable audit log record.
+ * 4. Automatically promotes the next pending reservation (#1) to active with new 5-day expiration.
+ * 5. Resequences remaining pending entries (1, 2, 3...).
+ * 6. If no waitlist exists, frees the asset (status = "available").
+ * 7. Broadcasts live notifications to all users.
+ */
+export async function processExpiredQueueEntries() {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split("T")[0];
+
+    const { data: queueEntries } = await supabase
+      .from("queue_entries")
+      .select("*")
+      .eq("state", "active");
+
+    if (!queueEntries || queueEntries.length === 0) return;
+
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("*")
+      .eq("id", "global")
+      .maybeSingle();
+
+    const { data: holidays } = await supabase.from("holidays").select("date");
+    const holidaySet = new Set((holidays ?? []).map((h) => h.date));
+    const holdDays = settings?.queue_active_business_days ?? 5;
+
+    for (const q of queueEntries) {
+      let isExpired = false;
+
+      if (q.expires_on && q.expires_on < todayStr) {
+        isExpired = true;
+      } else {
+        const createdDate = new Date(q.created_at);
+        let businessDaysUsed = 0;
+        const cur = new Date(createdDate);
+        cur.setHours(0, 0, 0, 0);
+
+        while (cur < today) {
+          cur.setDate(cur.getDate() + 1);
+          const dayOfWeek = cur.getDay();
+          const iso = cur.toISOString().split("T")[0];
+          if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidaySet.has(iso)) {
+            businessDaysUsed++;
+          }
+        }
+
+        if (businessDaysUsed >= holdDays) {
+          isExpired = true;
+        }
+      }
+
+      if (isExpired) {
+        // 1. Forfeit the expired slot
+        await supabase
+          .from("queue_entries")
+          .update({
+            state: "forfeited",
+            closed_at: new Date().toISOString(),
+            cancel_reason: "5-day SLA expired without confirmation",
+          })
+          .eq("id", q.id);
+
+        // 2. Audit log
+        await supabase.from("audit_logs").insert({
+          id: crypto.randomUUID(),
+          entity_type: "queue_entry",
+          entity_id: q.id,
+          action: "queue_forfeited",
+          actor_name: "Automated System SLA Worker",
+          actor_role: "system",
+          comment: `Reservation for ${q.brand} on ${q.asset_code} expired after ${holdDays} business days and was forfeited.`,
+          created_at: new Date().toISOString(),
+        });
+
+        // 3. Broadcast forfeiture
+        broadcastNotification({
+          key: `queue_forfeited_${q.id}`,
+          title: "Queue Slot Forfeited",
+          message: `Reservation for ${q.brand} on ${q.asset_code} expired after ${holdDays} business days without confirmation.`,
+          link: "/queue",
+          category: "queue_expiry",
+          type: "warning",
+        });
+
+        // 4. Find next pending entry by position
+        const { data: next } = await supabase
+          .from("queue_entries")
+          .select("*")
+          .eq("asset_id", q.asset_id)
+          .eq("state", "pending")
+          .order("position")
+          .limit(1)
+          .maybeSingle();
+
+        if (next) {
+          // Calculate new 5-business-day expires_on date
+          let d = new Date();
+          let counted = 0;
+          while (counted < holdDays) {
+            d.setDate(d.getDate() + 1);
+            const ds = d.toISOString().split("T")[0];
+            const dow = d.getDay();
+            if (dow !== 0 && dow !== 6 && !holidaySet.has(ds)) counted++;
+          }
+          const nextExpiry = d.toISOString().split("T")[0];
+
+          await supabase
+            .from("queue_entries")
+            .update({
+              state: "active",
+              position: 0,
+              expires_on: nextExpiry,
+            })
+            .eq("id", next.id);
+
+          // Audit log for auto-promotion
+          await supabase.from("audit_logs").insert({
+            id: crypto.randomUUID(),
+            entity_type: "queue_entry",
+            entity_id: next.id,
+            action: "queue_promoted",
+            actor_name: "Automated System SLA Worker",
+            actor_role: "system",
+            comment: `Waitlist entry for ${next.brand} automatically promoted to active slot on ${next.asset_code}. SLA expiry set to ${nextExpiry}.`,
+            created_at: new Date().toISOString(),
+          });
+
+          // Broadcast promotion
+          broadcastNotification({
+            key: `queue_promoted_${next.id}`,
+            title: "Waitlist Promoted to Active",
+            message: `${next.brand} is now ACTIVE for asset ${next.asset_code}. 5-day confirmation clock started.`,
+            link: "/queue",
+            category: "queue_expiry",
+            type: "warning",
+          });
+
+          // Resequence remaining pending entries
+          const { data: remaining } = await supabase
+            .from("queue_entries")
+            .select("id")
+            .eq("asset_id", q.asset_id)
+            .eq("state", "pending")
+            .neq("id", next.id)
+            .order("position");
+
+          for (let i = 0; i < (remaining ?? []).length; i++) {
+            await supabase
+              .from("queue_entries")
+              .update({ position: i + 1 })
+              .eq("id", remaining[i].id);
+          }
+        } else {
+          // No waitlist entries — mark asset available
+          await supabase
+            .from("assets")
+            .update({ status: "available" })
+            .eq("id", q.asset_id);
+        }
+
+        // Invalidate queries
+        queryClient.invalidateQueries({ queryKey: ["queue"] });
+        queryClient.invalidateQueries({ queryKey: ["assets"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      }
+    }
+  } catch (err) {
+    console.warn("Error running automated queue expiry worker:", err);
+  }
+}
+
+/**
  * Evaluates system state across:
  * 1. Queue expiry warnings (Slot expires in <= 2 days)
  * 2. GTP overdue alerts (Pending GTP with due_date <= today)
@@ -95,6 +273,9 @@ export function clearAllNotifications() {
  */
 export async function evaluateSystemAlerts(currentUser = null) {
   try {
+    // Run automated expiry & promotion check first
+    await processExpiredQueueEntries();
+
     const todayStr = new Date().toISOString().split("T")[0];
 
     // 1. Check Queue Expiry Warnings
@@ -173,14 +354,21 @@ export async function evaluateSystemAlerts(currentUser = null) {
 }
 
 let activeChannel = null;
+let backgroundIntervalId = null;
 
 /**
  * Initializes Supabase Realtime Channel
  * Listens to postgres_changes across queue_entries, campaigns, and assets
  */
 export function initRealtimeFeed(currentUser = null) {
-  // Always evaluate initial system alerts
+  // Always evaluate initial system alerts and process queue expiries
   evaluateSystemAlerts(currentUser);
+
+  if (!backgroundIntervalId) {
+    backgroundIntervalId = setInterval(() => {
+      processExpiredQueueEntries();
+    }, 5 * 60 * 1000);
+  }
 
   if (activeChannel) return activeChannel;
 

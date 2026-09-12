@@ -1,4 +1,6 @@
 import { getAppBaseUrl } from "@/lib/helpers";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 // Resend Email Service for Carbon & Whale IMS
 const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY || "";
@@ -185,4 +187,85 @@ export async function sendClientPortalEmail({
   }
 
   return resData;
+}
+
+/**
+ * Automatically sends an ad status update email with the client PoP link to the brand
+ * whenever the campaign stage or status changes (e.g. live, onboarding, closing, closed).
+ */
+export async function notifyBrandAdStatusUpdate(campaignId, newStage, customMessage = "") {
+  try {
+    if (!campaignId) return null;
+
+    // Fetch campaign
+    const { data: campaign, error: cErr } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("id", campaignId)
+      .maybeSingle();
+
+    if (cErr || !campaign) return null;
+
+    // Find recipient email from brand record or campaign
+    let recipientEmail = campaign.contact_email;
+    let brandName = campaign.brand;
+
+    if (!recipientEmail && (campaign.brand_id || campaign.brand)) {
+      let brandQuery = supabase.from("brands").select("contact_email, name");
+      if (campaign.brand_id) {
+        brandQuery = brandQuery.eq("id", campaign.brand_id);
+      } else {
+        brandQuery = brandQuery.ilike("name", campaign.brand);
+      }
+      const { data: brandRec } = await brandQuery.maybeSingle();
+      if (brandRec) {
+        recipientEmail = brandRec.contact_email;
+        brandName = brandRec.name || brandName;
+      }
+    }
+
+    if (!recipientEmail || !recipientEmail.trim()) {
+      console.warn(`No contact email found for brand '${brandName}'. Automated ad status email skipped.`);
+      return null;
+    }
+
+    const baseUrl = getAppBaseUrl();
+    const portalUrl = `${baseUrl}/view/${campaign.id}`;
+
+    const res = await sendClientPortalEmail({
+      to: recipientEmail.trim(),
+      brandName: brandName,
+      campaignTitle: `${brandName} · ${campaign.asset_code || "Campaign"}`,
+      assetCode: campaign.asset_code,
+      locationName: campaign.location_name || campaign.asset_code,
+      status: newStage || campaign.stage || "live",
+      startDate: campaign.start_date,
+      endDate: campaign.end_date,
+      portalUrl,
+      customMessage:
+        customMessage ||
+        `Your ad campaign status has been updated to ${String(newStage || "live").toUpperCase()}. You can access real-time Proof-of-Performance photos and compliance reports anytime at your client link below.`,
+    });
+
+    // Write audit log
+    await supabase.from("audit_logs").insert({
+      id: crypto.randomUUID(),
+      entity_type: "campaign",
+      entity_id: campaign.id,
+      action: "ad_status_email_sent",
+      actor_name: "Automated Email Notification System",
+      actor_role: "system",
+      comment: `Automated status update (${newStage}) email dispatched to ${recipientEmail}.`,
+      created_at: new Date().toISOString(),
+    });
+
+    toast.info(`Status update email sent to ${recipientEmail}`, {
+      description: `Client can view their campaign live at ${portalUrl}`,
+    });
+
+    return res;
+  } catch (err) {
+    console.warn("Automated ad status notification email could not be delivered:", err?.message || err);
+    return null;
+  }
 }

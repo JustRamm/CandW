@@ -45,6 +45,7 @@ import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useCampaign, useMe } from "@/lib/queries";
 import { enqueueOfflineGtp, cacheCampaignsOffline } from "@/lib/offlineStore";
+import { notifyBrandAdStatusUpdate } from "@/lib/resend";
 import { errMessage, fmtDate, fmtDateTime, fmtMoney, getAppBaseUrl } from "@/lib/helpers";
 import { cn } from "@/lib/utils";
 
@@ -335,6 +336,7 @@ function InvoiceDialog({ campaign }) {
     },
     onSuccess: () => {
       refresh();
+      notifyBrandAdStatusUpdate(campaign.id, "live");
       toast.success("Invoice recorded — campaign is now live");
       setOpen(false);
     },
@@ -694,6 +696,9 @@ function CancellationPanel({ campaign }) {
     },
     onSuccess: (_r, vars) => {
       refresh();
+      if (vars.approve) {
+        notifyBrandAdStatusUpdate(campaign.id, "closing");
+      }
       toast.success(vars.approve ? "Cancellation approved — closure GTP created" : "Cancellation rejected");
     },
     onError: (err) => toast.error(errMessage(err, "Could not review the request")),
@@ -844,6 +849,7 @@ export default function CampaignDetail() {
     },
     onSuccess: () => {
       refresh();
+      notifyBrandAdStatusUpdate(campaignId, "invoicing");
       toast.success("Ad onboarded — invoice request raised with Finance");
     },
     onError: (err) => toast.error(errMessage(err, "Could not mark as onboarded")),
