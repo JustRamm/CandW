@@ -45,19 +45,47 @@ export default function Login({ initialMode }) {
   const location = useLocation();
   const { data: me, isLoading: meLoading } = useMe();
 
-  // Mode: "signin" | "signup" | "forgot"
-  const [mode, setMode] = useState(
-    initialMode || (location.pathname === "/signup" ? "signup" : "signin")
-  );
+  // Mode: "signin" | "signup" | "forgot" | "update_password"
+  const [mode, setMode] = useState(() => {
+    if (initialMode) return initialMode;
+    if (typeof window !== "undefined") {
+      if (
+        window.location.hash.includes("type=recovery") ||
+        window.location.search.includes("mode=reset") ||
+        window.location.search.includes("type=recovery")
+      ) {
+        return "update_password";
+      }
+    }
+    return location.pathname === "/signup" ? "signup" : "signin";
+  });
 
   useEffect(() => {
     if (initialMode) {
       setMode(initialMode);
+    } else if (
+      window.location.hash.includes("type=recovery") ||
+      window.location.search.includes("mode=reset") ||
+      window.location.search.includes("type=recovery")
+    ) {
+      setMode("update_password");
     } else if (location.pathname === "/signup") {
       setMode("signup");
     } else if (location.pathname === "/login") {
-      setMode((prev) => (prev === "forgot" ? "forgot" : "signin"));
+      setMode((prev) => (prev === "forgot" || prev === "update_password" ? prev : "signin"));
     }
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setMode("update_password");
+        sound.notification();
+        toast.info("Security verified. Please enter your new password.");
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, [location.pathname, initialMode]);
 
   // Sign In state
@@ -73,10 +101,42 @@ export default function Login({ initialMode }) {
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [authStatus, setAuthStatus] = useState(null);
+
+  const checkEmailAuthorization = async (emailInput) => {
+    const clean = (emailInput || "").trim().toLowerCase();
+    if (!clean || !clean.includes("@")) {
+      setAuthStatus(null);
+      return;
+    }
+    try {
+      const { data } = await supabase
+        .from("authorized_users")
+        .select("*")
+        .eq("email", clean)
+        .maybeSingle();
+
+      if (data) {
+        setAuthStatus({ authorized: true, name: data.name, role: data.role });
+        if (!signupName.trim()) setSignupName(data.name);
+        if (data.role) setSignupRole(data.role);
+      } else {
+        setAuthStatus({ authorized: false });
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   // Forgot Password state
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
+
+  // Update New Password state
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   // Sign In Mutation
   const login = useMutation({
@@ -124,33 +184,62 @@ export default function Login({ initialMode }) {
     },
   });
 
-  // Sign Up Mutation
+  // Sign Up Mutation with Whitelist Verification
   const signup = useMutation({
     mutationFn: async ({ name, email, role, password, confirmPassword }) => {
+      const cleanEmail = email.trim().toLowerCase();
       if (!name.trim()) throw new Error("Please enter your full name.");
-      if (!email.trim()) throw new Error("Please enter your work email.");
+      if (!cleanEmail) throw new Error("Please enter your work email.");
       if (password.length < 6) throw new Error("Password must be at least 6 characters.");
       if (password !== confirmPassword) throw new Error("Passwords do not match.");
 
+      // Check if email is in the authorized_users whitelist table
+      const { data: authRecord, error: authErr } = await supabase
+        .from("authorized_users")
+        .select("*")
+        .eq("email", cleanEmail)
+        .maybeSingle();
+
+      if (authErr) {
+        console.error("Authorization check error:", authErr);
+      }
+
+      if (!authRecord) {
+        throw new Error(
+          "Access Restricted: This email is not authorized to create an account on Carbon & Whale IMS. Please contact an administrator."
+        );
+      }
+
+      // Enforce the pre-assigned role and name
+      const assignedRole = authRecord.role || role || "sales";
+      const assignedName = name.trim() || authRecord.name;
+
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         password,
         options: {
           data: {
-            name: name.trim(),
-            role,
+            name: assignedName,
+            role: assignedRole,
           },
         },
       });
       if (error) throw error;
       if (!data?.user) throw new Error("Sign up failed.");
 
+      // Mark user as registered in authorized_users
+      await supabase
+        .from("authorized_users")
+        .update({ is_registered: true, registered_at: new Date().toISOString() })
+        .eq("email", cleanEmail);
+
       // Ensure profile record is updated/created
       await supabase.from("profiles").upsert({
         id: data.user.id,
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        role,
+        name: assignedName,
+        email: cleanEmail,
+        role: assignedRole,
+        active: true,
       });
 
       const ROLE_LABELS = {
@@ -164,9 +253,9 @@ export default function Login({ initialMode }) {
       return {
         id: data.user.id,
         email: data.user.email,
-        name: name.trim(),
-        role,
-        role_label: ROLE_LABELS[role] ?? "Sales",
+        name: assignedName,
+        role: assignedRole,
+        role_label: ROLE_LABELS[assignedRole] ?? "Sales",
       };
     },
     onSuccess: (user) => {
@@ -187,15 +276,51 @@ export default function Login({ initialMode }) {
   const forgot = useMutation({
     mutationFn: async (targetEmail) => {
       if (!targetEmail.trim()) throw new Error("Please enter your work email.");
-      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail.trim());
+      const redirectUrl = `${window.location.origin}/login?mode=reset`;
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail.trim().toLowerCase(), {
+        redirectTo: redirectUrl,
+      });
       if (error) throw error;
       return true;
     },
     onSuccess: () => {
+      sound.success();
       setForgotSubmitted(true);
       toast.success("Password reset instructions sent to your email.");
     },
-    onError: (err) => toast.error(err?.message ?? "Failed to send reset email"),
+    onError: (err) => {
+      sound.warning();
+      toast.error(err?.message ?? "Failed to send reset email");
+    },
+  });
+
+  // Update New Password Mutation (Password Recovery)
+  const updatePassword = useMutation({
+    mutationFn: async ({ newPassword, confirmNewPassword }) => {
+      if (!newPassword || newPassword.length < 6) {
+        throw new Error("Password must be at least 6 characters.");
+      }
+      if (newPassword !== confirmNewPassword) {
+        throw new Error("Passwords do not match.");
+      }
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      sound.authSuccess();
+      beginSession();
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Password updated successfully! Welcome back.");
+      navigate("/dashboard");
+    },
+    onError: (err) => {
+      sound.warning();
+      toast.error(err?.message ?? "Failed to update password");
+    },
   });
 
   // Show skeleton while session is resolving
@@ -218,9 +343,8 @@ export default function Login({ initialMode }) {
     );
   }
 
-
-  // If already logged in, redirect to dashboard (placed after all hooks)
-  if (me?.id) {
+  // If already logged in, redirect to dashboard (unless in update_password recovery mode)
+  if (me?.id && mode !== "update_password") {
     const from = location.state?.from || "/dashboard";
     return <Navigate to={from} replace />;
   }
@@ -522,13 +646,28 @@ export default function Login({ initialMode }) {
                           type="email"
                           required
                           value={signupEmail}
-                          onChange={(e) => setSignupEmail(e.target.value)}
-                          placeholder="jane@company.com"
+                          onChange={(e) => {
+                            setSignupEmail(e.target.value);
+                            checkEmailAuthorization(e.target.value);
+                          }}
+                          onBlur={(e) => checkEmailAuthorization(e.target.value)}
+                          placeholder="name@carbonandwhale.com"
                           className="pl-9"
                           data-testid="signup-email-input"
                         />
                         <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                       </div>
+                      {authStatus?.authorized && (
+                        <div className="flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 animate-in fade-in duration-150">
+                          <Check className="size-3 shrink-0" />
+                          <span>Pre-authorized: <strong className="font-semibold">{authStatus.name}</strong> ({authStatus.role})</span>
+                        </div>
+                      )}
+                      {authStatus?.authorized === false && signupEmail.includes("@") && (
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 animate-in fade-in duration-150">
+                          Notice: This email is not on the authorized staff whitelist.
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
@@ -722,6 +861,90 @@ export default function Login({ initialMode }) {
                       </Button>
                     </form>
                   )}
+                </motion.div>
+              )}
+
+              {/* ─────────────────────────────────────────────────────────────
+                  MODE: UPDATE / SET NEW PASSWORD
+              ───────────────────────────────────────────────────────────── */}
+              {mode === "update_password" && (
+                <motion.div
+                  key="panel-update-password"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <h2 className="font-heading text-2xl font-bold tracking-tight text-foreground">Set new password</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Create a secure new password for your account.
+                  </p>
+
+                  <form
+                    className="mt-6 space-y-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      updatePassword.mutate({ newPassword, confirmNewPassword });
+                    }}
+                    data-testid="update-password-form"
+                  >
+                    <div className="space-y-1.5">
+                      <Label htmlFor="new-password">New password</Label>
+                      <div className="relative">
+                        <Input
+                          id="new-password"
+                          type={showNewPassword ? "text" : "password"}
+                          required
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="At least 6 characters"
+                          className="pl-9 pr-9"
+                          data-testid="new-password-input"
+                        />
+                        <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="confirm-new-password">Confirm new password</Label>
+                      <div className="relative">
+                        <Input
+                          id="confirm-new-password"
+                          type={showConfirmNewPassword ? "text" : "password"}
+                          required
+                          value={confirmNewPassword}
+                          onChange={(e) => setConfirmNewPassword(e.target.value)}
+                          placeholder="Re-enter new password"
+                          className="pl-9 pr-9"
+                          data-testid="confirm-new-password-input"
+                        />
+                        <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          {showConfirmNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={updatePassword.isPending}
+                      data-testid="update-password-submit-button"
+                    >
+                      {updatePassword.isPending ? "Updating password…" : "Save new password & sign in"}
+                    </Button>
+                  </form>
                 </motion.div>
               )}
             </AnimatePresence>
