@@ -19,7 +19,7 @@ import { AssetStatusBadge } from "@/components/shared/StatusBadges";
 import SmartImage from "@/components/shared/SmartImage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { fmtMoney } from "@/lib/helpers";
+import { fmtMoney, KNOWN_KERALA_VENUES } from "@/lib/helpers";
 import sound from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import {
@@ -71,7 +71,16 @@ function getDerivedCoordinates(asset) {
     return [Number(asset.latitude), Number(asset.longitude)];
   }
 
-  const key = (asset.city || asset.district || "kochi").toLowerCase().trim();
+  // 1. Check known Kerala venue dictionary by location_name
+  const locName = (asset.location_name || "").toLowerCase();
+  for (const [key, val] of Object.entries(KNOWN_KERALA_VENUES || {})) {
+    if (locName.includes(key) || key.includes(locName)) {
+      return [val.lat, val.lng];
+    }
+  }
+
+  // 2. Fallback to district / city center
+  const key = (asset.district || asset.city || "kochi").toLowerCase().trim();
   return CITY_COORDINATES[key] || CITY_COORDINATES.kochi;
 }
 

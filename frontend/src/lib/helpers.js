@@ -107,16 +107,119 @@ export function parseCsv(text) {
  * Queries real-time OpenStreetMap Nominatim and Photon Geocoders for ANY mall, venue, station, or landmark.
  * No hardcoded coordinates — dynamically handles new malls and custom venues added by users.
  */
+/** Comprehensive Kerala Mall & Metro Station reference coordinates */
+export const KNOWN_KERALA_VENUES = {
+  // LuLu Group Malls
+  "lulu kochi": { lat: 10.0275, lng: 76.3081, district: "Ernakulam", city: "Edappally, Kochi" },
+  "lulu tvm": { lat: 8.4897, lng: 76.9063, district: "Thiruvananthapuram", city: "Akkulam, Thiruvananthapuram" },
+  "lulu thiruvananthapuram": { lat: 8.4897, lng: 76.9063, district: "Thiruvananthapuram", city: "Akkulam, Thiruvananthapuram" },
+  "lulu kottayam": { lat: 9.5843, lng: 76.5367, district: "Kottayam", city: "Kottayam" },
+  "lulu thrissur": { lat: 10.5362, lng: 76.2215, district: "Thrissur", city: "Thrissur" },
+  "lulu calicut": { lat: 11.2687, lng: 75.7924, district: "Kozhikode", city: "Mankavu, Kozhikode" },
+  "lulu kozhikode": { lat: 11.2687, lng: 75.7924, district: "Kozhikode", city: "Mankavu, Kozhikode" },
+
+  // HiLite Group Malls
+  "hilite calicut": { lat: 11.2505, lng: 75.8340, district: "Kozhikode", city: "Poovangal, Kozhikode" },
+  "hilite kozhikode": { lat: 11.2505, lng: 75.8340, district: "Kozhikode", city: "Poovangal, Kozhikode" },
+  "hilite thrissur": { lat: 10.5186, lng: 76.2163, district: "Thrissur", city: "Puzhakkal, Thrissur" },
+  "hilite chemmad": { lat: 11.0425, lng: 75.9234, district: "Malappuram", city: "Chemmad, Malappuram" },
+  "hilite malappuram": { lat: 11.0734, lng: 76.0740, district: "Malappuram", city: "Malappuram" },
+
+  // Other Premium & Regional Malls
+  "oberon kochi": { lat: 10.0158, lng: 76.3113, district: "Ernakulam", city: "Edappally, Kochi" },
+  "oberon mall": { lat: 10.0158, lng: 76.3113, district: "Ernakulam", city: "Edappally, Kochi" },
+  "centre square": { lat: 9.9765, lng: 76.2828, district: "Ernakulam", city: "MG Road, Kochi" },
+  "center square": { lat: 9.9765, lng: 76.2828, district: "Ernakulam", city: "MG Road, Kochi" },
+  "sobha city": { lat: 10.5562, lng: 76.1824, district: "Thrissur", city: "Puzhakkal, Thrissur" },
+  "shobha city": { lat: 10.5562, lng: 76.1824, district: "Thrissur", city: "Puzhakkal, Thrissur" },
+  "falcon thrissur": { lat: 10.5276, lng: 76.2144, district: "Thrissur", city: "Thrissur" },
+  "falcon mall": { lat: 10.5276, lng: 76.2144, district: "Thrissur", city: "Thrissur" },
+  "kannur secura": { lat: 11.8745, lng: 75.3704, district: "Kannur", city: "Kannur" },
+  "secura kannur": { lat: 11.8745, lng: 75.3704, district: "Kannur", city: "Kannur" },
+  "secura centre": { lat: 11.8745, lng: 75.3704, district: "Kannur", city: "Kannur" },
+  "mall of travancore": { lat: 8.4856, lng: 76.9312, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
+  "mot": { lat: 8.4856, lng: 76.9312, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
+  "gokulam mall": { lat: 11.2588, lng: 75.7804, district: "Kozhikode", city: "Kozhikode" },
+  "y mall": { lat: 10.5052, lng: 76.2155, district: "Thrissur", city: "Triprayar, Thrissur" },
+
+  // Kochi Metro Stations
+  "edappally metro": { lat: 10.0245, lng: 76.3075, district: "Ernakulam", city: "Kochi" },
+  "edappally": { lat: 10.0245, lng: 76.3075, district: "Ernakulam", city: "Kochi" },
+  "aluva metro": { lat: 10.1082, lng: 76.3533, district: "Ernakulam", city: "Aluva, Kochi" },
+  "aluva": { lat: 10.1082, lng: 76.3533, district: "Ernakulam", city: "Aluva, Kochi" },
+  "town hall metro": { lat: 9.9922, lng: 76.2877, district: "Ernakulam", city: "Kochi" },
+  "town hall": { lat: 9.9922, lng: 76.2877, district: "Ernakulam", city: "Kochi" },
+  "ernakulam south": { lat: 9.9678, lng: 76.2912, district: "Ernakulam", city: "Kochi" },
+  "vytilla metro": { lat: 9.9658, lng: 76.3204, district: "Ernakulam", city: "Kochi" },
+  "vytilla": { lat: 9.9658, lng: 76.3204, district: "Ernakulam", city: "Kochi" },
+  "thrippunithura": { lat: 9.9482, lng: 76.3508, district: "Ernakulam", city: "Kochi" },
+  "tripunithura": { lat: 9.9482, lng: 76.3508, district: "Ernakulam", city: "Kochi" },
+  "kalamassery": { lat: 10.0468, lng: 76.3175, district: "Ernakulam", city: "Kochi" },
+  "palarivattom": { lat: 10.0052, lng: 76.3068, district: "Ernakulam", city: "Kochi" },
+  "pulinchode": { lat: 10.0963, lng: 76.3472, district: "Ernakulam", city: "Kochi" },
+  "companypady": { lat: 10.0825, lng: 76.3392, district: "Ernakulam", city: "Kochi" },
+  "ambattukavu": { lat: 10.0718, lng: 76.3325, district: "Ernakulam", city: "Kochi" },
+  "muttom": { lat: 10.0601, lng: 76.3262, district: "Ernakulam", city: "Kochi" },
+  "cusat": { lat: 10.0401, lng: 76.3195, district: "Ernakulam", city: "Kochi" },
+  "pathadipalam": { lat: 10.0335, lng: 76.3148, district: "Ernakulam", city: "Kochi" },
+  "jln stadium": { lat: 10.0001, lng: 76.3005, district: "Ernakulam", city: "Kochi" },
+  "kadavanthra": { lat: 9.9672, lng: 76.2998, district: "Ernakulam", city: "Kochi" },
+  "vadakkekotta": { lat: 9.9515, lng: 76.3440, district: "Ernakulam", city: "Kochi" },
+  "thaikoodam": { lat: 9.9610, lng: 76.3312, district: "Ernakulam", city: "Kochi" },
+  "petta": { lat: 9.9575, lng: 76.3395, district: "Ernakulam", city: "Kochi" },
+  "sn junction": { lat: 9.9535, lng: 76.3430, district: "Ernakulam", city: "Kochi" },
+  "maharajas": { lat: 9.9723, lng: 76.2845, district: "Ernakulam", city: "Kochi" },
+  "mg road": { lat: 9.9816, lng: 76.2828, district: "Ernakulam", city: "Kochi" },
+  "kaloor": { lat: 9.9952, lng: 76.2915, district: "Ernakulam", city: "Kochi" },
+  "changampuzha": { lat: 10.0152, lng: 76.3045, district: "Ernakulam", city: "Kochi" },
+};
+
+/**
+ * Live Dynamic Geocoding Engine
+ * 1. Checks fast instant venue dictionary for known Kerala Malls and Metro stations.
+ * 2. Queries real-time OpenStreetMap Nominatim and Photon Geocoders for ANY other custom mall or venue.
+ */
 export async function fetchCoordinatesForLocation(query, district = "") {
   if (!query || query.trim().length < 2) return null;
 
-  // 1. Clean query: strip section / atrium / platform descriptors to extract core venue name
   const rawQuery = query.trim();
+  const lower = rawQuery.toLowerCase();
+
+  // 1. Instant match in known Kerala venues dictionary
+  for (const [key, val] of Object.entries(KNOWN_KERALA_VENUES)) {
+    if (lower.includes(key) || key.includes(lower)) {
+      return {
+        lat: val.lat,
+        lng: val.lng,
+        district: val.district,
+        city: val.city,
+        displayName: rawQuery,
+        source: "Kerala Venue Registry",
+      };
+    }
+  }
+
+  // 2. Clean query: strip section / atrium / platform descriptors to extract core venue name
   const baseVenueName = rawQuery
     .split(/[—–-]/)[0]
     .replace(/\b(ground|first|second|third|4th|5th|atrium|concourse|platform|gate|corridor|entry|exit|floor|level|phase|block)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  // Check dictionary again with cleaned venue name
+  const cleanLower = baseVenueName.toLowerCase();
+  for (const [key, val] of Object.entries(KNOWN_KERALA_VENUES)) {
+    if (cleanLower.includes(key) || key.includes(cleanLower)) {
+      return {
+        lat: val.lat,
+        lng: val.lng,
+        district: val.district,
+        city: val.city,
+        displayName: rawQuery,
+        source: "Kerala Venue Registry",
+      };
+    }
+  }
 
   const searchCandidates = [
     `${rawQuery}, ${district || "Kerala"}, India`,
@@ -172,6 +275,61 @@ export async function fetchCoordinatesForLocation(query, district = "") {
   return null;
 }
 
+/**
+ * Parses coordinates from any Google Maps URL or raw coordinate string.
+ * Supports:
+ * - Desktop/Browser URLs with /@lat,lng/ (e.g. https://www.google.com/maps/place/.../@10.027548,76.308105,17z/...)
+ * - Search URLs with ?q=lat,lng or ?ll=lat,lng (e.g. https://maps.google.com/?q=10.027548,76.308105)
+ * - Embed / Place URLs with !3dlat!4dlng (e.g. !3d10.027548!4d76.308105)
+ * - Raw comma-separated coordinate strings (e.g. "10.027548, 76.308105")
+ */
+export function parseGoogleMapsUrl(text) {
+  if (!text || typeof text !== "string") return null;
+  const str = text.trim();
+
+  // 1. Direct "@lat,lng" format from Google Maps URL path
+  const atMatch = str.match(/@([+-]?\d+(?:\.\d+)?),([+-]?\d+(?:\.\d+)?)/);
+  if (atMatch) {
+    const lat = parseFloat(atMatch[1]);
+    const lng = parseFloat(atMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat, lng, formatted: `${lat.toFixed(6)}, ${lng.toFixed(6)}`, source: "Google Maps URL" };
+    }
+  }
+
+  // 2. Query param "?q=lat,lng" or "?ll=lat,lng" or "?center=lat,lng"
+  const qMatch = str.match(/[?&](?:q|ll|center|daddr|saddr)=([+-]?\d+(?:\.\d+)?),([+-]?\d+(?:\.\d+)?)/);
+  if (qMatch) {
+    const lat = parseFloat(qMatch[1]);
+    const lng = parseFloat(qMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat, lng, formatted: `${lat.toFixed(6)}, ${lng.toFixed(6)}`, source: "Google Maps Query" };
+    }
+  }
+
+  // 3. Embedded data "!3dlat!4dlng"
+  const dataMatch = str.match(/!3d([+-]?\d+(?:\.\d+)?)!4d([+-]?\d+(?:\.\d+)?)/);
+  if (dataMatch) {
+    const lat = parseFloat(dataMatch[1]);
+    const lng = parseFloat(dataMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat, lng, formatted: `${lat.toFixed(6)}, ${lng.toFixed(6)}`, source: "Google Maps Data" };
+    }
+  }
+
+  // 4. Raw "lat, lng" coordinates (e.g. "10.027548, 76.308105")
+  const rawMatch = str.match(/^([+-]?\d+(?:\.\d+)?)[,\s]+([+-]?\d+(?:\.\d+)?)$/);
+  if (rawMatch) {
+    const lat = parseFloat(rawMatch[1]);
+    const lng = parseFloat(rawMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat, lng, formatted: `${lat.toFixed(6)}, ${lng.toFixed(6)}`, source: "GPS Coordinates" };
+    }
+  }
+
+  return null;
+}
+
 /** Obtains device's live GPS hardware coordinates with high accuracy */
 export function getCurrentDeviceLocation() {
   return new Promise((resolve, reject) => {
@@ -221,10 +379,36 @@ export async function importAssetsCsv(file) {
 
     try {
       // Flexible field resolution
-      let assetCode = (row.asset_code || row.code || "").trim();
-      const assetType = (row.asset_type || row.type || "Digital Screen").trim();
+      let assetCode = (row.asset_code || row.code || row.id || "").trim();
+      const locationName = (
+        row.location_name ||
+        row.location ||
+        row.property ||
+        row.location_property ||
+        row["location_/_property"] ||
+        row.station_name ||
+        row.station ||
+        row.station_cluster ||
+        row.mall ||
+        row.mall_name ||
+        row.venue ||
+        row.name ||
+        ""
+      ).trim();
+
+      const isMetro =
+        Boolean(row.station_name || row.station || row.station_cluster) ||
+        /metro|station/i.test(locationName) ||
+        (row.location_type || "").toLowerCase() === "metro";
+
+      const assetType = (
+        row.asset_type ||
+        row.type ||
+        row.segment ||
+        (isMetro ? "Metro Bench" : "Digital Screen")
+      ).trim();
+
       let locationCode = (row.location_code || row.loc_code || "").trim().toUpperCase();
-      const locationName = (row.location_name || row.location || row.name || "").trim();
 
       // If location_code is missing, derive it from asset_code or location_name
       if (!locationCode) {
@@ -270,6 +454,44 @@ export async function importAssetsCsv(file) {
 
       let lat = parseFloat(row.latitude || row.lat);
       let lng = parseFloat(row.longitude || row.lng || row.long);
+      let derivedCity = (row.city || row.area || "").trim();
+      let derivedDistrict = (row.district || row.city || "").trim();
+
+      const rawMapUrl = (
+        row.map_url ||
+        row.map_link ||
+        row.google_maps_url ||
+        row.maps_url ||
+        row.location_link ||
+        row.gmaps_url ||
+        row.gmaps_link ||
+        ""
+      ).trim();
+
+      // Extract GPS directly if Google Maps URL or raw coordinates were provided
+      if (rawMapUrl) {
+        const parsedMapsCoords = parseGoogleMapsUrl(rawMapUrl);
+        if (parsedMapsCoords) {
+          if (isNaN(lat) || isNaN(lng)) {
+            lat = parsedMapsCoords.lat;
+            lng = parsedMapsCoords.lng;
+          }
+        }
+      }
+
+      // Auto-resolve coordinates and district from venue lookup if missing
+      if ((isNaN(lat) || isNaN(lng) || !derivedDistrict) && locationName) {
+        const autoGeo = await fetchCoordinatesForLocation(locationName, derivedDistrict || derivedCity);
+        if (autoGeo) {
+          if (isNaN(lat) || isNaN(lng)) {
+            lat = autoGeo.lat;
+            lng = autoGeo.lng;
+          }
+          if (!derivedDistrict && autoGeo.district) derivedDistrict = autoGeo.district;
+          if (!derivedCity && autoGeo.city) derivedCity = autoGeo.city;
+        }
+      }
+
       const radius = parseInt(
         row.geofence_radius_m ||
           row.geofence_radius ||
@@ -278,15 +500,6 @@ export async function importAssetsCsv(file) {
           row.radius,
         10
       );
-
-      // Auto-resolve coordinates if missing in CSV
-      if ((isNaN(lat) || isNaN(lng)) && locationName) {
-        const autoGeo = await fetchCoordinatesForLocation(locationName, row.district || row.city);
-        if (autoGeo) {
-          lat = autoGeo.lat;
-          lng = autoGeo.lng;
-        }
-      }
 
       // Parse brand details: supports brand_name, brand_1/2, brand_names, and inline notes extraction
       const brandList = [];
@@ -348,11 +561,11 @@ export async function importAssetsCsv(file) {
 
       const payload = {
         asset_type: normalizedAssetType,
-        location_type: (row.location_type || "Mall").trim(),
+        location_type: (row.location_type || (isMetro ? "Metro" : "Mall")).trim(),
         location_code: locationCode,
         location_name: locationName || `${locationCode} Display`,
-        city: (row.city || row.district || "Ernakulam").trim(),
-        district: (row.district || row.city || "Ernakulam").trim(),
+        city: (derivedCity || derivedDistrict || "Ernakulam").trim(),
+        district: (derivedDistrict || derivedCity || "Ernakulam").trim(),
         width_ft: parseFloat(row.width_ft || row.width) || 10,
         height_ft: parseFloat(row.height_ft || row.height) || 4,
         photo_url: (row.photo_url || row.photo || row.image || "").trim(),
@@ -364,6 +577,7 @@ export async function importAssetsCsv(file) {
         status,
         latitude: !isNaN(lat) ? lat : null,
         longitude: !isNaN(lng) ? lng : null,
+        map_url: rawMapUrl || (!isNaN(lat) && !isNaN(lng) ? `https://www.google.com/maps?q=${lat},${lng}` : null),
         geofence_radius_m: !isNaN(radius) && radius > 0 ? radius : 500,
       };
 
@@ -554,6 +768,7 @@ export function downloadAssetCsvTemplate() {
       brand_names: "Nike, Adidas",
       start_date: "2026-10-01",
       end_date: "2026-10-31",
+      map_url: "https://maps.google.com/?q=8.4975,76.9038",
       latitude: 8.4975,
       longitude: 76.9038,
       geofence_radius_m: 500,
@@ -574,6 +789,7 @@ export function downloadAssetCsvTemplate() {
       brand_name: "Tata Motors",
       start_date: "2026-10-01",
       end_date: "2026-11-30",
+      map_url: "https://maps.google.com/?q=9.9723,76.2845",
       latitude: 9.9723,
       longitude: 76.2845,
       geofence_radius_m: 300,
@@ -594,6 +810,7 @@ export function downloadAssetCsvTemplate() {
       brand_name: "",
       start_date: "",
       end_date: "",
+      map_url: "https://maps.google.com/?q=9.9765,76.2825",
       latitude: 9.9765,
       longitude: 76.2825,
       geofence_radius_m: 400,

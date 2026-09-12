@@ -11,6 +11,7 @@ import {
   ExternalLink,
   FileSpreadsheet,
   LayoutGrid,
+  Link2,
   MapPin,
   MapPinned,
   Pencil,
@@ -63,6 +64,7 @@ import {
   fetchCoordinatesForLocation,
   getCurrentDeviceLocation,
   importAssetsCsv,
+  parseGoogleMapsUrl,
 } from "@/lib/helpers";
 import sound from "@/lib/sound";
 
@@ -98,12 +100,14 @@ export const KERALA_MALLS = [
   { name: "Falcon Mall Thrissur", district: "Thrissur" },
   { name: "Gokulam Mall Kozhikode", district: "Kozhikode" },
   { name: "HiLite Calicut", district: "Kozhikode" },
+  { name: "HiLite Chemmad", district: "Malappuram" },
   { name: "HiLite Malappuram", district: "Malappuram" },
   { name: "HiLite Mall Cheruvadi", district: "Malappuram" },
   { name: "HiLite Thrissur", district: "Thrissur" },
   { name: "Lulu Calicut", district: "Kozhikode" },
   { name: "Lulu Kochi", district: "Ernakulam" },
   { name: "Lulu Kottayam", district: "Kottayam" },
+  { name: "Lulu Thrissur", district: "Thrissur" },
   { name: "Lulu TVM", district: "Thiruvananthapuram" },
   { name: "Mall of Travancore", district: "Thiruvananthapuram" },
   { name: "Oberon Kochi", district: "Ernakulam" },
@@ -123,22 +127,44 @@ export function extractMallName(asset) {
 
   const locName = (asset.location_name || "").trim();
   if (!locName) return null;
+  const lower = locName.toLowerCase();
 
-  // 1. Direct match with Kerala malls
+  // 1. Direct and Alias matching for LuLu Malls
+  if (lower.includes("lulu") || lower.includes("lu lu")) {
+    if (lower.includes("kochi") || lower.includes("cochin") || lower.includes("edappally")) return "Lulu Kochi";
+    if (lower.includes("tvm") || lower.includes("thiruvananthapuram") || lower.includes("trivandrum")) return "Lulu TVM";
+    if (lower.includes("kottayam")) return "Lulu Kottayam";
+    if (lower.includes("thrissur") || lower.includes("trichur")) return "Lulu Thrissur";
+    if (lower.includes("calicut") || lower.includes("kozhikode")) return "Lulu Calicut";
+    return "Lulu Kochi";
+  }
+
+  // 2. Direct and Alias matching for HiLite Malls
+  if (lower.includes("hilite") || lower.includes("hi-lite") || lower.includes("hi lite")) {
+    if (lower.includes("chemmad")) return "HiLite Chemmad";
+    if (lower.includes("thrissur") || lower.includes("trichur")) return "HiLite Thrissur";
+    if (lower.includes("malappuram")) return "HiLite Malappuram";
+    if (lower.includes("calicut") || lower.includes("kozhikode")) return "HiLite Calicut";
+    return "HiLite Calicut";
+  }
+
+  // 3. Other Major Kerala Malls
+  if (lower.includes("center square") || lower.includes("centre square") || lower.includes("csq")) return "Centre Square Kochi";
+  if (lower.includes("oberon")) return "Oberon Kochi";
+  if (lower.includes("sobha") || lower.includes("shobha")) return "Sobha City Thrissur";
+  if (lower.includes("falcon")) return "Falcon Mall Thrissur";
+  if (lower.includes("secura") || lower.includes("kannur secura")) return "Secura Kannur";
+  if (lower.includes("mall of travancore") || lower.includes("mot")) return "Mall of Travancore";
+  if (lower.includes("gokulam")) return "Gokulam Mall Kozhikode";
+  if (lower.includes("y mall") || lower.includes("ymall")) return "Y Mall Thrissur";
+  if (lower.includes("market city") || lower.includes("marketcity")) return "Market City Malappuram";
+
+  // 4. Match against KERALA_MALLS array
   for (const km of KERALA_MALLS) {
-    if (locName.toLowerCase().includes(km.name.toLowerCase())) {
+    if (lower.includes(km.name.toLowerCase())) {
       return km.name;
     }
   }
-
-  // 2. Common Kerala Mall name aliases
-  if (/sobha\s*city/i.test(locName)) return "Shobha City Thrissur";
-  if (/mall\s*of\s*travancore/i.test(locName)) return "MOT Trivandrum";
-  if (/center\s*square/i.test(locName)) return "Center Square Mall Kochi";
-  if (/oberon/i.test(locName)) return "Oberon Mall Kochi";
-  if (/secura/i.test(locName)) return "Secura Centre Kannur";
-  if (/market\s*city/i.test(locName)) return "Market City Malappuram";
-  if (/gokulam/i.test(locName)) return "Gokulam Mall Kozhikode";
 
   const locType = (asset.location_type || "").toLowerCase();
   const assetType = (asset.asset_type || "").toLowerCase();
@@ -190,6 +216,7 @@ const BLANK = {
   end_date: "",
   proof_photo_url: "",
   proof_photo_ids: [],
+  map_url: "",
   latitude: "",
   longitude: "",
   geofence_radius_m: 500,
@@ -197,6 +224,8 @@ const BLANK = {
 
 function refreshAssets() {
   queryClient.invalidateQueries({ queryKey: ["assets"] });
+  queryClient.invalidateQueries({ queryKey: ["brands"] });
+  queryClient.invalidateQueries({ queryKey: ["campaigns"] });
 }
 
 /** Shared create/edit form. `asset` present = edit mode. */
@@ -228,6 +257,7 @@ export function AssetDialog({ asset, trigger }) {
           end_date: asset.end_date ?? "",
           proof_photo_ids: asset.proof_photo_ids ?? [],
           proof_photo_url: asset.proof_photo_url ?? "",
+          map_url: asset.map_url ?? "",
           latitude: asset.latitude ?? "",
           longitude: asset.longitude ?? "",
           geofence_radius_m: asset.geofence_radius_m ?? 500,
@@ -306,6 +336,23 @@ export function AssetDialog({ asset, trigger }) {
       toast.error(err.message || "Could not retrieve device GPS location");
     } finally {
       setGeoResolving(false);
+    }
+  };
+
+  const handleMapUrlChange = (val) => {
+    setForm((f) => ({ ...f, map_url: val }));
+    if (!val || !val.trim()) return;
+    const parsed = parseGoogleMapsUrl(val);
+    if (parsed) {
+      setForm((f) => ({
+        ...f,
+        map_url: val,
+        latitude: String(parsed.lat),
+        longitude: String(parsed.lng),
+      }));
+      setGeoMatchInfo(`GPS from Link: ${parsed.lat.toFixed(5)}, ${parsed.lng.toFixed(5)}`);
+      sound.success();
+      toast.success(`Coordinates extracted: ${parsed.lat.toFixed(5)}, ${parsed.lng.toFixed(5)}`);
     }
   };
 
@@ -410,6 +457,7 @@ export function AssetDialog({ asset, trigger }) {
         ...dbFields,
         notes: notesWithBrand,
         current_brand: brandSummary || null,
+        map_url: body.map_url || (body.latitude && body.longitude ? `https://www.google.com/maps?q=${body.latitude},${body.longitude}` : null),
         latitude: body.latitude && !isNaN(Number(body.latitude)) ? Number(body.latitude) : null,
         longitude: body.longitude && !isNaN(Number(body.longitude)) ? Number(body.longitude) : null,
         geofence_radius_m: body.geofence_radius_m ? Number(body.geofence_radius_m) : 500,
@@ -1103,6 +1151,26 @@ export function AssetDialog({ asset, trigger }) {
                 </Button>
               </div>
             </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="a-map-url" className="text-[11px] font-medium text-foreground">
+                  Google Maps Location Link or Coordinates
+                </Label>
+                <span className="text-[10px] text-muted-foreground">Auto-extracts Lat & Long</span>
+              </div>
+              <div className="relative">
+                <Input
+                  id="a-map-url"
+                  placeholder="Paste Google Maps URL or lat, lng (e.g. https://maps.google.com/?q=10.0275,76.3081)"
+                  className="h-8 text-xs pl-7 bg-background"
+                  value={form.map_url || ""}
+                  onChange={(e) => handleMapUrlChange(e.target.value)}
+                />
+                <Link2 className="absolute left-2 top-2 size-3.5 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
                 <Label htmlFor="a-lat" className="text-[11px]">Latitude</Label>
@@ -1141,7 +1209,7 @@ export function AssetDialog({ asset, trigger }) {
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Auto-fetched when you type a known Kerala mall or landmark (e.g. Lulu Mall TVM, Center Square Mall Kochi, MG Road Metro).
+              Paste a Google Maps link above, or type a known Kerala mall/metro station to auto-fetch GPS.
             </p>
           </div>
 
