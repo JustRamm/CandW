@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { Building2, FileDown, FileSpreadsheet, Loader2, Mail, Phone, Plus, Search, Upload, User } from "lucide-react";
+import { Building2, FileDown, Loader2, Mail, Phone, Plus, Search, Upload, User } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -23,7 +23,8 @@ import {
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useBrands, useMe } from "@/lib/queries";
-import { downloadBrandCsvTemplate, downloadCsv, errMessage, fmtDate, importBrandsCsv } from "@/lib/helpers";
+import { downloadCsv, errMessage, fmtDate, importBrandsCsv } from "@/lib/helpers";
+import { broadcastNotification } from "@/lib/realtime";
 import sound from "@/lib/sound";
 
 const BLANK = {
@@ -71,8 +72,15 @@ function BrandDialog() {
     },
     onSuccess: (b) => {
       queryClient.invalidateQueries({ queryKey: ["brands"] });
-      sound.success();
-      toast.success(`${b.name} added`);
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      broadcastNotification({
+        key: `new_brand_${b.id}`,
+        title: "New Brand Added",
+        message: `${b.name} was added to the client directory.`,
+        link: `/brands/${b.id}`,
+        category: "brand",
+        type: "success",
+      });
       setForm(BLANK);
       setOpen(false);
     },
@@ -184,6 +192,16 @@ export default function Brands() {
     try {
       const res = await importBrandsCsv(file);
       queryClient.invalidateQueries({ queryKey: ["brands"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      if (res.created > 0) {
+        broadcastNotification({
+          title: "Brands Imported",
+          message: `${res.created} new brand(s) imported to client directory.`,
+          link: "/brands",
+          category: "brand",
+          type: "success",
+        });
+      }
       sound.success();
       toast.success(`Import complete: ${res.created} created, ${res.updated} updated`, {
         description: res.errors.length
@@ -213,17 +231,6 @@ export default function Brands() {
             className="hidden"
             data-testid="brand-csv-file-input"
           />
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={downloadBrandCsvTemplate}
-            title="Download CSV Template for Brands"
-            className="gap-1.5"
-            data-testid="download-brand-csv-template"
-          >
-            <FileSpreadsheet className="size-3.5 text-muted-foreground" />
-            Template
-          </Button>
           {canCreate && (
             <Button
               variant="outline"

@@ -9,7 +9,7 @@ import {
   Compass,
   Download,
   ExternalLink,
-  FileSpreadsheet,
+  FileDown,
   LayoutGrid,
   Link2,
   MapPin,
@@ -58,7 +58,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { queryClient } from "@/lib/queryClient";
 import { useAssetTypes, useAssets, useBrands, useMe } from "@/lib/queries";
 import {
-  downloadAssetCsvTemplate,
   downloadCsv,
   errMessage,
   fetchCoordinatesForLocation,
@@ -66,6 +65,7 @@ import {
   importAssetsCsv,
   parseGoogleMapsUrl,
 } from "@/lib/helpers";
+import { broadcastNotification } from "@/lib/realtime";
 import sound from "@/lib/sound";
 
 const STATUS_FILTERS = [
@@ -561,12 +561,24 @@ export function AssetDialog({ asset, trigger }) {
       return data;
     },
     onSuccess: (a) => {
-      sound.success();
       refreshAssets();
-      if (asset) queryClient.invalidateQueries({ queryKey: ["asset", asset.id] });
+      if (asset) {
+        queryClient.invalidateQueries({ queryKey: ["asset", asset.id] });
+        sound.success();
+        toast.success(`Asset ${a.asset_code} updated`);
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        broadcastNotification({
+          key: `new_asset_${a.id}`,
+          title: "New Asset Added",
+          message: `${a.asset_code} (${a.location_name || "New Location"}) added to inventory.`,
+          link: `/assets/${a.id}`,
+          category: "inventory",
+          type: "success",
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["brands"] });
-      toast.success(asset ? `Asset ${a.asset_code} updated` : `Asset ${a.asset_code} created`);
       setOpen(false);
       resetAll();
     },
@@ -1317,6 +1329,15 @@ function CsvImport() {
       const res = await importAssetsCsv(file);
       refreshAssets();
       if (res.total > 0) {
+        if (res.created > 0) {
+          broadcastNotification({
+            title: "Assets Imported",
+            message: `${res.created} new asset(s) imported to inventory.`,
+            link: "/assets",
+            category: "inventory",
+            type: "success",
+          });
+        }
         sound.success();
         const parts = [];
         if (res.created > 0) parts.push(`${res.created} created`);
@@ -1346,22 +1367,10 @@ function CsvImport() {
         className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border/70 bg-secondary/40 px-2.5 py-1.5 text-xs transition-colors duration-150 hover:border-primary/50"
         data-testid="csv-import-label"
       >
-        <Download className="size-3.5" />
+        <FileDown className="size-3.5" />
         {busy ? "Importing…" : "CSV import"}
         <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={onFile} data-testid="csv-import-input" />
       </label>
-      <Button
-        variant="ghost"
-        size="xs"
-        type="button"
-        onClick={downloadAssetCsvTemplate}
-        title="Download CSV import template"
-        className="hidden sm:inline-flex text-muted-foreground hover:text-foreground text-[11px] gap-1 px-1.5"
-        data-testid="download-template-button"
-      >
-        <FileSpreadsheet className="size-3.5" />
-        Template
-      </Button>
     </div>
   );
 }

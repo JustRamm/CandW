@@ -296,7 +296,7 @@ export function initRealtimeFeed(currentUser = null) {
             title: "New Asset Added",
             message: `${record.asset_code || "Asset"} (${record.location_name || "New Location"}) added to inventory.`,
             link: `/assets/${record.id}`,
-            category: "general",
+            category: "inventory",
             type: "success",
           });
         } else if (eventType === "UPDATE") {
@@ -306,10 +306,39 @@ export function initRealtimeFeed(currentUser = null) {
               title: "Asset Status Changed",
               message: `${record.asset_code} moved from ${oldRecord.status} to ${record.status}.`,
               link: `/assets/${record.id}`,
-              category: "general",
+              category: "inventory",
               type: "info",
             });
           }
+        }
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "brands" },
+      (payload) => {
+        queryClient.invalidateQueries({ queryKey: ["brands"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+
+        const { eventType, new: record } = payload;
+        if (eventType === "INSERT") {
+          addNotification({
+            key: `new_brand_${record.id}`,
+            title: "New Brand Added",
+            message: `${record.name || "Brand"} was added to the client directory.`,
+            link: `/brands/${record.id}`,
+            category: "brand",
+            type: "success",
+          });
+        }
+      }
+    )
+    .on(
+      "broadcast",
+      { event: "system_notification" },
+      ({ payload }) => {
+        if (payload) {
+          addNotification(payload);
         }
       }
     )
@@ -327,9 +356,26 @@ export function initRealtimeFeed(currentUser = null) {
   return activeChannel;
 }
 
+/** Broadcasts a notification locally and across Supabase Realtime channel to all connected users */
+export function broadcastNotification(notif) {
+  const item = addNotification(notif);
+  if (activeChannel) {
+    try {
+      activeChannel.send({
+        type: "broadcast",
+        event: "system_notification",
+        payload: item,
+      });
+    } catch (err) {
+      console.warn("Failed to broadcast notification:", err);
+    }
+  }
+  return item;
+}
+
 /** Utility to test sound chime, sonner toast, and live panel updates */
 export function triggerTestNotification() {
-  return addNotification({
+  return broadcastNotification({
     title: "System Notification Connected",
     message: "Live telemetry and operational alerts are active across queues, campaigns, and assets.",
     link: "/dashboard",

@@ -78,6 +78,7 @@ export default function NotificationCenter() {
 
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "all") return true;
+    if (activeTab === "inventory") return item.category === "inventory" || item.category === "brand";
     if (activeTab === "expiry") return item.category === "queue_expiry";
     if (activeTab === "gtp") return item.category === "gtp_overdue";
     if (activeTab === "campaigns") return item.category === "campaign_stage" || item.category === "new_interest";
@@ -86,6 +87,10 @@ export default function NotificationCenter() {
 
   const getCategoryBadge = (category) => {
     switch (category) {
+      case "inventory":
+        return <Badge variant="outline" className="text-[9px] px-1 py-0 text-cyan-500 border-cyan-500/30">Asset</Badge>;
+      case "brand":
+        return <Badge variant="outline" className="text-[9px] px-1 py-0 text-purple-500 border-purple-500/30">Brand</Badge>;
       case "queue_expiry":
         return <Badge variant="outline" className="text-[9px] px-1 py-0 text-amber-500 border-amber-500/30">Queue Expiry</Badge>;
       case "gtp_overdue":
@@ -191,6 +196,16 @@ export default function NotificationCenter() {
               </button>
               <button
                 type="button"
+                onClick={() => setActiveTab("inventory")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors shrink-0",
+                  activeTab === "inventory" ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60"
+                )}
+              >
+                Assets & Brands
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab("expiry")}
                 className={cn(
                   "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors shrink-0",
@@ -231,7 +246,7 @@ export default function NotificationCenter() {
                 </div>
                 <p className="text-xs font-medium">All caught up</p>
                 <p className="text-[11px] text-muted-foreground/70 mt-0.5 max-w-[240px]">
-                  Queue expiry warnings, GTP overdue alerts, and campaign stage updates will surface here.
+                  New assets, brand updates, queue expiry warnings, and campaign updates will surface here.
                 </p>
                 <Button
                   variant="outline"
