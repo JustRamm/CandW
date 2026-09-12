@@ -406,16 +406,6 @@ export default function ClientPortal() {
             )}
 
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.print()}
-              className="h-8 text-xs gap-1.5 cursor-pointer"
-            >
-              <Download className="size-3.5" />
-              <span className="hidden sm:inline">Export Certificate</span>
-            </Button>
-
-            <Button
               variant="default"
               size="sm"
               onClick={handleCopyLink}
