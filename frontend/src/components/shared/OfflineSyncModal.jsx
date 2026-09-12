@@ -98,7 +98,7 @@ export default function OfflineSyncModal({ trigger }) {
               variant="outline"
               size="sm"
               className={cn(
-                "h-8 gap-2 rounded-full px-3 text-xs font-medium transition-all",
+                "h-8 gap-1.5 rounded-full px-2 sm:px-3 text-xs font-medium transition-all shrink-0",
                 !isOnline
                   ? "border-amber-400 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20"
                   : pendingCount > 0
@@ -106,17 +106,20 @@ export default function OfflineSyncModal({ trigger }) {
                     : "border-border/70 text-muted-foreground hover:bg-secondary/60"
               )}
               data-testid="offline-sync-pill"
+              title={isOnline ? (pendingCount > 0 ? `${pendingCount} offline actions queued` : "System is online") : "Working in offline mode"}
             >
               {isOnline ? (
-                <span className="relative flex size-2">
+                <span className="relative flex size-2 shrink-0">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
                 </span>
               ) : (
-                <WifiOff className="size-3.5 text-amber-500 animate-pulse" />
+                <WifiOff className="size-3.5 text-amber-500 animate-pulse shrink-0" />
               )}
 
-              <span>{isOnline ? (pendingCount > 0 ? `${pendingCount} Queued` : "Live") : "Field Mode"}</span>
+              <span className="hidden sm:inline">
+                {isOnline ? (pendingCount > 0 ? `${pendingCount} Queued` : "Live") : "Field Mode"}
+              </span>
 
               {pendingCount > 0 && (
                 <Badge
