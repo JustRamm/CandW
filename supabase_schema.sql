@@ -139,6 +139,12 @@ create table if not exists public.assets (
   height_ft      numeric(6,2) not null default 3,
   photo_url      text default '',
   photo_ids      jsonb default '[]',
+  proof_photo_url text default '',
+  proof_photo_ids jsonb default '[]',
+  current_brand  text default '',
+  start_date     date,
+  end_date       date,
+  assigned_salesperson_id uuid references public.profiles(id),
   description    text default '',
   notes          text default '',
   latitude       numeric(10, 7),
@@ -148,6 +154,7 @@ create table if not exists public.assets (
                  check (status in ('available','reserved','onboarding','live','closing','closed')),
   created_at     timestamptz default now()
 );
+
 alter table public.assets enable row level security;
 drop policy if exists "assets: authenticated read" on public.assets;
 drop policy if exists "assets: ops/admin write" on public.assets;

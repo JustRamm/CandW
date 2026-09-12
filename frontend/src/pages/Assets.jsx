@@ -175,6 +175,8 @@ const BLANK = {
   notes: "",
   start_date: "",
   end_date: "",
+  proof_photo_url: "",
+  proof_photo_ids: [],
   latitude: "",
   longitude: "",
   geofence_radius_m: 500,
@@ -211,6 +213,8 @@ export function AssetDialog({ asset, trigger }) {
           notes: asset.notes ?? "",
           start_date: asset.start_date ?? "",
           end_date: asset.end_date ?? "",
+          proof_photo_ids: asset.proof_photo_ids ?? [],
+          proof_photo_url: asset.proof_photo_url ?? "",
           latitude: asset.latitude ?? "",
           longitude: asset.longitude ?? "",
           geofence_radius_m: asset.geofence_radius_m ?? 500,
@@ -218,12 +222,13 @@ export function AssetDialog({ asset, trigger }) {
       : { ...BLANK, brand_names: [] };
   };
 
-
   const [form, setForm] = useState(getInitialForm);
   const [photos, setPhotos] = useState(
     (asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })),
   );
-  const [proofPhotos, setProofPhotos] = useState([]);
+  const [proofPhotos, setProofPhotos] = useState(
+    (asset?.proof_photo_ids ?? []).map((id) => ({ id, filename: "Geo-tagged proof", geo: "GPS stamped" })),
+  );
   const [isCustomMall, setIsCustomMall] = useState(false);
   const [newMall, setNewMall] = useState({
     name: "",
@@ -237,7 +242,7 @@ export function AssetDialog({ asset, trigger }) {
   const resetAll = () => {
     setForm(getInitialForm());
     setPhotos((asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })));
-    setProofPhotos([]);
+    setProofPhotos((asset?.proof_photo_ids ?? []).map((id) => ({ id, filename: "Geo-tagged proof", geo: "GPS stamped" })));
     setIsCustomMall(false);
     setNewMall({
       name: "",
@@ -248,6 +253,7 @@ export function AssetDialog({ asset, trigger }) {
       longitude: "",
     });
   };
+
 
   const handleOpenChange = (nextOpen) => {
     setOpen(nextOpen);
@@ -480,6 +486,7 @@ export function AssetDialog({ asset, trigger }) {
               new Set([...photos.map((p) => p.id), ...proofPhotos.map((p) => p.id)]),
             );
             const primaryPhoto = proofPhotos[0]?.url || photos[0]?.url || asset?.photo_url || "";
+            const primaryProofUrl = proofPhotos[0]?.url || asset?.proof_photo_url || "";
             save.mutate({
               ...form,
               asset_type: activeType,
@@ -487,11 +494,13 @@ export function AssetDialog({ asset, trigger }) {
               height_ft: Number(form.height_ft),
               photo_ids: allPhotoIds,
               proof_photo_ids: proofPhotos.map((p) => p.id),
+              proof_photo_url: primaryProofUrl,
               photo_url: primaryPhoto,
             });
           }}
           data-testid={asset ? "edit-asset-form" : "add-asset-form"}
         >
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Asset type</Label>
