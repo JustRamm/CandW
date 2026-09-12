@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Download, WifiOff } from "lucide-react";
+import { ClipboardList, Upload, WifiOff } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
 import { StageBadge } from "@/components/shared/StatusBadges";
@@ -73,7 +73,7 @@ export default function Campaigns() {
           }
           data-testid="export-campaigns-button"
         >
-          <Download className="size-3.5" />
+          <Upload className="size-3.5" />
           Export
         </Button>
       }

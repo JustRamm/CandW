@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { Building2, Download, FileSpreadsheet, Loader2, Mail, Phone, Plus, Search, Upload, User } from "lucide-react";
+import { Building2, FileDown, FileSpreadsheet, Loader2, Mail, Phone, Plus, Search, Upload, User } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -233,7 +233,7 @@ export default function Brands() {
               className="gap-1.5"
               data-testid="import-brands-button"
             >
-              {importing ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+              {importing ? <Loader2 className="size-3.5 animate-spin" /> : <FileDown className="size-3.5" />}
               {importing ? "Importing…" : "Import CSV"}
             </Button>
           )}
@@ -256,7 +256,7 @@ export default function Brands() {
             }
             data-testid="export-brands-button"
           >
-            <Download className="size-3.5" />
+            <Upload className="size-3.5" />
             Export
           </Button>
           {canCreate && <BrandDialog />}

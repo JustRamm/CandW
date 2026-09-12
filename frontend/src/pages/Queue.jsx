@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, Download, ListOrdered } from "lucide-react";
+import { CheckCircle2, ListOrdered, Upload } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -312,7 +312,7 @@ export default function Queue() {
             }
             data-testid="export-queue-button"
           >
-            <Download className="size-3.5" />
+            <Upload className="size-3.5" />
             Export
           </Button>
         </div>
