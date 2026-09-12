@@ -6,7 +6,9 @@ import { cn } from "@/lib/utils";
 import {
   Building2,
   Camera,
+  Compass,
   Download,
+  ExternalLink,
   FileSpreadsheet,
   LayoutGrid,
   MapPin,
@@ -54,7 +56,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { queryClient } from "@/lib/queryClient";
 import { useAssetTypes, useAssets, useBrands, useMe } from "@/lib/queries";
-import { downloadAssetCsvTemplate, downloadCsv, errMessage, importAssetsCsv } from "@/lib/helpers";
+import {
+  downloadAssetCsvTemplate,
+  downloadCsv,
+  errMessage,
+  fetchCoordinatesForLocation,
+  importAssetsCsv,
+} from "@/lib/helpers";
 import sound from "@/lib/sound";
 
 const STATUS_FILTERS = [
@@ -230,6 +238,8 @@ export function AssetDialog({ asset, trigger }) {
     (asset?.proof_photo_ids ?? []).map((id) => ({ id, filename: "Geo-tagged proof", geo: "GPS stamped" })),
   );
   const [isCustomMall, setIsCustomMall] = useState(false);
+  const [geoResolving, setGeoResolving] = useState(false);
+  const [geoMatchInfo, setGeoMatchInfo] = useState(null);
   const [newMall, setNewMall] = useState({
     name: "",
     district: "Ernakulam",
@@ -239,11 +249,48 @@ export function AssetDialog({ asset, trigger }) {
     longitude: "",
   });
 
+  const handleAutoGeocode = async (customQuery, customDistrict) => {
+    const query = customQuery !== undefined ? customQuery : form.location_name;
+    const dist = customDistrict !== undefined ? customDistrict : form.district || form.city;
+    if (!query || query.trim().length < 3) {
+      toast.info("Please enter a location name first");
+      return;
+    }
+    setGeoResolving(true);
+    try {
+      const res = await fetchCoordinatesForLocation(query, dist);
+      if (res && res.lat && res.lng) {
+        setForm((f) => ({
+          ...f,
+          latitude: res.lat,
+          longitude: res.lng,
+          district: res.district || f.district,
+          city: res.district || f.city,
+        }));
+        setGeoMatchInfo(
+          res.source === "verified_kerala_landmark"
+            ? "Verified Kerala GPS"
+            : "Live Geocoded GPS"
+        );
+        toast.success(`GPS coordinates resolved: ${res.lat}, ${res.lng}`);
+      } else {
+        setGeoMatchInfo(null);
+        toast.info("No exact GPS match found. You can enter coordinates manually.");
+      }
+    } catch {
+      setGeoMatchInfo(null);
+    } finally {
+      setGeoResolving(false);
+    }
+  };
+
   const resetAll = () => {
     setForm(getInitialForm());
     setPhotos((asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })));
     setProofPhotos((asset?.proof_photo_ids ?? []).map((id) => ({ id, filename: "Geo-tagged proof", geo: "GPS stamped" })));
     setIsCustomMall(false);
+    setGeoResolving(false);
+    setGeoMatchInfo(null);
     setNewMall({
       name: "",
       district: "Ernakulam",
@@ -714,6 +761,7 @@ export function AssetDialog({ asset, trigger }) {
                           .toUpperCase()
                           .slice(0, 4),
                       }));
+                      handleAutoGeocode(km.name, km.district);
                     }
                   }}
                 >
@@ -834,12 +882,28 @@ export function AssetDialog({ asset, trigger }) {
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="location_name">Location name</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="location_name">Location name</Label>
+              <button
+                type="button"
+                disabled={geoResolving || !form.location_name}
+                onClick={() => handleAutoGeocode()}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline cursor-pointer disabled:opacity-50"
+              >
+                <Compass className="size-3" />
+                {geoResolving ? "Resolving GPS…" : "Auto-fetch GPS"}
+              </button>
+            </div>
             <Input
               id="location_name"
               required
               value={form.location_name}
               onChange={set("location_name")}
+              onBlur={() => {
+                if (form.location_name && !form.latitude && !form.longitude) {
+                  handleAutoGeocode(form.location_name, form.district || form.city);
+                }
+              }}
               placeholder={
                 form.location_type === "Mall"
                   ? "e.g. Center Square Mall Kochi — Ground Atrium"
@@ -979,7 +1043,27 @@ export function AssetDialog({ asset, trigger }) {
                 <MapPin className="size-3.5 text-primary" />
                 Map GPS & Geofencing
               </span>
-              <span className="text-[10px] text-muted-foreground font-mono">Optional</span>
+              <div className="flex items-center gap-1.5">
+                {geoMatchInfo && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 font-mono"
+                  >
+                    {geoMatchInfo}
+                  </Badge>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  disabled={geoResolving || !form.location_name}
+                  onClick={() => handleAutoGeocode()}
+                  className="h-6 text-[10px] gap-1 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer"
+                >
+                  <Compass className="size-3" />
+                  {geoResolving ? "Fetching GPS…" : "Auto-fetch GPS"}
+                </Button>
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
@@ -1019,7 +1103,7 @@ export function AssetDialog({ asset, trigger }) {
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              If left blank, the interactive map automatically derives location from city / district.
+              Auto-fetched when you type a known Kerala mall or landmark (e.g. Lulu Mall TVM, Center Square Mall Kochi, MG Road Metro).
             </p>
           </div>
 
@@ -1156,7 +1240,7 @@ function CsvImport() {
         className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border/70 bg-secondary/40 px-2.5 py-1.5 text-xs transition-colors duration-150 hover:border-primary/50"
         data-testid="csv-import-label"
       >
-        <Upload className="size-3.5" />
+        <Download className="size-3.5" />
         {busy ? "Importing…" : "CSV import"}
         <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={onFile} data-testid="csv-import-input" />
       </label>
@@ -1289,7 +1373,7 @@ export default function Assets() {
             }
             data-testid="export-assets-button"
           >
-            <Download className="size-3.5" />
+            <Upload className="size-3.5" />
             Export
           </Button>
           {canManage && <CsvImport />}
@@ -1698,7 +1782,23 @@ export default function Assets() {
                   </div>
                 </div>
                 <CardContent className="px-4 py-3">
-                  <p className="truncate font-heading text-sm font-semibold">{a.location_name}</p>
+                  <div className="flex items-center justify-between gap-1.5">
+                    <p className="truncate font-heading text-sm font-semibold">{a.location_name}</p>
+                    <a
+                      href={
+                        a.latitude && a.longitude
+                          ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
+                          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.city ? `, ${a.city}` : ", Kerala"))}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
+                      title="Open location on Google Maps"
+                    >
+                      <ExternalLink className="size-3.5" />
+                    </a>
+                  </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
                   </p>

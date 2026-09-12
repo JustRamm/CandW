@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Camera, History, MapPinned, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Camera, ExternalLink, History, MapPin, MapPinned, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
@@ -619,7 +619,24 @@ export default function AssetDetail() {
                   </span>
                   <AssetStatusBadge status={asset.status} />
                 </div>
-                <h2 className="font-heading text-xl font-semibold tracking-tight">{asset.location_name}</h2>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="font-heading text-xl font-semibold tracking-tight">{asset.location_name}</h2>
+                  <a
+                    href={
+                      asset.latitude && asset.longitude
+                        ? `https://www.google.com/maps?q=${asset.latitude},${asset.longitude}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(asset.location_name + (asset.city ? `, ${asset.city}` : ", Kerala"))}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline bg-primary/10 hover:bg-primary/20 transition-colors px-2 py-0.5 rounded-md font-medium"
+                    title="Open location in Google Maps"
+                  >
+                    <MapPin className="size-3" />
+                    Google Maps
+                    <ExternalLink className="size-2.5" />
+                  </a>
+                </div>
                 <dl className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
                   {[
                     ["Type", asset.asset_type],
