@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronUp, RefreshCw, LogOut } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Copy, LogOut, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { endSession } from "@/lib/session";
+import sound from "@/lib/sound";
 
 export default function ServerError({ error, onReset }) {
   const [showDetails, setShowDetails] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleClearAndReset = async () => {
     try {
@@ -12,6 +15,20 @@ export default function ServerError({ error, onReset }) {
       sessionStorage.clear();
     } catch {}
     await endSession("/login");
+  };
+
+  const handleCopyDiagnostic = async () => {
+    try {
+      const errorText = `${error?.toString() || "Unknown Error"}\n\nStack:\n${error?.stack || "No stack trace available"}\n\nURL: ${window.location.href}\nTime: ${new Date().toISOString()}`;
+      await navigator.clipboard.writeText(errorText);
+      sound.success();
+      setCopied(true);
+      toast.success("Technical diagnostic copied to clipboard!");
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      sound.warning();
+      toast.error("Failed to copy diagnostic to clipboard");
+    }
   };
 
   return (
@@ -39,7 +56,7 @@ export default function ServerError({ error, onReset }) {
         <Button
           size="sm"
           onClick={() => (onReset ? onReset() : window.location.reload())}
-          className="gap-2 shadow-xs"
+          className="gap-2 shadow-xs cursor-pointer"
         >
           <RefreshCw className="size-4" />
           Reload page
@@ -48,7 +65,7 @@ export default function ServerError({ error, onReset }) {
           variant="outline"
           size="sm"
           onClick={handleClearAndReset}
-          className="gap-2 text-muted-foreground hover:text-foreground"
+          className="gap-2 text-muted-foreground hover:text-foreground cursor-pointer"
         >
           <LogOut className="size-4" />
           Clear cache & re-login
@@ -61,17 +78,32 @@ export default function ServerError({ error, onReset }) {
           <button
             type="button"
             onClick={() => setShowDetails((prev) => !prev)}
-            className="flex items-center gap-1 text-xs font-mono text-muted-foreground/80 hover:text-foreground transition-colors mx-auto"
+            className="flex items-center gap-1 text-xs font-mono text-muted-foreground/80 hover:text-foreground transition-colors mx-auto cursor-pointer"
           >
             {showDetails ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
             {showDetails ? "Hide technical diagnostic" : "Show technical diagnostic"}
           </button>
 
           {showDetails && (
-            <div className="mt-3 rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-xs font-mono text-destructive/90 overflow-x-auto max-h-56">
-              <p className="font-bold">{error.toString()}</p>
+            <div className="mt-3 rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-xs font-mono text-destructive/90 overflow-x-auto max-h-60">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-destructive/15">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-destructive/80">
+                  Diagnostic Stack Trace
+                </span>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={handleCopyDiagnostic}
+                  className="h-7 gap-1.5 text-xs border-destructive/30 hover:bg-destructive/10 text-destructive cursor-pointer"
+                  data-testid="copy-diagnostic-button"
+                >
+                  {copied ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
+                  <span>{copied ? "Copied" : "Copy diagnostic"}</span>
+                </Button>
+              </div>
+              <p className="font-bold select-text">{error.toString()}</p>
               {error.stack && (
-                <pre className="mt-2 text-[11px] text-muted-foreground/80 whitespace-pre-wrap leading-relaxed">
+                <pre className="mt-2 text-[11px] text-muted-foreground/90 whitespace-pre-wrap leading-relaxed select-text">
                   {error.stack}
                 </pre>
               )}
@@ -81,7 +113,7 @@ export default function ServerError({ error, onReset }) {
       )}
 
       <p className="mt-12 text-xs font-mono text-muted-foreground/60">
-        Carbon & Whale · Inventory Management System
+        Carbon & Whale &middot; Inventory Management System
       </p>
     </div>
   );
