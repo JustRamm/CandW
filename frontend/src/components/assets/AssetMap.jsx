@@ -213,7 +213,16 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
 
     mapInstanceRef.current = map;
 
+    // Automatic resize invalidation on screen/container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
+
     return () => {
+      resizeObserver.disconnect();
       if (tomtomTrafficLayerRef.current && map) {
         map.removeLayer(tomtomTrafficLayerRef.current);
         tomtomTrafficLayerRef.current = null;
@@ -437,18 +446,18 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
   };
 
   return (
-    <div className="relative h-[680px] w-full overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg">
+    <div className="relative h-[520px] sm:h-[620px] lg:h-[700px] w-full overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg">
       {/* Map Canvas */}
       <div ref={mapContainerRef} className="h-full w-full z-0" />
 
-      {/* ── TOP UNIFIED CONTROL STACK (No collision on mobile & desktop) ── */}
-      <div className="absolute top-2.5 inset-x-2.5 z-[400] flex flex-col gap-2 pointer-events-none">
+      {/* ── TOP UNIFIED CONTROL STACK (Fully responsive for mobile & desktop) ── */}
+      <div className="absolute top-2 inset-x-2 sm:top-2.5 sm:inset-x-2.5 z-[400] flex flex-col gap-1.5 pointer-events-none max-w-full">
         {/* Row 1: Primary Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-1.5 w-full">
-          {/* Left Cluster: Layers & Heatmap Mode */}
-          <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl border border-border/70 bg-background/95 p-1 shadow-lg backdrop-blur-md">
+        <div className="flex items-center justify-between gap-1.5 w-full">
+          {/* Left Cluster: Layers & Heatmap Mode (horizontally scrollable on mobile without wrapping) */}
+          <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-border/70 bg-background/95 p-1 shadow-lg backdrop-blur-md max-w-[calc(100%-48px)] sm:max-w-none overflow-x-auto no-scrollbar">
             {/* Heatmap Layer Selector */}
-            <div className="flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5">
+            <div className="flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -456,7 +465,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
                   setHeatmapMode("traffic");
                 }}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                  "flex items-center gap-1 rounded-md px-2 sm:px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer shrink-0",
                   heatmapMode === "traffic"
                     ? "bg-red-500/90 text-white shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-background/60"
@@ -467,7 +476,8 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
                   <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
                 </span>
                 <Flame className="size-3.5 text-amber-300" />
-                Live Traffic
+                <span className="hidden xs:inline sm:inline">Live Traffic</span>
+                <span className="inline xs:hidden sm:hidden">Traffic</span>
               </button>
 
               <button
@@ -477,7 +487,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
                   setHeatmapMode("footfall");
                 }}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                  "flex items-center gap-1 rounded-md px-2 sm:px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer shrink-0",
                   heatmapMode === "footfall"
                     ? "bg-purple-600/90 text-white shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-background/60"
@@ -494,7 +504,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
                   setHeatmapMode("off");
                 }}
                 className={cn(
-                  "rounded-md px-2 py-1 text-xs font-medium transition-all cursor-pointer",
+                  "rounded-md px-1.5 sm:px-2 py-1 text-xs font-medium transition-all cursor-pointer shrink-0",
                   heatmapMode === "off"
                     ? "bg-background text-foreground shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground"
@@ -504,7 +514,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
               </button>
             </div>
 
-            <div className="h-4 w-[1px] bg-border/80 mx-0.5 hidden sm:block" />
+            <div className="h-4 w-[1px] bg-border/80 mx-0.5 hidden sm:block shrink-0" />
 
             {/* Highways & Corridors (Arterials) Toggle */}
             <button
@@ -513,9 +523,9 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
                 sound.click();
                 setShowArterials((prev) => !prev);
               }}
-              title="Toggle major high-capacity arterial highways and bypass corridors (NH66, MG Road, Infopark)"
+              title="Toggle major high-capacity arterial highways and bypass corridors"
               className={cn(
-                "hidden sm:flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
+                "hidden md:flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer shrink-0",
                 showArterials ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
               )}
             >
@@ -531,7 +541,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
                 setShowAllGeofences((prev) => !prev);
               }}
               className={cn(
-                "hidden sm:flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
+                "hidden sm:flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer shrink-0",
                 showAllGeofences ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
               )}
             >
@@ -540,7 +550,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
             </button>
 
             {showAllGeofences && (
-              <div className="hidden md:flex items-center gap-0.5 pl-1 text-[11px] text-muted-foreground font-mono">
+              <div className="hidden md:flex items-center gap-0.5 pl-1 text-[11px] text-muted-foreground font-mono shrink-0">
                 {[300, 500, 1000].map((r) => (
                   <button
                     key={r}
@@ -567,37 +577,41 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
               variant="ghost"
               size="xs"
               onClick={handleFitAll}
-              className="h-7 gap-1 px-2 text-xs font-medium cursor-pointer"
+              className="h-7 gap-1 px-1.5 sm:px-2 text-xs font-medium cursor-pointer shrink-0"
+              title="Fit all assets in view"
             >
               <Maximize2 className="size-3.5" />
-              Fit ({mappedAssets.length})
+              <span>Fit</span>
+              <span className="hidden sm:inline">({mappedAssets.length})</span>
             </Button>
           </div>
 
           {/* Right Cluster: GPS Locate Me */}
-          <div className="pointer-events-auto flex items-center rounded-xl border border-border/70 bg-background/95 p-1 shadow-lg backdrop-blur-md">
+          <div className="pointer-events-auto flex items-center rounded-xl border border-border/70 bg-background/95 p-1 shadow-lg backdrop-blur-md shrink-0">
             <Button
               variant="ghost"
               size="xs"
               onClick={handleLocateMe}
               disabled={locatingUser}
-              className="h-7 gap-1 px-2.5 text-xs font-medium text-sky-600 hover:text-sky-700 cursor-pointer"
+              className="h-7 gap-1 px-2 sm:px-2.5 text-xs font-medium text-sky-600 hover:text-sky-700 cursor-pointer"
+              title="Locate my position on map"
             >
               <Crosshair className={cn("size-3.5", locatingUser && "animate-spin")} />
-              <span>{locatingUser ? "Locating..." : "Locate Me"}</span>
+              <span className="hidden sm:inline">{locatingUser ? "Locating..." : "Locate Me"}</span>
             </Button>
           </div>
         </div>
 
-        {/* Row 2: Peak Simulation Bar (Flows naturally below Row 1) */}
+        {/* Row 2: Peak Simulation Bar (Smooth horizontal scroll on mobile) */}
         {heatmapMode !== "off" && (
-          <div className="pointer-events-auto self-start flex flex-wrap items-center gap-1.5 rounded-xl border border-border/80 bg-background/95 px-2.5 py-1.5 shadow-md backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex items-center gap-1 text-[11px] font-semibold text-foreground pr-1">
+          <div className="pointer-events-auto self-start flex items-center gap-1.5 rounded-xl border border-border/80 bg-background/95 px-2 py-1 sm:px-2.5 sm:py-1.5 shadow-md backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200 max-w-full overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-foreground pr-1 shrink-0">
               <Clock className="size-3.5 text-primary" />
-              <span>Peak Simulation:</span>
+              <span className="hidden xs:inline sm:inline">Peak Simulation:</span>
+              <span className="inline xs:hidden sm:hidden">Sim:</span>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               {TIME_SLOTS.map((slot) => (
                 <button
                   key={slot.id}
@@ -607,19 +621,19 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
                     setTimeSlotId(slot.id);
                   }}
                   className={cn(
-                    "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
+                    "flex items-center gap-1 rounded-md px-1.5 sm:px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer shrink-0 whitespace-nowrap",
                     timeSlotId === slot.id
                       ? "bg-primary text-primary-foreground font-bold shadow-2xs"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <span>{slot.label}</span>
-                  <span className="font-mono text-[9px] opacity-80">({slot.time.split(" ")[0]})</span>
+                  <span className="font-mono text-[9px] opacity-80 hidden sm:inline">({slot.time.split(" ")[0]})</span>
                 </button>
               ))}
             </div>
 
-            <Badge variant="outline" className="text-[10px] font-mono border-primary/40 bg-primary/5 text-primary ml-1 hidden lg:inline-flex">
+            <Badge variant="outline" className="text-[10px] font-mono border-primary/40 bg-primary/5 text-primary ml-1 hidden lg:inline-flex shrink-0">
               {activeTimeSlot.factor}× Multiplier
             </Badge>
           </div>
@@ -627,37 +641,36 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
       </div>
 
       {/* ── BOTTOM LEFT: Dynamic Heatmap Density Legend ──────────────────── */}
-      <div className="absolute bottom-3 left-3 z-[400] flex flex-col gap-1 rounded-xl border border-border/80 bg-background/95 p-2 shadow-lg backdrop-blur-md">
+      <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3 z-[400] flex flex-col gap-1 rounded-xl border border-border/80 bg-background/95 p-1.5 sm:p-2 shadow-lg backdrop-blur-md max-w-[calc(100%-16px)] sm:max-w-xs">
         {heatmapMode !== "off" && (
-          <div className="space-y-1 pb-1.5 border-b border-border/60">
+          <div className="space-y-1 pb-1 border-b border-border/60">
             <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium">
               <span>{heatmapMode === "traffic" ? "Vehicular Traffic" : "Footfall Density"}</span>
-              <span className="font-mono font-semibold text-foreground">
+              <span className="font-mono font-semibold text-foreground text-[9px]">
                 {heatmapMode === "traffic" ? "VPD / Hour" : "Pedestrians / Day"}
               </span>
             </div>
             <div
               className={cn(
-                "h-2 w-48 rounded-full shadow-inner",
+                "h-1.5 sm:h-2 w-36 sm:w-48 rounded-full shadow-inner",
                 heatmapMode === "traffic"
                   ? "bg-gradient-to-r from-cyan-400 via-emerald-400 via-amber-400 to-red-500"
                   : "bg-gradient-to-r from-indigo-500 via-pink-500 to-amber-300"
               )}
             />
-            <div className="flex justify-between text-[9px] font-mono text-muted-foreground">
-              <span>Low (4k)</span>
+            <div className="flex justify-between text-[8px] sm:text-[9px] font-mono text-muted-foreground">
+              <span>Low</span>
               <span>Moderate</span>
-              <span>Dense</span>
               <span className="font-semibold text-foreground">Peak (75k+)</span>
             </div>
           </div>
         )}
 
         {/* Billboard Status Indicators */}
-        <div className="flex items-center gap-3 pt-0.5">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-0.5">
           {Object.entries(STATUS_THEMES).slice(0, 4).map(([status, theme]) => (
-            <div key={status} className="flex items-center gap-1.5 text-[11px]">
-              <span className="inline-block size-2.5 rounded-full ring-1 ring-white/50" style={{ backgroundColor: theme.bg }} />
+            <div key={status} className="flex items-center gap-1 text-[10px] sm:text-[11px]">
+              <span className="inline-block size-2 sm:size-2.5 rounded-full ring-1 ring-white/50 shrink-0" style={{ backgroundColor: theme.bg }} />
               <span className="capitalize text-muted-foreground">{theme.label}</span>
             </div>
           ))}
@@ -666,7 +679,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
 
       {/* ── SELECTED ASSET OVERLAY CARD (EXPECTED IMPRESSION INTELLIGENCE) ── */}
       {selectedAsset && selectedImpressions && (
-        <div className="absolute bottom-3 right-3 z-[400] w-full max-w-sm sm:max-w-md rounded-2xl border border-border/80 bg-card/95 p-3.5 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-250">
+        <div className="absolute inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-3 sm:right-3 z-[400] w-auto sm:w-full sm:max-w-md max-h-[58vh] overflow-y-auto rounded-2xl border border-border/80 bg-card/95 p-3 sm:p-3.5 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-250">
           {/* Header */}
           <div className="flex items-start justify-between gap-2 pb-2">
             <div className="min-w-0">
