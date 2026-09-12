@@ -1,6 +1,6 @@
 {
-  "name": "OOH-Sync · Outdoor Advertising Asset IMS",
-  "short_name": "OOH-Sync",
+  "name": " Outdoor Advertising Asset IMS",
+  "short_name": "IMS",
   "description": "Lifecycle management for metro and mall bench advertising assets.",
   "start_url": "/dashboard",
   "display": "standalone",

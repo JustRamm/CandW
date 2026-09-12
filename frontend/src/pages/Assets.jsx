@@ -61,6 +61,7 @@ import {
   downloadCsv,
   errMessage,
   fetchCoordinatesForLocation,
+  getCurrentDeviceLocation,
   importAssetsCsv,
 } from "@/lib/helpers";
 import sound from "@/lib/sound";
@@ -91,20 +92,24 @@ export const KERALA_DISTRICTS = [
   "Wayanad",
 ];
 
-/** Kerala Malls mapped to their respective districts */
+/** Kerala Malls mapped to their respective districts (matching official Ad Inventory Report) */
 export const KERALA_MALLS = [
-  { name: "Center Square Mall Kochi", district: "Ernakulam" },
+  { name: "Centre Square Kochi", district: "Ernakulam" },
+  { name: "Falcon Mall Thrissur", district: "Thrissur" },
   { name: "Gokulam Mall Kozhikode", district: "Kozhikode" },
-  { name: "Hilite Kozhikode", district: "Kozhikode" },
-  { name: "Hilite Thrissur", district: "Thrissur" },
+  { name: "HiLite Calicut", district: "Kozhikode" },
+  { name: "HiLite Malappuram", district: "Malappuram" },
+  { name: "HiLite Mall Cheruvadi", district: "Malappuram" },
+  { name: "HiLite Thrissur", district: "Thrissur" },
+  { name: "Lulu Calicut", district: "Kozhikode" },
+  { name: "Lulu Kochi", district: "Ernakulam" },
   { name: "Lulu Kottayam", district: "Kottayam" },
-  { name: "Lulu Kozhikode", district: "Kozhikode" },
-  { name: "Lulu Mall TVM", district: "Thiruvananthapuram" },
-  { name: "Market City Malappuram", district: "Malappuram" },
-  { name: "MOT Trivandrum", district: "Thiruvananthapuram" },
-  { name: "Oberon Mall Kochi", district: "Ernakulam" },
-  { name: "Secura Centre Kannur", district: "Kannur" },
-  { name: "Shobha City Thrissur", district: "Thrissur" },
+  { name: "Lulu TVM", district: "Thiruvananthapuram" },
+  { name: "Mall of Travancore", district: "Thiruvananthapuram" },
+  { name: "Oberon Kochi", district: "Ernakulam" },
+  { name: "Secura Kannur", district: "Kannur" },
+  { name: "Sobha City Thrissur", district: "Thrissur" },
+  { name: "Y Mall Thrissur", district: "Thrissur" },
 ];
 
 /**
@@ -268,17 +273,37 @@ export function AssetDialog({ asset, trigger }) {
           city: res.district || f.city,
         }));
         setGeoMatchInfo(
-          res.source === "verified_kerala_landmark"
-            ? "Verified Kerala GPS"
-            : "Live Geocoded GPS"
+          res.source === "Device GPS"
+            ? "Device GPS"
+            : res.source === "Photon OSM"
+            ? "Live Photon GPS"
+            : "Live OSM Geocoded"
         );
         toast.success(`GPS coordinates resolved: ${res.lat}, ${res.lng}`);
       } else {
         setGeoMatchInfo(null);
-        toast.info("No exact GPS match found. You can enter coordinates manually.");
+        toast.info("No online GPS match found. You can enter coordinates manually or use device GPS.");
       }
     } catch {
       setGeoMatchInfo(null);
+    } finally {
+      setGeoResolving(false);
+    }
+  };
+
+  const handleDeviceLocation = async () => {
+    setGeoResolving(true);
+    try {
+      const res = await getCurrentDeviceLocation();
+      setForm((f) => ({
+        ...f,
+        latitude: res.lat,
+        longitude: res.lng,
+      }));
+      setGeoMatchInfo(`Device GPS (${res.accuracy}m)`);
+      toast.success(`Device GPS captured: ${res.lat}, ${res.lng}`);
+    } catch (err) {
+      toast.error(err.message || "Could not retrieve device GPS location");
     } finally {
       setGeoResolving(false);
     }
@@ -1059,9 +1084,22 @@ export function AssetDialog({ asset, trigger }) {
                   disabled={geoResolving || !form.location_name}
                   onClick={() => handleAutoGeocode()}
                   className="h-6 text-[10px] gap-1 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer"
+                  title="Query OpenStreetMap Nominatim and Photon for live coordinates"
                 >
                   <Compass className="size-3" />
-                  {geoResolving ? "Fetching GPS…" : "Auto-fetch GPS"}
+                  {geoResolving ? "Resolving…" : "Auto-fetch"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  disabled={geoResolving}
+                  onClick={handleDeviceLocation}
+                  className="h-6 text-[10px] gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer"
+                  title="Use live hardware GPS from this device"
+                >
+                  <MapPin className="size-3" />
+                  Device GPS
                 </Button>
               </div>
             </div>

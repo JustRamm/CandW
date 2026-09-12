@@ -78,7 +78,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-heading text-sm font-bold leading-tight tracking-tight text-foreground truncate">Carbon &amp; Whale</p>
-            <p className="mono-label text-[10px] text-muted-foreground">OOH-Sync · Asset IMS</p>
+            <p className="mono-label text-[10px] text-muted-foreground">IMS · Ad Inventory System</p>
           </div>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-3 overflow-y-auto">

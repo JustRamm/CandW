@@ -258,7 +258,7 @@ export default function Login({ initialMode }) {
               </div>
               <div>
                 <span className="font-heading text-lg font-bold tracking-tight text-white">Carbon &amp; Whale</span>
-                <p className="mono-label text-[10px] text-white/70">OOH-Sync · Asset IMS</p>
+                <p className="mono-label text-[10px] text-white/70">IMS · Ad Inventory System</p>
               </div>
             </div>
 
@@ -345,7 +345,7 @@ export default function Login({ initialMode }) {
               </div>
               <div>
                 <span className="font-heading text-base font-bold text-foreground">Carbon &amp; Whale</span>
-                <p className="mono-label text-[9px] text-muted-foreground">OOH-Sync · Asset IMS</p>
+                <p className="mono-label text-[9px] text-muted-foreground">IMS · Ad Inventory System</p>
               </div>
             </div>
 

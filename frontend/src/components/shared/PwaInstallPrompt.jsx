@@ -83,7 +83,7 @@ export default function PwaInstallPrompt() {
             <div className="size-14 shrink-0 rounded-2xl border border-border/80 bg-slate-950 p-1 shadow-md overflow-hidden">
               <img
                 src="/brand/icon-512.png"
-                alt="OOH-Sync App Icon"
+                alt="IMS App Icon"
                 className="h-full w-full object-cover rounded-xl"
               />
             </div>
@@ -91,11 +91,11 @@ export default function PwaInstallPrompt() {
             <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="font-heading text-sm font-bold text-foreground truncate">
-                  Install OOH-Sync App
+                  Install IMS App
                 </p>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Install on your device for fast offline photo capture, field duty telemetry, and instant notifications.
+                Install on your device for fast offline photo capture, real-time inventory management, and instant notifications.
               </p>
             </div>
           </div>

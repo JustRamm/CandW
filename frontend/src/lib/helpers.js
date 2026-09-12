@@ -102,91 +102,96 @@ export function parseCsv(text) {
   return rows;
 }
 
-export const KERALA_GEO_DATABASE = {
-  "lulu mall tvm": { lat: 8.4975, lng: 76.9038, district: "Thiruvananthapuram" },
-  "lulu tvm": { lat: 8.4975, lng: 76.9038, district: "Thiruvananthapuram" },
-  "lulu trivandrum": { lat: 8.4975, lng: 76.9038, district: "Thiruvananthapuram" },
-  "lulu mall kochi": { lat: 10.0275, lng: 76.3081, district: "Ernakulam" },
-  "lulu kochi": { lat: 10.0275, lng: 76.3081, district: "Ernakulam" },
-  "lulu edappally": { lat: 10.0275, lng: 76.3081, district: "Ernakulam" },
-  "lulu kozhikode": { lat: 11.2625, lng: 75.7820, district: "Kozhikode" },
-  "lulu calicut": { lat: 11.2625, lng: 75.7820, district: "Kozhikode" },
-  "lulu kottayam": { lat: 9.5916, lng: 76.5222, district: "Kottayam" },
-  "center square mall kochi": { lat: 9.9765, lng: 76.2825, district: "Ernakulam" },
-  "center square mall": { lat: 9.9765, lng: 76.2825, district: "Ernakulam" },
-  "center square": { lat: 9.9765, lng: 76.2825, district: "Ernakulam" },
-  "mall of travancore": { lat: 8.4878, lng: 76.9388, district: "Thiruvananthapuram" },
-  "mot trivandrum": { lat: 8.4878, lng: 76.9388, district: "Thiruvananthapuram" },
-  "mot tvm": { lat: 8.4878, lng: 76.9388, district: "Thiruvananthapuram" },
-  "forum mall kochi": { lat: 9.9678, lng: 76.3195, district: "Ernakulam" },
-  "forum kochi": { lat: 9.9678, lng: 76.3195, district: "Ernakulam" },
-  "forum maradu": { lat: 9.9678, lng: 76.3195, district: "Ernakulam" },
-  "oberon mall kochi": { lat: 10.0125, lng: 76.315, district: "Ernakulam" },
-  "oberon mall": { lat: 10.0125, lng: 76.315, district: "Ernakulam" },
-  "hilite mall kozhikode": { lat: 11.2588, lng: 75.8342, district: "Kozhikode" },
-  "hilite calicut": { lat: 11.2588, lng: 75.8342, district: "Kozhikode" },
-  "hilite kozhikode": { lat: 11.2588, lng: 75.8342, district: "Kozhikode" },
-  "gokulam mall kozhikode": { lat: 11.2612, lng: 75.7804, district: "Kozhikode" },
-  "gokulam mall": { lat: 11.2612, lng: 75.7804, district: "Kozhikode" },
-  "hilite thrissur": { lat: 10.5276, lng: 76.2144, district: "Thrissur" },
-  "hilite mall thrissur": { lat: 10.5276, lng: 76.2144, district: "Thrissur" },
-  "shobha city thrissur": { lat: 10.5518, lng: 76.1776, district: "Thrissur" },
-  "sobha city thrissur": { lat: 10.5518, lng: 76.1776, district: "Thrissur" },
-  "secura centre kannur": { lat: 11.8745, lng: 75.3704, district: "Kannur" },
-  "market city malappuram": { lat: 11.051, lng: 76.0711, district: "Malappuram" },
-  "kochi metro mg road": { lat: 9.9723, lng: 76.2845, district: "Ernakulam" },
-  "mg road metro": { lat: 9.9723, lng: 76.2845, district: "Ernakulam" },
-  "aluva metro": { lat: 10.1098, lng: 76.3533, district: "Ernakulam" },
-  "edappally metro": { lat: 10.0255, lng: 76.3085, district: "Ernakulam" },
-  "kaloor metro": { lat: 9.9984, lng: 76.2917, district: "Ernakulam" },
-  "maharajas metro": { lat: 9.968, lng: 76.284, district: "Ernakulam" },
-  "palarivattom metro": { lat: 10.005, lng: 76.3038, district: "Ernakulam" },
-  "infopark kochi": { lat: 10.0094, lng: 76.3606, district: "Ernakulam" },
-  "technopark tvm": { lat: 8.5581, lng: 76.8812, district: "Thiruvananthapuram" },
-  "technopark trivandrum": { lat: 8.5581, lng: 76.8812, district: "Thiruvananthapuram" },
-  "trivandrum central": { lat: 8.4875, lng: 76.9525, district: "Thiruvananthapuram" },
-  "thampanoor": { lat: 8.4875, lng: 76.9525, district: "Thiruvananthapuram" },
-};
-
+/**
+ * Live Dynamic Geocoding Engine
+ * Queries real-time OpenStreetMap Nominatim and Photon Geocoders for ANY mall, venue, station, or landmark.
+ * No hardcoded coordinates — dynamically handles new malls and custom venues added by users.
+ */
 export async function fetchCoordinatesForLocation(query, district = "") {
-  if (!query || query.trim().length < 3) return null;
-  const q = query.trim().toLowerCase();
+  if (!query || query.trim().length < 2) return null;
 
-  // 1. Exact or partial match in verified Kerala Landmark database
-  for (const [key, coords] of Object.entries(KERALA_GEO_DATABASE)) {
-    if (q.includes(key) || key.includes(q)) {
-      return {
-        lat: coords.lat,
-        lng: coords.lng,
-        district: coords.district,
-        source: "verified_kerala_landmark",
-      };
+  // 1. Clean query: strip section / atrium / platform descriptors to extract core venue name
+  const rawQuery = query.trim();
+  const baseVenueName = rawQuery
+    .split(/[—–-]/)[0]
+    .replace(/\b(ground|first|second|third|4th|5th|atrium|concourse|platform|gate|corridor|entry|exit|floor|level|phase|block)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const searchCandidates = [
+    `${rawQuery}, ${district || "Kerala"}, India`,
+    `${baseVenueName}, ${district || "Kerala"}, India`,
+    `${baseVenueName}, India`,
+    rawQuery,
+  ];
+
+  // Try Nominatim with progressive query broadening
+  for (const qStr of searchCandidates) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(qStr)}&limit=1`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          return {
+            lat: parseFloat(parseFloat(data[0].lat).toFixed(6)),
+            lng: parseFloat(parseFloat(data[0].lon).toFixed(6)),
+            displayName: data[0].display_name,
+            source: "OpenStreetMap",
+          };
+        }
+      }
+    } catch {
+      // Continue to next candidate or fallback
     }
   }
 
-  // 2. Query OpenStreetMap Nominatim for accurate real-time geocoding
+  // Fallback: Photon Komoot OpenStreetMap POI engine
   try {
-    const cleanQuery = query.replace(/[—–-]/g, " ").replace(/\s+/g, " ").trim();
-    const fullQuery = `${cleanQuery}, ${district || "Kerala"}, India`;
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullQuery)}&limit=1`,
-      { headers: { "Accept-Language": "en" } }
+    const photonRes = await fetch(
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(`${baseVenueName || rawQuery} Kerala`)}&limit=1`
     );
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.length > 0) {
+    if (photonRes.ok) {
+      const pData = await photonRes.json();
+      if (pData?.features?.length > 0) {
+        const coords = pData.features[0].geometry.coordinates; // [lng, lat]
         return {
-          lat: parseFloat(parseFloat(data[0].lat).toFixed(6)),
-          lng: parseFloat(parseFloat(data[0].lon).toFixed(6)),
-          displayName: data[0].display_name,
-          source: "openstreetmap",
+          lat: parseFloat(coords[1].toFixed(6)),
+          lng: parseFloat(coords[0].toFixed(6)),
+          displayName: pData.features[0].properties.name || baseVenueName,
+          source: "Photon OSM",
         };
       }
     }
-  } catch (err) {
-    console.warn("Geocoding lookup error:", err);
+  } catch {
+    // Dynamic lookup complete
   }
+
   return null;
+}
+
+/** Obtains device's live GPS hardware coordinates with high accuracy */
+export function getCurrentDeviceLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation is not supported by your browser"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          lat: parseFloat(pos.coords.latitude.toFixed(6)),
+          lng: parseFloat(pos.coords.longitude.toFixed(6)),
+          accuracy: Math.round(pos.coords.accuracy),
+          source: "Device GPS",
+        });
+      },
+      (err) => reject(err),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
 }
 
 export async function importAssetsCsv(file) {

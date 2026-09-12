@@ -21,7 +21,7 @@ export function registerServiceWorker() {
             if (!installingWorker) return;
             installingWorker.onstatechange = () => {
               if (installingWorker.state === "installed" && navigator.serviceWorker.controller) {
-                toast.info("A new version of OOH-Sync is available!", {
+                toast.info("A new version of IMS is available!", {
                   action: {
                     label: "Update",
                     onClick: () => {
@@ -130,7 +130,7 @@ export function usePwaInstall() {
     function handleAppInstalled() {
       setIsInstalled(true);
       setDeferredPrompt(null);
-      toast.success("OOH-Sync added to your home screen / desktop!");
+      toast.success("IMS added to your home screen / desktop!");
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
