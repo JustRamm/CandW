@@ -251,13 +251,33 @@ export async function importAssetsCsv(file) {
         assetCode = `${prefix}-${String((count ?? 0) + 1).padStart(3, "0")}`;
       }
 
-      const rawStatus = (row.status || "available").trim().toLowerCase();
-      const validStatuses = ["available", "reserved", "onboarding", "live", "closing", "closed"];
-      const status = validStatuses.includes(rawStatus) ? rawStatus : "available";
+      // Flexible Status Resolution: maps booked, vacant, active, expired to standard stages
+      const rawStatus = (row.status || "").trim().toLowerCase();
+      let status = "available";
+      if (rawStatus === "booked" || rawStatus === "live" || rawStatus === "active") {
+        status = "live";
+      } else if (rawStatus === "reserved" || rawStatus === "queue") {
+        status = "reserved";
+      } else if (rawStatus === "onboarding") {
+        status = "onboarding";
+      } else if (rawStatus === "closing" || rawStatus === "expired" || rawStatus === "expiring") {
+        status = "closing";
+      } else if (rawStatus === "closed") {
+        status = "closed";
+      } else {
+        status = "available";
+      }
 
       let lat = parseFloat(row.latitude || row.lat);
       let lng = parseFloat(row.longitude || row.lng || row.long);
-      const radius = parseInt(row.geofence_radius_m || row.geofence || row.radius, 10);
+      const radius = parseInt(
+        row.geofence_radius_m ||
+          row.geofence_radius ||
+          row.geofence ||
+          row.geofence_status ||
+          row.radius,
+        10
+      );
 
       // Auto-resolve coordinates if missing in CSV
       if ((isNaN(lat) || isNaN(lng)) && locationName) {
@@ -268,7 +288,7 @@ export async function importAssetsCsv(file) {
         }
       }
 
-      // Parse brand details: supports single brand, brand_1 & brand_2, and comma-separated brand_names
+      // Parse brand details: supports brand_name, brand_1/2, brand_names, and inline notes extraction
       const brandList = [];
       if (row.brand_1) brandList.push(row.brand_1.trim());
       if (row.brand_2) brandList.push(row.brand_2.trim());
@@ -298,26 +318,50 @@ export async function importAssetsCsv(file) {
         });
       }
 
+      // If no explicit brand column, extract brand from notes/description e.g. "Active (DDRC Agilus Pathlab) / Vacant"
+      const notesText = (row.notes || row.description || "").trim();
+      if (!brandList.length && notesText) {
+        const activeMatch = notesText.match(/(?:Active|Live|Booked)\s*\(([^)]+)\)/i);
+        const expiredMatch = notesText.match(/Expired\s*\(([^)]+)\)/i);
+        const matchedStr = activeMatch ? activeMatch[1] : expiredMatch ? expiredMatch[1] : null;
+        if (matchedStr && matchedStr.trim()) {
+          matchedStr.split(/[/,]/).forEach((b) => {
+            const trimmed = b.replace(/\(\d+\)/g, "").trim();
+            if (trimmed && trimmed.toLowerCase() !== "vacant" && !brandList.includes(trimmed)) {
+              brandList.push(trimmed);
+            }
+          });
+          if (activeMatch) status = "live";
+          if (expiredMatch && status === "available") status = "closing";
+        }
+      }
+
       const currentBrandSummary = brandList.length ? brandList.join(", ") : (row.current_brand || "").trim();
       const startDate = (row.start_date || row.campaign_start_date || "").trim();
       const endDate = (row.end_date || row.campaign_end_date || "").trim();
 
+      // Normalize asset type: e.g. "Ad Bench" with location_type "Metro" -> "Metro Bench", "Mall" -> "Mall Bench"
+      let normalizedAssetType = assetType;
+      if (assetType.toLowerCase() === "ad bench") {
+        normalizedAssetType = (row.location_type || "").toLowerCase() === "metro" ? "Metro Bench" : "Mall Bench";
+      }
+
       const payload = {
-        asset_type: assetType,
+        asset_type: normalizedAssetType,
         location_type: (row.location_type || "Mall").trim(),
         location_code: locationCode,
         location_name: locationName || `${locationCode} Display`,
         city: (row.city || row.district || "Ernakulam").trim(),
         district: (row.district || row.city || "Ernakulam").trim(),
-        width_ft: parseFloat(row.width_ft || row.width) || 6,
-        height_ft: parseFloat(row.height_ft || row.height) || 3,
+        width_ft: parseFloat(row.width_ft || row.width) || 10,
+        height_ft: parseFloat(row.height_ft || row.height) || 4,
         photo_url: (row.photo_url || row.photo || row.image || "").trim(),
         description: (row.description || row.desc || "").trim(),
         notes: (row.notes || "").trim(),
         current_brand: currentBrandSummary || null,
         start_date: startDate || null,
         end_date: endDate || null,
-        status: brandList.length > 0 && status === "available" ? "live" : status,
+        status,
         latitude: !isNaN(lat) ? lat : null,
         longitude: !isNaN(lng) ? lng : null,
         geofence_radius_m: !isNaN(radius) && radius > 0 ? radius : 500,
