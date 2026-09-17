@@ -542,32 +542,34 @@ export default function ClientPortal() {
 
       {/* ── Main Interactive Section ───────────────────────────────────────── */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8">
-        {/* Navigation Tabs */}
-        <div className="flex items-center justify-between border-b border-border/60 pb-3">
-          <div className="flex items-center gap-2">
-            {[
-              { id: "all", label: "Overview & Map" },
-              { id: "photos", label: `Installation Photos (${proofs.length})` },
-              { id: "specs", label: `Billboard Specs (${mappedAssets.length})` },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                  activeTab === tab.id
-                    ? "bg-primary text-primary-foreground shadow-xs"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* Bug #12 responsiveness fix: tab bar scrolls horizontally on mobile */}
+        <div className="overflow-x-auto no-scrollbar">
+          <div className="flex items-center justify-between border-b border-border/60 pb-3 min-w-max sm:min-w-0">
+            <div className="flex items-center gap-2">
+              {[
+                { id: "all", label: "Overview & Map" },
+                { id: "photos", label: `Installation Photos (${proofs.length})` },
+                { id: "specs", label: `Billboard Specs (${mappedAssets.length})` },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-          <div className="text-[11px] text-muted-foreground hidden sm:flex items-center gap-1.5">
-            <Radio className="size-3 text-emerald-500 animate-pulse" />
-            <span>Telemetry synced just now</span>
+            <div className="text-[11px] text-muted-foreground hidden sm:flex items-center gap-1.5 ml-4">
+              <Radio className="size-3 text-emerald-500 animate-pulse" />
+              <span>Telemetry synced just now</span>
+            </div>
           </div>
         </div>
 

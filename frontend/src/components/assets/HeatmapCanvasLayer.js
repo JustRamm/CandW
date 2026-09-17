@@ -8,7 +8,7 @@ export const HeatmapCanvasLayer = L.Layer.extend({
   options: {
     points: [], // Array of { coords: [lat, lng], intensity: 0.1-1.0, radius: meters }
     mode: "traffic", // "traffic" | "footfall"
-    opacity: 0.85,
+    opacity: 0.78,
     blur: 15,
   },
 
@@ -26,7 +26,7 @@ export const HeatmapCanvasLayer = L.Layer.extend({
       this._canvas.style.position = "absolute";
       this._canvas.style.pointerEvents = "none";
       this._canvas.style.zIndex = "350";
-      this._canvas.style.mixBlendMode = "screen";
+      this._canvas.style.mixBlendMode = "normal";
       this._ctx = this._canvas.getContext("2d");
     }
 
@@ -107,22 +107,24 @@ export const HeatmapCanvasLayer = L.Layer.extend({
       const baseRadius = (pt.radius || 400) / 12;
       const r = Math.max(22, Math.min(180, baseRadius * zoomFactor));
 
-      const intensity = Math.min(1.0, Math.max(0.2, pt.intensity || 0.7));
+      const intensity = Math.min(1.0, Math.max(0.3, pt.intensity || 0.7));
 
       const grad = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, r);
 
       if (isFootfall) {
-        // Footfall palette: Violet -> Hot Pink -> Vibrant Gold
-        grad.addColorStop(0, `rgba(250, 204, 21, ${0.92 * intensity})`);
-        grad.addColorStop(0.3, `rgba(236, 72, 153, ${0.75 * intensity})`);
-        grad.addColorStop(0.65, `rgba(139, 92, 246, ${0.45 * intensity})`);
+        // Footfall palette: Vivid Gold → Hot Pink → Deep Violet (high visibility)
+        grad.addColorStop(0, `rgba(255, 215, 0, ${0.97 * intensity})`);
+        grad.addColorStop(0.25, `rgba(255, 120, 50, ${0.88 * intensity})`);
+        grad.addColorStop(0.5, `rgba(236, 72, 153, ${0.72 * intensity})`);
+        grad.addColorStop(0.75, `rgba(139, 92, 246, ${0.45 * intensity})`);
         grad.addColorStop(1, "rgba(99, 102, 241, 0)");
       } else {
-        // Traffic palette: Electric Cyan -> Lime -> Neon Amber -> Crimson Red
-        grad.addColorStop(0, `rgba(239, 68, 68, ${0.95 * intensity})`);
-        grad.addColorStop(0.35, `rgba(245, 158, 11, ${0.8 * intensity})`);
-        grad.addColorStop(0.65, `rgba(16, 185, 129, ${0.5 * intensity})`);
-        grad.addColorStop(0.85, `rgba(6, 182, 212, ${0.25 * intensity})`);
+        // Traffic palette: Crimson Red → Deep Amber → Emerald → Transparent
+        grad.addColorStop(0, `rgba(220, 38, 38, ${0.97 * intensity})`);
+        grad.addColorStop(0.25, `rgba(239, 68, 68, ${0.9 * intensity})`);
+        grad.addColorStop(0.5, `rgba(245, 158, 11, ${0.72 * intensity})`);
+        grad.addColorStop(0.75, `rgba(16, 185, 129, ${0.4 * intensity})`);
+        grad.addColorStop(0.9, `rgba(6, 182, 212, ${0.18 * intensity})`);
         grad.addColorStop(1, "rgba(6, 182, 212, 0)");
       }
 

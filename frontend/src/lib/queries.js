@@ -689,8 +689,10 @@ export function useClientPortalData(identifier, type = "brand") {
       const assetMap = Object.fromEntries(assets.map((a) => [a.id, a]));
 
       const gtpDocIds = campaigns.flatMap((c) => (c.gtps ?? []).flatMap((g) => g.doc_ids ?? []));
-      const assetDocIds = assets.flatMap((a) => a.photo_ids ?? []);
-      const docIds = Array.from(new Set([...gtpDocIds, ...assetDocIds]));
+      // Bug #2 fix: only include proof_photo_ids (geo-tagged GTP photos) in the client portal,
+      // NOT regular photo_ids which are internal asset reference photos.
+      const assetProofIds = assets.flatMap((a) => a.proof_photo_ids ?? []);
+      const docIds = Array.from(new Set([...gtpDocIds, ...assetProofIds]));
 
       let documents = [];
       if (docIds.length) {
@@ -726,13 +728,14 @@ export function useClientPortalData(identifier, type = "brand") {
         }
       }
 
-      // Also include asset photos as verified installation proof if not already in GTP cycle
+      // Bug #2 fix: include only geo-tagged proof photos (proof_photo_ids) as additional GTP proof,
+      // NOT regular photo_ids. This ensures the client portal only shows verified field photos.
       for (const asset of assets) {
-        for (const pId of asset.photo_ids ?? []) {
+        for (const pId of asset.proof_photo_ids ?? []) {
           const doc = docMap[pId];
           if (doc && !proofs.some((p) => p.doc?.id === doc.id)) {
             proofs.push({
-              id: `asset-photo-${asset.id}-${doc.id}`,
+              id: `asset-proof-${asset.id}-${doc.id}`,
               campaignId: campaigns.find((c) => c.asset_id === asset.id)?.id || asset.id,
               gtpSeq: 1,
               isFinal: false,

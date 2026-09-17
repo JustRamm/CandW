@@ -324,7 +324,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
 
     if (!heatmap) return;
 
-    if (heatmapMode === "off" || heatmapMode === "traffic") {
+    if (heatmapMode === "off") {
       heatmap.setPoints([], "off");
       return;
     }
@@ -334,6 +334,34 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
     if (heatmapMode === "footfall") {
       const points = getAssetFootfallPoints(mappedAssets, multiplier);
       heatmap.setPoints(points, "footfall");
+    } else if (heatmapMode === "traffic") {
+      // Bug #8 fix: draw canvas-based traffic density points scaled by time slot factor
+      // so the Peak Simulation bar has a visible effect even when TomTom tiles are active.
+      const trafficPoints = mappedAssets
+        .filter((a) => a.coords && Array.isArray(a.coords) && a.coords.length === 2)
+        .map((asset) => {
+          const locType = (asset.location_type || "").toLowerCase();
+          const locName = (asset.location_name || "").toLowerCase();
+          // Different venue types have different base traffic densities
+          let baseIntensity = 0.65;
+          let baseRadius = 380;
+          if (locType.includes("mall") || locName.includes("lulu") || locName.includes("mall")) {
+            baseIntensity = 0.88;
+            baseRadius = 480;
+          } else if (locType.includes("metro") || locName.includes("metro")) {
+            baseIntensity = 0.80;
+            baseRadius = 420;
+          } else if (locName.includes("bench")) {
+            baseIntensity = 0.55;
+            baseRadius = 300;
+          }
+          return {
+            coords: asset.coords,
+            intensity: Math.min(1.0, baseIntensity * (0.6 + multiplier * 0.4)),
+            radius: baseRadius * (0.85 + multiplier * 0.15),
+          };
+        });
+      heatmap.setPoints(trafficPoints, "traffic");
     }
   }, [heatmapMode, activeTimeSlot, mappedAssets]);
 
@@ -371,8 +399,8 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
       marker.addTo(markersLayer);
       bounds.extend(asset.coords);
 
-      // Draw Geofence Circle
-      if (isSelected || showAllGeofences) {
+      // Draw Geofence Circle — Bug #11 fix: skip if geofence_radius_m is 0 or null (disabled)
+      if ((isSelected || showAllGeofences) && (asset.radius ?? 0) > 0) {
         const radius = asset.radius || geofenceRadius;
         L.circle(asset.coords, {
           radius,

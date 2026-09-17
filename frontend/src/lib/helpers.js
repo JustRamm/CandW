@@ -111,10 +111,10 @@ export function parseCsv(text) {
 export const KNOWN_KERALA_VENUES = {
   // LuLu Group Malls
   "lulu kochi": { lat: 10.0275, lng: 76.3081, district: "Ernakulam", city: "Edappally, Kochi" },
-  "lulu tvm": { lat: 8.4897, lng: 76.9063, district: "Thiruvananthapuram", city: "Akkulam, Thiruvananthapuram" },
-  "lulu thiruvananthapuram": { lat: 8.4897, lng: 76.9063, district: "Thiruvananthapuram", city: "Akkulam, Thiruvananthapuram" },
+  "lulu tvm": { lat: 8.5046, lng: 76.9476, district: "Thiruvananthapuram", city: "Peroorkada, Thiruvananthapuram" },
+  "lulu thiruvananthapuram": { lat: 8.5046, lng: 76.9476, district: "Thiruvananthapuram", city: "Peroorkada, Thiruvananthapuram" },
   "lulu kottayam": { lat: 9.5843, lng: 76.5367, district: "Kottayam", city: "Kottayam" },
-  "lulu thrissur": { lat: 10.5362, lng: 76.2215, district: "Thrissur", city: "Thrissur" },
+  "lulu thrissur": { lat: 10.5400, lng: 76.2207, district: "Thrissur", city: "Avinissery, Thrissur" },
   "lulu calicut": { lat: 11.2687, lng: 75.7924, district: "Kozhikode", city: "Mankavu, Kozhikode" },
   "lulu kozhikode": { lat: 11.2687, lng: 75.7924, district: "Kozhikode", city: "Mankavu, Kozhikode" },
 
@@ -123,22 +123,22 @@ export const KNOWN_KERALA_VENUES = {
   "hilite kozhikode": { lat: 11.2505, lng: 75.8340, district: "Kozhikode", city: "Poovangal, Kozhikode" },
   "hilite thrissur": { lat: 10.5186, lng: 76.2163, district: "Thrissur", city: "Puzhakkal, Thrissur" },
   "hilite chemmad": { lat: 11.0425, lng: 75.9234, district: "Malappuram", city: "Chemmad, Malappuram" },
-  "hilite malappuram": { lat: 11.0734, lng: 76.0740, district: "Malappuram", city: "Malappuram" },
+  "hilite malappuram": { lat: 11.0712, lng: 76.0766, district: "Malappuram", city: "Malappuram" },
 
   // Other Premium & Regional Malls
   "oberon kochi": { lat: 10.0158, lng: 76.3113, district: "Ernakulam", city: "Edappally, Kochi" },
   "oberon mall": { lat: 10.0158, lng: 76.3113, district: "Ernakulam", city: "Edappally, Kochi" },
-  "centre square": { lat: 9.9765, lng: 76.2828, district: "Ernakulam", city: "MG Road, Kochi" },
-  "center square": { lat: 9.9765, lng: 76.2828, district: "Ernakulam", city: "MG Road, Kochi" },
+  "centre square": { lat: 9.9810, lng: 76.2855, district: "Ernakulam", city: "MG Road, Kochi" },
+  "center square": { lat: 9.9810, lng: 76.2855, district: "Ernakulam", city: "MG Road, Kochi" },
   "sobha city": { lat: 10.5562, lng: 76.1824, district: "Thrissur", city: "Puzhakkal, Thrissur" },
   "shobha city": { lat: 10.5562, lng: 76.1824, district: "Thrissur", city: "Puzhakkal, Thrissur" },
-  "falcon thrissur": { lat: 10.5276, lng: 76.2144, district: "Thrissur", city: "Thrissur" },
-  "falcon mall": { lat: 10.5276, lng: 76.2144, district: "Thrissur", city: "Thrissur" },
+  "falcon thrissur": { lat: 10.5294, lng: 76.2180, district: "Thrissur", city: "Thrissur" },
+  "falcon mall": { lat: 10.5294, lng: 76.2180, district: "Thrissur", city: "Thrissur" },
   "kannur secura": { lat: 11.8745, lng: 75.3704, district: "Kannur", city: "Kannur" },
   "secura kannur": { lat: 11.8745, lng: 75.3704, district: "Kannur", city: "Kannur" },
   "secura centre": { lat: 11.8745, lng: 75.3704, district: "Kannur", city: "Kannur" },
-  "mall of travancore": { lat: 8.4856, lng: 76.9312, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
-  "mot": { lat: 8.4856, lng: 76.9312, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
+  "mall of travancore": { lat: 8.4924, lng: 76.9492, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
+  "mot": { lat: 8.4924, lng: 76.9492, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
   "gokulam mall": { lat: 11.2588, lng: 75.7804, district: "Kozhikode", city: "Kozhikode" },
   "y mall": { lat: 10.5052, lng: 76.2155, district: "Thrissur", city: "Triprayar, Thrissur" },
 

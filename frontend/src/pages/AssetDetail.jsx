@@ -567,8 +567,9 @@ export default function AssetDetail() {
   const { data: me } = useMe();
   const { data: asset, isError, isLoading } = useAsset(assetId);
 
+  // Bug #12 / #3 fix: Allow adding interest for onboarding and live assets too
   const canAddInterest =
-    me?.role === "sales" && asset && ["available", "reserved"].includes(asset.status);
+    me?.role === "sales" && asset && ["available", "reserved", "onboarding", "live"].includes(asset.status);
 
   return (
     <AppShell
@@ -677,17 +678,20 @@ export default function AssetDetail() {
           </Card>
 
           <Tabs defaultValue="queue">
-            <TabsList variant="line" data-testid="asset-detail-tabs">
-              <TabsTrigger value="queue" data-testid="tab-queue">
-                Interest queue
-              </TabsTrigger>
-              <TabsTrigger value="campaigns" data-testid="tab-campaigns">
-                Campaign history
-              </TabsTrigger>
-              <TabsTrigger value="audit" data-testid="tab-audit">
-                Audit trail
-              </TabsTrigger>
-            </TabsList>
+            {/* Bug #12 responsiveness fix: overflow-x-auto allows tabs to scroll on small screens */}
+            <div className="overflow-x-auto no-scrollbar pb-px">
+              <TabsList variant="line" data-testid="asset-detail-tabs" className="min-w-max">
+                <TabsTrigger value="queue" data-testid="tab-queue">
+                  Interest queue
+                </TabsTrigger>
+                <TabsTrigger value="campaigns" data-testid="tab-campaigns">
+                  Campaign history
+                </TabsTrigger>
+                <TabsTrigger value="audit" data-testid="tab-audit">
+                  Audit trail
+                </TabsTrigger>
+              </TabsList>
+            </div>
             <TabsContent value="queue" className="pt-4">
               <QueuePanel asset={asset} />
             </TabsContent>

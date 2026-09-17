@@ -275,6 +275,12 @@ export function AssetDialog({ asset, trigger }) {
   const [isCustomMall, setIsCustomMall] = useState(false);
   const [geoResolving, setGeoResolving] = useState(false);
   const [geoMatchInfo, setGeoMatchInfo] = useState(null);
+  // Bug #3: track whether the ad is currently live (controls display of schedule fields)
+  const [isLive, setIsLive] = useState(Boolean(asset?.start_date));
+  // Bug #11: track whether geo-fence is enabled
+  const [geofenceEnabled, setGeofenceEnabled] = useState((asset?.geofence_radius_m ?? 500) > 0);
+  // Bug #10: GPS section collapsed by default
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [newMall, setNewMall] = useState({
     name: "",
     district: "Ernakulam",
@@ -363,6 +369,9 @@ export function AssetDialog({ asset, trigger }) {
     setIsCustomMall(false);
     setGeoResolving(false);
     setGeoMatchInfo(null);
+    setIsLive(Boolean(asset?.start_date));
+    setGeofenceEnabled((asset?.geofence_radius_m ?? 500) > 0);
+    setShowAdvanced(false);
     setNewMall({
       name: "",
       district: "Ernakulam",
@@ -409,19 +418,14 @@ export function AssetDialog({ asset, trigger }) {
     "Mall Bench",
     "Metro Bench",
     "Digital Screen",
-    "Digital Totem",
-    "Unipole",
-    "Hoarding",
-    "Bus Shelter",
-    "Backlit Static",
   ];
-  const dbTypeNames = (types ?? []).map((t) => t.name);
-  const typeNames = Array.from(new Set([...dbTypeNames, ...DEFAULT_TYPES]));
+  // Bug #4 fix: Only show the 3 required types. DB types still included if they differ.
+  const dbTypeNames = (types ?? []).map((t) => t.name).filter((n) =>
+    ["Mall Bench", "Metro Bench", "Digital Screen"].includes(n)
+  );
+  const typeNames = Array.from(new Set([...DEFAULT_TYPES, ...dbTypeNames]));
   const activeType = form.asset_type || typeNames[0] || "";
-  const isDigital =
-    activeType === "Digital Screen" ||
-    activeType === "Digital Totem" ||
-    form.location_type === "DOOH";
+  const isDigital = activeType === "Digital Screen";
 
   const save = useMutation({
     mutationFn: async (body) => {
@@ -588,6 +592,32 @@ export function AssetDialog({ asset, trigger }) {
     },
   });
 
+  // Bug #6: Auto-fill Carbon and Whale as default brands when brands load and no brand is selected
+  useEffect(() => {
+    if (!brands.length) return;
+    if (asset) return; // Edit mode: don't override existing brands
+    if (isDigital) {
+      if (!form.brand_names?.length) {
+        const defaults = brands
+          .filter((b) => /carbon|whale/i.test(b.name))
+          .map((b) => b.name);
+        if (defaults.length) {
+          setForm((f) => ({ ...f, brand_names: defaults, brand_name: defaults[0] }));
+        }
+      }
+    } else {
+      if (!form.brand_name) {
+        const carbonBrand = brands.find((b) => /carbon/i.test(b.name));
+        const whaleBrand = brands.find((b) => /whale/i.test(b.name));
+        const defaultBrand = carbonBrand || whaleBrand;
+        if (defaultBrand) {
+          setForm((f) => ({ ...f, brand_name: defaultBrand.name, brand_names: [defaultBrand.name] }));
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brands.length, isDigital]);
+
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
@@ -614,20 +644,26 @@ export function AssetDialog({ asset, trigger }) {
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            const allPhotoIds = Array.from(
-              new Set([...photos.map((p) => p.id), ...proofPhotos.map((p) => p.id)]),
-            );
-            const primaryPhoto = proofPhotos[0]?.url || photos[0]?.url || asset?.photo_url || "";
+            // Bug #1 fix: keep photo_ids and proof_photo_ids separate
+            const regularPhotoIds = photos.map((p) => p.id);
+            const proofPhotoIds = proofPhotos.map((p) => p.id);
+            const primaryPhoto = photos[0]?.url || asset?.photo_url || "";
             const primaryProofUrl = proofPhotos[0]?.url || asset?.proof_photo_url || "";
             save.mutate({
               ...form,
               asset_type: activeType,
               width_ft: Number(form.width_ft),
               height_ft: Number(form.height_ft),
-              photo_ids: allPhotoIds,
-              proof_photo_ids: proofPhotos.map((p) => p.id),
+              // Bug #1 fix: photo_ids = regular photos only (not merged with proof)
+              photo_ids: regularPhotoIds,
+              proof_photo_ids: proofPhotoIds,
               proof_photo_url: primaryProofUrl,
               photo_url: primaryPhoto,
+              // Bug #3: only set dates when ad is live
+              start_date: isLive ? form.start_date : null,
+              end_date: isLive ? form.end_date : null,
+              // Bug #11: set geofence to 0 when disabled
+              geofence_radius_m: geofenceEnabled ? (Number(form.geofence_radius_m) || 500) : 0,
             });
           }}
           data-testid={asset ? "edit-asset-form" : "add-asset-form"}
@@ -651,12 +687,13 @@ export function AssetDialog({ asset, trigger }) {
             </div>
             <div className="space-y-1.5">
               <Label>Location type</Label>
-              <Select value={form.location_type} onValueChange={(v) => setForm((f) => ({ ...f, location_type: v }))}>
+              {/* Bug #5 fix: Only Mall, Metro, Others */}
+            <Select value={form.location_type} onValueChange={(v) => setForm((f) => ({ ...f, location_type: v }))}>
                 <SelectTrigger data-testid="location-type-select">
-                  <SelectValue>{(v) => v || "Metro"}</SelectValue>
+                  <SelectValue>{(v) => v || "Mall"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {["Mall", "Metro", "Highway", "Commercial", "Transit", "DOOH"].map((t) => (
+                  {["Mall", "Metro", "Others"].map((t) => (
                     <SelectItem key={t} value={t} data-testid={`location-type-option-${t.toLowerCase()}`}>
                       {t}
                     </SelectItem>
@@ -1027,38 +1064,59 @@ export function AssetDialog({ asset, trigger }) {
             </div>
           </div>
 
-          {/* Active Display Schedule (Start & Stop) */}
+          {/* Bug #3 fix: Display Schedule only shows when ad is live */}
           <div className="rounded-lg border border-border/70 bg-secondary/30 p-3 space-y-2" data-testid="asset-schedule-section">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-foreground">Display Schedule (Start & Stop)</Label>
-              <span className="text-[10px] text-muted-foreground">Active run dates</span>
+              <Label className="text-xs font-semibold text-foreground">Display Schedule</Label>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <span className="text-[11px] text-muted-foreground">Ad is currently live/running</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isLive}
+                  onClick={() => setIsLive((v) => !v)}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 cursor-pointer focus-visible:outline-none",
+                    isLive ? "bg-primary" : "bg-input"
+                  )}
+                  data-testid="asset-live-toggle"
+                >
+                  <span className={cn(
+                    "pointer-events-none inline-block size-4 rounded-full bg-white shadow-lg ring-0 transition-transform duration-200",
+                    isLive ? "translate-x-4" : "translate-x-0"
+                  )} />
+                </button>
+              </label>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="asset_start_date" className="text-[11px]">Start Date</Label>
-                <Input
-                  id="asset_start_date"
-                  type="date"
-                  value={form.start_date}
-                  onChange={set("start_date")}
-                  data-testid="asset-start-date-input"
-                  className="bg-background text-xs"
-                />
+            {isLive && (
+              <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="space-y-1">
+                  <Label htmlFor="asset_start_date" className="text-[11px]">Start Date</Label>
+                  <Input
+                    id="asset_start_date"
+                    type="date"
+                    value={form.start_date}
+                    onChange={set("start_date")}
+                    data-testid="asset-start-date-input"
+                    className="bg-background text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="asset_end_date" className="text-[11px]">Stop / End Date</Label>
+                  <Input
+                    id="asset_end_date"
+                    type="date"
+                    value={form.end_date}
+                    min={form.start_date || undefined}
+                    onChange={set("end_date")}
+                    data-testid="asset-end-date-input"
+                    className="bg-background text-xs"
+                  />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="asset_end_date" className="text-[11px]">Stop / End Date</Label>
-                <Input
-                  id="asset_end_date"
-                  type="date"
-                  value={form.end_date}
-                  onChange={set("end_date")}
-                  data-testid="asset-end-date-input"
-                  className="bg-background text-xs"
-                />
-              </div>
-            </div>
+            )}
             <p className="text-[10px] text-muted-foreground">
-              Define the campaign run window. Anchors interest queues and live occupancy.
+              {isLive ? "Define the active run window for this ad placement." : "Toggle ON if this asset is already running a live campaign."}
             </p>
           </div>
 
@@ -1122,107 +1180,124 @@ export function AssetDialog({ asset, trigger }) {
             />
           </div>
 
-          <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+          {/* Bug #10 fix: GPS & Geofencing inside collapsible "Advanced" section */}
+          <div className="rounded-lg border border-border/70 bg-muted/20">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-foreground hover:bg-muted/40 transition-colors rounded-lg cursor-pointer"
+              data-testid="asset-advanced-toggle"
+            >
+              <span className="flex items-center gap-1.5">
                 <MapPin className="size-3.5 text-primary" />
-                Map GPS & Geofencing
+                Advanced: Map GPS &amp; Geofencing
               </span>
-              <div className="flex items-center gap-1.5">
-                {geoMatchInfo && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 font-mono"
-                  >
-                    {geoMatchInfo}
-                  </Badge>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  disabled={geoResolving || !form.location_name}
-                  onClick={() => handleAutoGeocode()}
-                  className="h-6 text-[10px] gap-1 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer"
-                  title="Query OpenStreetMap Nominatim and Photon for live coordinates"
-                >
-                  <Compass className="size-3" />
-                  {geoResolving ? "Resolving…" : "Auto-fetch"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  disabled={geoResolving}
-                  onClick={handleDeviceLocation}
-                  className="h-6 text-[10px] gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer"
-                  title="Use live hardware GPS from this device"
-                >
-                  <MapPin className="size-3" />
-                  Device GPS
-                </Button>
-              </div>
-            </div>
+              <span className={cn("text-[10px] text-muted-foreground transition-transform", showAdvanced && "rotate-180")}>▼</span>
+            </button>
+            {showAdvanced && (
+              <div className="px-3 pb-3 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                {/* Bug #11 fix: Geofence enable/disable toggle */}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs font-medium text-foreground">Enable Geo-fence Restriction</span>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={geofenceEnabled}
+                      onClick={() => setGeofenceEnabled((v) => !v)}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 cursor-pointer",
+                        geofenceEnabled ? "bg-primary" : "bg-input"
+                      )}
+                      data-testid="geofence-toggle"
+                    >
+                      <span className={cn(
+                        "pointer-events-none inline-block size-4 rounded-full bg-white shadow-lg ring-0 transition-transform duration-200",
+                        geofenceEnabled ? "translate-x-4" : "translate-x-0"
+                      )} />
+                    </button>
+                    <span className="text-[11px] text-muted-foreground">{geofenceEnabled ? "On" : "Off"}</span>
+                  </label>
+                </div>
 
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="a-map-url" className="text-[11px] font-medium text-foreground">
-                  Google Maps Location Link or Coordinates
-                </Label>
-                <span className="text-[10px] text-muted-foreground">Auto-extracts Lat & Long</span>
-              </div>
-              <div className="relative">
-                <Input
-                  id="a-map-url"
-                  placeholder="Paste Google Maps URL or lat, lng (e.g. https://maps.google.com/?q=10.0275,76.3081)"
-                  className="h-8 text-xs pl-7 bg-background"
-                  value={form.map_url || ""}
-                  onChange={(e) => handleMapUrlChange(e.target.value)}
-                />
-                <Link2 className="absolute left-2 top-2 size-3.5 text-muted-foreground pointer-events-none" />
-              </div>
-            </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    GPS Coordinates
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {geoMatchInfo && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 font-mono"
+                      >
+                        {geoMatchInfo}
+                      </Badge>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      disabled={geoResolving || !form.location_name}
+                      onClick={() => handleAutoGeocode()}
+                      className="h-6 text-[10px] gap-1 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer"
+                    >
+                      <Compass className="size-3" />
+                      {geoResolving ? "Resolving…" : "Auto-fetch"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      disabled={geoResolving}
+                      onClick={handleDeviceLocation}
+                      className="h-6 text-[10px] gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer"
+                    >
+                      <MapPin className="size-3" />
+                      Device GPS
+                    </Button>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="a-lat" className="text-[11px]">Latitude</Label>
-                <Input
-                  id="a-lat"
-                  type="number"
-                  step="0.000001"
-                  placeholder="e.g. 9.9816"
-                  className="h-8 text-xs font-mono"
-                  value={form.latitude}
-                  onChange={set("latitude")}
-                />
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="a-map-url" className="text-[11px] font-medium text-foreground">
+                      Google Maps Link or Coordinates
+                    </Label>
+                    <span className="text-[10px] text-muted-foreground">Auto-extracts Lat &amp; Long</span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="a-map-url"
+                      placeholder="Paste Google Maps URL or lat, lng"
+                      className="h-8 text-xs pl-7 bg-background"
+                      value={form.map_url || ""}
+                      onChange={(e) => handleMapUrlChange(e.target.value)}
+                    />
+                    <Link2 className="absolute left-2 top-2 size-3.5 text-muted-foreground pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className={cn("grid gap-2", geofenceEnabled ? "grid-cols-3" : "grid-cols-2")}>
+                  <div className="space-y-1">
+                    <Label htmlFor="a-lat" className="text-[11px]">Latitude</Label>
+                    <Input id="a-lat" type="number" step="0.000001" placeholder="e.g. 9.9816" className="h-8 text-xs font-mono" value={form.latitude} onChange={set("latitude")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="a-lng" className="text-[11px]">Longitude</Label>
+                    <Input id="a-lng" type="number" step="0.000001" placeholder="e.g. 76.2999" className="h-8 text-xs font-mono" value={form.longitude} onChange={set("longitude")} />
+                  </div>
+                  {geofenceEnabled && (
+                    <div className="space-y-1">
+                      <Label htmlFor="a-radius" className="text-[11px]">Geofence (m)</Label>
+                      <Input id="a-radius" type="number" placeholder="500" className="h-8 text-xs font-mono" value={form.geofence_radius_m} onChange={set("geofence_radius_m")} />
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Paste a Google Maps link above, or type a known Kerala mall/metro to auto-fetch GPS.
+                </p>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="a-lng" className="text-[11px]">Longitude</Label>
-                <Input
-                  id="a-lng"
-                  type="number"
-                  step="0.000001"
-                  placeholder="e.g. 76.2999"
-                  className="h-8 text-xs font-mono"
-                  value={form.longitude}
-                  onChange={set("longitude")}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="a-radius" className="text-[11px]">Geofence (m)</Label>
-                <Input
-                  id="a-radius"
-                  type="number"
-                  placeholder="500"
-                  className="h-8 text-xs font-mono"
-                  value={form.geofence_radius_m}
-                  onChange={set("geofence_radius_m")}
-                />
-              </div>
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              Paste a Google Maps link above, or type a known Kerala mall/metro station to auto-fetch GPS.
-            </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
