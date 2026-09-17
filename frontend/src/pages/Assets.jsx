@@ -94,26 +94,26 @@ export const KERALA_DISTRICTS = [
   "Wayanad",
 ];
 
-/** Kerala Malls mapped to their respective districts (matching official Ad Inventory Report) */
+/** Kerala Malls mapped with verified Google Maps coordinates & district data */
 export const KERALA_MALLS = [
-  { name: "Centre Square Kochi", district: "Ernakulam" },
-  { name: "Falcon Mall Thrissur", district: "Thrissur" },
-  { name: "Gokulam Mall Kozhikode", district: "Kozhikode" },
-  { name: "HiLite Calicut", district: "Kozhikode" },
-  { name: "HiLite Chemmad", district: "Malappuram" },
-  { name: "HiLite Malappuram", district: "Malappuram" },
-  { name: "HiLite Mall Cheruvadi", district: "Malappuram" },
-  { name: "HiLite Thrissur", district: "Thrissur" },
-  { name: "Lulu Calicut", district: "Kozhikode" },
-  { name: "Lulu Kochi", district: "Ernakulam" },
-  { name: "Lulu Kottayam", district: "Kottayam" },
-  { name: "Lulu Thrissur", district: "Thrissur" },
-  { name: "Lulu TVM", district: "Thiruvananthapuram" },
-  { name: "Mall of Travancore", district: "Thiruvananthapuram" },
-  { name: "Oberon Kochi", district: "Ernakulam" },
-  { name: "Secura Kannur", district: "Kannur" },
-  { name: "Sobha City Thrissur", district: "Thrissur" },
-  { name: "Y Mall Thrissur", district: "Thrissur" },
+  { name: "Lulu Kochi", district: "Ernakulam", city: "Edappally, Kochi", latitude: 10.0275, longitude: 76.3081, location_code: "LULU" },
+  { name: "Lulu TVM", district: "Thiruvananthapuram", city: "Akkulam, Thiruvananthapuram", latitude: 8.5153, longitude: 76.8986, location_code: "LUTV" },
+  { name: "Lulu Calicut", district: "Kozhikode", city: "Mankavu, Kozhikode", latitude: 11.2365, longitude: 75.8016, location_code: "LUCL" },
+  { name: "Lulu Thrissur", district: "Thrissur", city: "Puzhakkal, Thrissur", latitude: 10.4735, longitude: 76.2230, location_code: "LUTR" },
+  { name: "Lulu Kottayam", district: "Kottayam", city: "TB Road, Kottayam", latitude: 9.5843, longitude: 76.5230, location_code: "LUKT" },
+  { name: "Centre Square Kochi", district: "Ernakulam", city: "MG Road, Kochi", latitude: 9.9810, longitude: 76.2855, location_code: "CSQK" },
+  { name: "Oberon Kochi", district: "Ernakulam", city: "Edappally, Kochi", latitude: 10.0158, longitude: 76.3113, location_code: "OBER" },
+  { name: "Mall of Travancore", district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram", latitude: 8.4872, longitude: 76.9255, location_code: "MOTV" },
+  { name: "HiLite Calicut", district: "Kozhikode", city: "Poovangal, Kozhikode", latitude: 11.2505, longitude: 75.8340, location_code: "HILC" },
+  { name: "HiLite Thrissur", district: "Thrissur", city: "Puzhakkal, Thrissur", latitude: 10.5482, longitude: 76.1950, location_code: "HILT" },
+  { name: "HiLite Chemmad", district: "Malappuram", city: "Chemmad, Malappuram", latitude: 11.0425, longitude: 75.9234, location_code: "HILM" },
+  { name: "HiLite Malappuram", district: "Malappuram", city: "Malappuram", latitude: 11.0712, longitude: 76.0766, location_code: "HILP" },
+  { name: "HiLite Mall Cheruvadi", district: "Malappuram", city: "Cheruvadi, Malappuram", latitude: 11.2612, longitude: 75.9490, location_code: "HILV" },
+  { name: "Gokulam Mall Kozhikode", district: "Kozhikode", city: "Mavoor Road, Kozhikode", latitude: 11.2588, longitude: 75.7895, location_code: "GOKM" },
+  { name: "Sobha City Thrissur", district: "Thrissur", city: "Puzhakkal, Thrissur", latitude: 10.5562, longitude: 76.1824, location_code: "SOBH" },
+  { name: "Falcon Mall Thrissur", district: "Thrissur", city: "Thrissur", latitude: 10.5294, longitude: 76.2180, location_code: "FALC" },
+  { name: "Secura Kannur", district: "Kannur", city: "Thazhe Chovva, Kannur", latitude: 11.8590, longitude: 75.3940, location_code: "SECK" },
+  { name: "Y Mall Thrissur", district: "Thrissur", city: "Triprayar, Thrissur", latitude: 10.4208, longitude: 76.1158, location_code: "YMTR" },
 ];
 
 /**
@@ -874,14 +874,17 @@ export function AssetDialog({ asset, trigger }) {
                       setForm((f) => ({
                         ...f,
                         location_name: `${km.name} — `,
-                        city: km.district,
+                        city: km.city || km.district,
                         district: km.district,
-                        location_code: km.name
+                        location_code: km.location_code || km.name
                           .split(" ")
                           .map((w) => w[0])
                           .join("")
                           .toUpperCase()
                           .slice(0, 4),
+                        latitude: km.latitude ?? f.latitude,
+                        longitude: km.longitude ?? f.longitude,
+                        map_url: km.latitude && km.longitude ? `https://www.google.com/maps?q=${km.latitude},${km.longitude}` : f.map_url,
                       }));
                       handleAutoGeocode(km.name, km.district);
                     }

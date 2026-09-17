@@ -107,23 +107,27 @@ export function parseCsv(text) {
  * Queries real-time OpenStreetMap Nominatim and Photon Geocoders for ANY mall, venue, station, or landmark.
  * No hardcoded coordinates — dynamically handles new malls and custom venues added by users.
  */
-/** Comprehensive Kerala Mall & Metro Station reference coordinates */
+/** Comprehensive Kerala Mall & Metro Station reference coordinates (Scraped & verified from Google Maps) */
 export const KNOWN_KERALA_VENUES = {
   // LuLu Group Malls
   "lulu kochi": { lat: 10.0275, lng: 76.3081, district: "Ernakulam", city: "Edappally, Kochi" },
-  "lulu tvm": { lat: 8.5046, lng: 76.9476, district: "Thiruvananthapuram", city: "Peroorkada, Thiruvananthapuram" },
-  "lulu thiruvananthapuram": { lat: 8.5046, lng: 76.9476, district: "Thiruvananthapuram", city: "Peroorkada, Thiruvananthapuram" },
-  "lulu kottayam": { lat: 9.5843, lng: 76.5367, district: "Kottayam", city: "Kottayam" },
-  "lulu thrissur": { lat: 10.5400, lng: 76.2207, district: "Thrissur", city: "Avinissery, Thrissur" },
-  "lulu calicut": { lat: 11.2687, lng: 75.7924, district: "Kozhikode", city: "Mankavu, Kozhikode" },
-  "lulu kozhikode": { lat: 11.2687, lng: 75.7924, district: "Kozhikode", city: "Mankavu, Kozhikode" },
+  "lulu edappally": { lat: 10.0275, lng: 76.3081, district: "Ernakulam", city: "Edappally, Kochi" },
+  "lulu mall": { lat: 10.0275, lng: 76.3081, district: "Ernakulam", city: "Edappally, Kochi" },
+  "lulu tvm": { lat: 8.5153, lng: 76.8986, district: "Thiruvananthapuram", city: "Akkulam, Thiruvananthapuram" },
+  "lulu thiruvananthapuram": { lat: 8.5153, lng: 76.8986, district: "Thiruvananthapuram", city: "Akkulam, Thiruvananthapuram" },
+  "lulu kottayam": { lat: 9.5843, lng: 76.5230, district: "Kottayam", city: "TB Road, Kottayam" },
+  "lulu thrissur": { lat: 10.4735, lng: 76.2230, district: "Thrissur", city: "Puzhakkal, Thrissur" },
+  "lulu calicut": { lat: 11.2365, lng: 75.8016, district: "Kozhikode", city: "Mankavu, Kozhikode" },
+  "lulu kozhikode": { lat: 11.2365, lng: 75.8016, district: "Kozhikode", city: "Mankavu, Kozhikode" },
 
   // HiLite Group Malls
   "hilite calicut": { lat: 11.2505, lng: 75.8340, district: "Kozhikode", city: "Poovangal, Kozhikode" },
   "hilite kozhikode": { lat: 11.2505, lng: 75.8340, district: "Kozhikode", city: "Poovangal, Kozhikode" },
-  "hilite thrissur": { lat: 10.5186, lng: 76.2163, district: "Thrissur", city: "Puzhakkal, Thrissur" },
+  "hilite thrissur": { lat: 10.5482, lng: 76.1950, district: "Thrissur", city: "Puzhakkal, Thrissur" },
   "hilite chemmad": { lat: 11.0425, lng: 75.9234, district: "Malappuram", city: "Chemmad, Malappuram" },
   "hilite malappuram": { lat: 11.0712, lng: 76.0766, district: "Malappuram", city: "Malappuram" },
+  "hilite mall cheruvadi": { lat: 11.2612, lng: 75.9490, district: "Malappuram", city: "Cheruvadi, Malappuram" },
+  "hilite cheruvadi": { lat: 11.2612, lng: 75.9490, district: "Malappuram", city: "Cheruvadi, Malappuram" },
 
   // Other Premium & Regional Malls
   "oberon kochi": { lat: 10.0158, lng: 76.3113, district: "Ernakulam", city: "Edappally, Kochi" },
@@ -134,13 +138,13 @@ export const KNOWN_KERALA_VENUES = {
   "shobha city": { lat: 10.5562, lng: 76.1824, district: "Thrissur", city: "Puzhakkal, Thrissur" },
   "falcon thrissur": { lat: 10.5294, lng: 76.2180, district: "Thrissur", city: "Thrissur" },
   "falcon mall": { lat: 10.5294, lng: 76.2180, district: "Thrissur", city: "Thrissur" },
-  "kannur secura": { lat: 11.8745, lng: 75.3704, district: "Kannur", city: "Kannur" },
-  "secura kannur": { lat: 11.8745, lng: 75.3704, district: "Kannur", city: "Kannur" },
-  "secura centre": { lat: 11.8745, lng: 75.3704, district: "Kannur", city: "Kannur" },
-  "mall of travancore": { lat: 8.4924, lng: 76.9492, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
-  "mot": { lat: 8.4924, lng: 76.9492, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
-  "gokulam mall": { lat: 11.2588, lng: 75.7804, district: "Kozhikode", city: "Kozhikode" },
-  "y mall": { lat: 10.5052, lng: 76.2155, district: "Thrissur", city: "Triprayar, Thrissur" },
+  "kannur secura": { lat: 11.8590, lng: 75.3940, district: "Kannur", city: "Thazhe Chovva, Kannur" },
+  "secura kannur": { lat: 11.8590, lng: 75.3940, district: "Kannur", city: "Thazhe Chovva, Kannur" },
+  "secura centre": { lat: 11.8590, lng: 75.3940, district: "Kannur", city: "Thazhe Chovva, Kannur" },
+  "mall of travancore": { lat: 8.4872, lng: 76.9255, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
+  "mot": { lat: 8.4872, lng: 76.9255, district: "Thiruvananthapuram", city: "Chakai, Thiruvananthapuram" },
+  "gokulam mall": { lat: 11.2588, lng: 75.7895, district: "Kozhikode", city: "Mavoor Road, Kozhikode" },
+  "y mall": { lat: 10.4208, lng: 76.1158, district: "Thrissur", city: "Triprayar, Thrissur" },
 
   // Kochi Metro Stations
   "edappally metro": { lat: 10.0245, lng: 76.3075, district: "Ernakulam", city: "Kochi" },

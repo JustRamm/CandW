@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useClientPortalData, useMe } from "@/lib/queries";
-import { fmtDate } from "@/lib/helpers";
+import { fmtDate, KNOWN_KERALA_VENUES } from "@/lib/helpers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +69,16 @@ function getDerivedCoordinates(asset) {
   ) {
     return [Number(asset.latitude), Number(asset.longitude)];
   }
+
+  // 1. Check known Kerala mall & metro venue dictionary by location_name or mall_name
+  const locName = (asset.location_name || asset.mall_name || asset.location || "").toLowerCase();
+  for (const [key, val] of Object.entries(KNOWN_KERALA_VENUES || {})) {
+    if (locName.includes(key) || key.includes(locName)) {
+      return [val.lat, val.lng];
+    }
+  }
+
+  // 2. Fallback to district / city center
   const key = (asset.city || asset.district || "kochi").toLowerCase().trim();
   return CITY_COORDINATES[key] || CITY_COORDINATES.kochi;
 }
