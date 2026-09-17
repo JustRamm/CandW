@@ -1983,20 +1983,22 @@ export default function Assets() {
                 <CardContent className="px-4 py-3">
                   <div className="flex items-center justify-between gap-1.5">
                     <p className="truncate font-heading text-sm font-semibold">{a.location_name}</p>
-                    <a
-                      href={
-                        a.latitude && a.longitude
-                          ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
-                          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.city ? `, ${a.city}` : ", Kerala"))}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const url =
+                          a.latitude && a.longitude
+                            ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
+                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.city ? `, ${a.city}` : ", Kerala"))}`;
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      }}
                       className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
                       title="Open location on Google Maps"
                     >
                       <ExternalLink className="size-3.5" />
-                    </a>
+                    </button>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
