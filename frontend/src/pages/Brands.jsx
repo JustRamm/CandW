@@ -42,45 +42,63 @@ function BrandDialog() {
 
   const create = useMutation({
     mutationFn: async (body) => {
-      const trimmedName = body.name.trim();
-      const trimmedEmail = body.contact_email?.trim();
+      const trimmedName = (body.name || "").trim();
+      const trimmedEmail = (body.contact_email || "").trim();
+      if (!trimmedName) {
+        throw new Error("Brand name is required.");
+      }
       if (!trimmedEmail) {
-        throw { body: { detail: "Brand contact email is required." } };
+        throw new Error("Brand contact email is required.");
       }
-      const { data: existing } = await supabase.from("brands").select("*").ilike("name", trimmedName).maybeSingle();
+
+      const { data: existing } = await supabase
+        .from("brands")
+        .select("id, name")
+        .ilike("name", trimmedName)
+        .maybeSingle();
+
       if (existing) {
-        throw { body: { detail: `Brand "${existing.name}" already exists.` } };
+        throw new Error(`Brand "${existing.name}" already exists in the client directory.`);
       }
+
       const { data, error } = await supabase
         .from("brands")
         .insert({
           id: crypto.randomUUID(),
-          ...body,
           name: trimmedName,
           contact_email: trimmedEmail,
+          contact_person: (body.contact_person || "").trim(),
+          contact_phone: (body.contact_phone || "").trim(),
+          industry: (body.industry || "").trim(),
+          notes: (body.notes || "").trim(),
           created_at: new Date().toISOString(),
         })
         .select()
         .single();
+
       if (error) {
         if (error.code === "23505") {
-          throw { body: { detail: `Brand "${trimmedName}" already exists.` } };
+          throw new Error(`Brand "${trimmedName}" already exists.`);
         }
-        throw { body: { detail: error.message } };
+        throw new Error(error.message || "Failed to save brand to database");
       }
       return data;
     },
     onSuccess: (b) => {
       queryClient.invalidateQueries({ queryKey: ["brands"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      broadcastNotification({
-        key: `new_brand_${b.id}`,
-        title: "New Brand Added",
-        message: `${b.name} was added to the client directory.`,
-        link: `/brands/${b.id}`,
-        category: "brand",
-        type: "success",
-      });
+      try {
+        broadcastNotification({
+          key: `new_brand_${b.id}`,
+          title: "New Brand Added",
+          message: `${b.name} was added to the client directory.`,
+          link: `/brands/${b.id}`,
+          category: "brand",
+          type: "success",
+        });
+      } catch {}
+      sound.success();
+      toast.success(`Brand "${b.name}" added successfully`);
       setForm(BLANK);
       setOpen(false);
     },
@@ -92,8 +110,16 @@ function BrandDialog() {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const handleOpenChange = (isOpen) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      setForm(BLANK);
+      create.reset();
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button size="sm" data-testid="add-brand-button" />}>
         <Plus className="size-4" />
         New brand
@@ -110,6 +136,11 @@ function BrandDialog() {
           }}
           data-testid="brand-form"
         >
+          {create.isError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
+              {errMessage(create.error, "Could not create the brand")}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="b-name" className="flex items-center gap-1 font-medium">
               <span>Brand name</span>
@@ -166,9 +197,24 @@ function BrandDialog() {
             <Label htmlFor="b-notes">Notes</Label>
             <Textarea id="b-notes" rows={2} value={form.notes} onChange={set("notes")} data-testid="brand-notes-input" />
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              disabled={create.isPending}
+            >
+              Cancel
+            </Button>
             <Button type="submit" disabled={create.isPending} data-testid="submit-brand-button">
-              {create.isPending ? "Saving…" : "Add brand"}
+              {create.isPending ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                  Saving…
+                </>
+              ) : (
+                "Add brand"
+              )}
             </Button>
           </DialogFooter>
         </form>
@@ -181,7 +227,7 @@ export default function Brands() {
   const { data: me } = useMe();
   const [q, setQ] = useState("");
   const { data: brands, isError, isLoading } = useBrands(q);
-  const canCreate = me?.role === "sales" || me?.role === "admin";
+  const canCreate = me?.role === "sales" || me?.role === "admin" || me?.role === "ops";
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
 
