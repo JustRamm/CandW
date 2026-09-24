@@ -199,6 +199,43 @@ export function extractDistrict(asset) {
   return match || raw;
 }
 
+/**
+ * Detects whether an asset is a Mall, Metro, or Other placement.
+ */
+export function getAssetVenueType(asset) {
+  if (!asset) return "other";
+  const locType = (asset.location_type || "").toLowerCase().trim();
+  const assetType = (asset.asset_type || "").toLowerCase().trim();
+  const locName = (asset.location_name || "").toLowerCase().trim();
+  const assetCode = (asset.asset_code || "").toLowerCase().trim();
+
+  // 1. Explicit or implicit Metro check
+  if (
+    locType === "metro" ||
+    assetType.includes("metro") ||
+    locName.includes("metro") ||
+    assetCode.startsWith("km-") ||
+    assetCode.startsWith("kmetro-") ||
+    assetCode.startsWith("kmed-") ||
+    assetCode.startsWith("kmth-")
+  ) {
+    return "metro";
+  }
+
+  // 2. Explicit or implicit Mall check
+  if (
+    locType === "mall" ||
+    assetType.includes("mall") ||
+    locType.includes("mall") ||
+    locName.includes("mall") ||
+    Boolean(extractMallName(asset))
+  ) {
+    return "mall";
+  }
+
+  return "other";
+}
+
 const BLANK = {
   asset_code: "",
   asset_type: "",
@@ -1593,6 +1630,7 @@ export default function Assets() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStatus = searchParams.get("status") || "all";
   const [status, setStatus] = useState(urlStatus);
+  const [venueType, setVenueType] = useState("all"); // "all" | "mall" | "metro" | "other"
   const [district, setDistrict] = useState("all");
   const [mall, setMall] = useState("all");
   const [q, setQ] = useState("");
@@ -1613,6 +1651,16 @@ export default function Assets() {
     for (const a of rawAssets ?? []) {
       const d = extractDistrict(a);
       if (d) counts[d] = (counts[d] ?? 0) + 1;
+    }
+    return counts;
+  }, [rawAssets]);
+
+  // Venue counts for Venue filter
+  const venueCounts = useMemo(() => {
+    const counts = { all: (rawAssets ?? []).length, mall: 0, metro: 0, other: 0 };
+    for (const a of rawAssets ?? []) {
+      const v = getAssetVenueType(a);
+      counts[v] = (counts[v] ?? 0) + 1;
     }
     return counts;
   }, [rawAssets]);
@@ -1641,33 +1689,41 @@ export default function Assets() {
     return Array.from(set).sort();
   }, [rawAssets, district]);
 
-  // If the currently selected mall is not in the updated malls list, reset it
+  // If the currently selected mall is not in the updated malls list, or venueType is not mall, reset it
   useEffect(() => {
-    if (mall !== "all" && !malls.includes(mall)) {
+    if (venueType !== "mall" && mall !== "all") {
+      setMall("all");
+    } else if (mall !== "all" && !malls.includes(mall)) {
       setMall("all");
     }
-  }, [malls, mall]);
+  }, [malls, mall, venueType]);
 
-  // Filter assets by status, district, and mall
+  // Filter assets by venueType, status, district, and mall
   const assets = useMemo(() => {
     return (rawAssets ?? []).filter((a) => {
+      const vType = getAssetVenueType(a);
+      if (venueType !== "all" && vType !== venueType) return false;
       if (status !== "all" && a.status !== status) return false;
       if (district !== "all" && extractDistrict(a).toLowerCase() !== district.toLowerCase()) return false;
-      if (mall !== "all" && extractMallName(a)?.toLowerCase() !== mall.toLowerCase()) return false;
+      if (venueType === "mall" && mall !== "all" && extractMallName(a)?.toLowerCase() !== mall.toLowerCase()) return false;
       return true;
     });
-  }, [rawAssets, status, district, mall]);
+  }, [rawAssets, status, district, mall, venueType]);
 
   const [viewMode, setViewMode] = useState("grid");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const activeFilterCount =
-    (district !== "all" ? 1 : 0) + (mall !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0);
+    (venueType !== "all" ? 1 : 0) +
+    (district !== "all" ? 1 : 0) +
+    (venueType === "mall" && mall !== "all" ? 1 : 0) +
+    (status !== "all" ? 1 : 0);
 
   const hasActiveFilters =
-    status !== "all" || district !== "all" || mall !== "all" || Boolean(q.trim());
+    venueType !== "all" || status !== "all" || district !== "all" || (venueType === "mall" && mall !== "all") || Boolean(q.trim());
 
   function clearFilters() {
+    setVenueType("all");
     setStatus("all");
     setDistrict("all");
     setMall("all");
@@ -1781,7 +1837,87 @@ export default function Assets() {
                 </SheetHeader>
 
                 <div className="space-y-3.5 pt-1">
-                  {/* 1. District Filter */}
+                  {/* 1. Venue Type Filter */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                      <Building2 className="size-3.5 text-primary" />
+                      Venue Type
+                    </label>
+                    <Select
+                      value={venueType}
+                      onValueChange={(val) => {
+                        setVenueType(val);
+                        if (val !== "mall") setMall("all");
+                      }}
+                    >
+                      <SelectTrigger className="w-full text-xs" data-testid="mobile-venue-type-filter">
+                        <SelectValue placeholder="All Venues">
+                          {(v) => (v === "all" ? "All Venues" : v === "mall" ? "Mall" : v === "metro" ? "Metro" : "Other")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">
+                          <span className="flex items-center justify-between w-full gap-2">
+                            <span>All Venues</span>
+                            <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                              {venueCounts.all}
+                            </span>
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="mall">
+                          <span className="flex items-center justify-between w-full gap-2">
+                            <span>Mall</span>
+                            <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                              {venueCounts.mall}
+                            </span>
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="metro">
+                          <span className="flex items-center justify-between w-full gap-2">
+                            <span>Metro</span>
+                            <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                              {venueCounts.metro}
+                            </span>
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="other">
+                          <span className="flex items-center justify-between w-full gap-2">
+                            <span>Other</span>
+                            <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                              {venueCounts.other}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 2. Mall Filter (ONLY shown if venueType === 'mall') */}
+                  {venueType === "mall" && (
+                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <Building2 className="size-3.5 text-primary" />
+                        Kerala Mall Preset
+                      </label>
+                      <Select value={mall} onValueChange={setMall}>
+                        <SelectTrigger className="w-full text-xs">
+                          <SelectValue placeholder="All Kerala malls">
+                            {(v) => (v === "all" ? "All Kerala malls" : v)}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Kerala malls</SelectItem>
+                          {malls.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* 3. District Filter */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                       <MapPin className="size-3.5 text-primary" />
@@ -1814,30 +1950,7 @@ export default function Assets() {
                     </Select>
                   </div>
 
-                  {/* 2. Mall Filter */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                      <Building2 className="size-3.5 text-primary" />
-                      Mall / Venue
-                    </label>
-                    <Select value={mall} onValueChange={setMall}>
-                      <SelectTrigger className="w-full text-xs">
-                        <SelectValue placeholder="All Kerala malls">
-                          {(v) => (v === "all" ? "All Kerala malls" : v)}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Kerala malls</SelectItem>
-                        {malls.map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {m}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* 3. Status Filter */}
+                  {/* 4. Status Filter */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground">Status</label>
                     <Select value={status} onValueChange={setStatus}>
@@ -1928,7 +2041,87 @@ export default function Assets() {
 
           {/* Desktop Filter Bar (hidden sm:flex) */}
           <div className="hidden sm:flex flex-wrap items-center gap-2 w-full lg:w-auto">
-            {/* 1. Filter by District (Kerala's 14 districts) */}
+            {/* 1. Venue Type Filter */}
+            <Select
+              value={venueType}
+              onValueChange={(val) => {
+                setVenueType(val);
+                if (val !== "mall") setMall("all");
+              }}
+            >
+              <SelectTrigger className="w-36" data-testid="asset-venue-type-filter">
+                <div className="flex items-center gap-1.5 truncate">
+                  <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue>
+                    {(v) => (v === "all" ? "All Venues" : v === "mall" ? "Mall" : v === "metro" ? "Metro" : "Other")}
+                  </SelectValue>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" data-testid="asset-venue-type-all">
+                  <span className="flex items-center justify-between w-full gap-2">
+                    <span>All Venues</span>
+                    <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                      {venueCounts.all}
+                    </span>
+                  </span>
+                </SelectItem>
+                <SelectItem value="mall" data-testid="asset-venue-type-mall">
+                  <span className="flex items-center justify-between w-full gap-2">
+                    <span>Mall</span>
+                    <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                      {venueCounts.mall}
+                    </span>
+                  </span>
+                </SelectItem>
+                <SelectItem value="metro" data-testid="asset-venue-type-metro">
+                  <span className="flex items-center justify-between w-full gap-2">
+                    <span>Metro</span>
+                    <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                      {venueCounts.metro}
+                    </span>
+                  </span>
+                </SelectItem>
+                <SelectItem value="other" data-testid="asset-venue-type-other">
+                  <span className="flex items-center justify-between w-full gap-2">
+                    <span>Other</span>
+                    <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                      {venueCounts.other}
+                    </span>
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* 2. Filter by Mall (Kerala malls) — ONLY shown if venueType === 'mall' */}
+            {venueType === "mall" && (
+              <Select value={mall} onValueChange={setMall}>
+                <SelectTrigger className="w-52 animate-in fade-in zoom-in-95 duration-150" data-testid="asset-mall-filter">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Building2 className="size-3.5 shrink-0 text-primary" />
+                    <SelectValue>
+                      {(v) => (v === "all" ? "All Kerala malls" : v)}
+                    </SelectValue>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" data-testid="asset-mall-option-all">
+                    All Kerala malls
+                  </SelectItem>
+                  {malls.map((m) => (
+                    <SelectItem
+                      key={m}
+                      value={m}
+                      data-testid={`asset-mall-option-${m.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* 3. Filter by District (Kerala's 14 districts) */}
             <Select value={district} onValueChange={setDistrict}>
               <SelectTrigger className="w-48" data-testid="asset-district-filter">
                 <div className="flex items-center gap-1.5 truncate">
@@ -1964,33 +2157,7 @@ export default function Assets() {
               </SelectContent>
             </Select>
 
-            {/* 2. Filter by Mall (Kerala malls) */}
-            <Select value={mall} onValueChange={setMall}>
-              <SelectTrigger className="w-52" data-testid="asset-mall-filter">
-                <div className="flex items-center gap-1.5 truncate">
-                  <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue>
-                    {(v) => (v === "all" ? "All Kerala malls" : v)}
-                  </SelectValue>
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" data-testid="asset-mall-option-all">
-                  All Kerala malls
-                </SelectItem>
-                {malls.map((m) => (
-                  <SelectItem
-                    key={m}
-                    value={m}
-                    data-testid={`asset-mall-option-${m.toLowerCase().replace(/\s+/g, "-")}`}
-                  >
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Status Filter */}
+            {/* 4. Status Filter */}
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="w-40" data-testid="asset-status-filter">
                 <SelectValue>
@@ -2103,14 +2270,20 @@ export default function Assets() {
             <AssetMap assets={assets} />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
-          {(assets ?? []).map((a) => (
+          {(assets ?? []).map((a) => {
+            const venue = getAssetVenueType(a);
+            const isMetro = venue === "metro";
+            const isMall = venue === "mall";
+            const aspectClass = isMetro ? "aspect-[16/9]" : isMall ? "aspect-[9/16]" : "aspect-[16/9]";
+
+            return (
             <Card
               key={a.id}
               className="group h-full overflow-hidden border-border/80 bg-card p-0 shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/45 rounded-xl"
               data-testid={`asset-card-${a.asset_code}`}
             >
               <Link to={`/assets/${a.id}`} className="block">
-                <div className="relative aspect-[9/16] w-full overflow-hidden bg-secondary/40">
+                <div className={cn("relative w-full overflow-hidden bg-secondary/40", aspectClass)}>
                   <PhotoSlideshow asset={a} variant="card" />
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
                   <div className="pointer-events-none absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
@@ -2201,7 +2374,8 @@ export default function Assets() {
                 </div>
               )}
             </Card>
-          ))}
+            );
+          })}
             </div>
           )
         )}
