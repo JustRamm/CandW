@@ -410,8 +410,40 @@ create policy "authorized_users: read own" on public.authorized_users
 create policy "authorized_users: signup check" on public.authorized_users
   for select using (true);
 
--- ── 17. Realtime Publication Setup ───────────────────────────
--- Enables live Supabase feeds for queue entries, campaigns, audit logs, profiles, and authorized_users
+-- ── 17. user_notifications (Multi-Device Notification Sync) ──
+create table if not exists public.user_notifications (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid references auth.users(id) on delete cascade,
+  key         text,
+  title       text not null default 'Update',
+  message     text not null default '',
+  link        text,
+  category    text not null default 'general',
+  type        text not null default 'info',
+  read        boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.user_notifications enable row level security;
+drop policy if exists "user_notifications: read" on public.user_notifications;
+drop policy if exists "user_notifications: insert" on public.user_notifications;
+drop policy if exists "user_notifications: update" on public.user_notifications;
+drop policy if exists "user_notifications: delete" on public.user_notifications;
+
+create policy "user_notifications: read" on public.user_notifications
+  for select using (auth.uid() = user_id or user_id is null or public.is_admin());
+
+create policy "user_notifications: insert" on public.user_notifications
+  for insert with check (auth.role() = 'authenticated');
+
+create policy "user_notifications: update" on public.user_notifications
+  for update using (auth.uid() = user_id or user_id is null or public.is_admin());
+
+create policy "user_notifications: delete" on public.user_notifications
+  for delete using (auth.uid() = user_id or user_id is null or public.is_admin());
+
+-- ── 18. Realtime Publication Setup ───────────────────────────
+-- Enables live Supabase feeds for queue entries, campaigns, audit logs, profiles, authorized_users, and user_notifications
 do $$
 begin
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'queue_entries') then
@@ -428,6 +460,9 @@ begin
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'authorized_users') then
     alter publication supabase_realtime add table public.authorized_users;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'user_notifications') then
+    alter publication supabase_realtime add table public.user_notifications;
   end if;
 end $$;
 

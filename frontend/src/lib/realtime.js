@@ -12,6 +12,10 @@ let backgroundIntervalId = null;
 // In-memory subscribers for UI updates
 const listeners = new Set();
 
+function isUuid(str) {
+  return typeof str === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 export function getStoredNotifications() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -28,32 +32,79 @@ function saveNotifications(notifications) {
   listeners.forEach((fn) => fn(notifications));
 }
 
+/**
+ * Multi-Device Sync: Fetches user notifications directly from Supabase user_notifications table.
+ */
+export async function syncNotificationsFromDatabase() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
+    let query = supabase
+      .from("user_notifications")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(60);
+
+    if (userId) {
+      query = query.or(`user_id.eq.${userId},user_id.is.null`);
+    } else {
+      query = query.is("user_id", null);
+    }
+
+    const { data, error } = await query;
+    if (!error && data) {
+      const normalized = data.map((d) => ({
+        id: d.id,
+        key: d.key,
+        title: d.title,
+        message: d.message,
+        link: d.link,
+        category: d.category,
+        type: d.type,
+        timestamp: d.created_at,
+        read: d.read,
+        user_id: d.user_id,
+      }));
+      saveNotifications(normalized);
+      return normalized;
+    }
+  } catch (err) {
+    console.warn("Could not sync notifications from database:", err);
+  }
+  return getStoredNotifications();
+}
+
 export function subscribeToNotificationFeed(callback) {
   listeners.add(callback);
   callback(getStoredNotifications());
+  // Background sync from Supabase
+  syncNotificationsFromDatabase();
   return () => listeners.delete(callback);
 }
 
 export function addNotification(notif) {
   const current = getStoredNotifications();
-  const notifId = notif.id || (notif.key ? `notif_${notif.key}` : crypto.randomUUID());
+  const rawId = notif.id || (notif.key ? `notif_${notif.key}` : crypto.randomUUID());
+  const notifKey = notif.key || (typeof rawId === "string" && !isUuid(rawId) ? rawId : null);
 
   // Prevent duplicate notifications if key exists
-  const existing = current.find((n) => (notif.key && n.key === notif.key) || n.id === notifId);
+  const existing = current.find((n) => (notifKey && n.key === notifKey) || n.id === rawId);
   if (existing) {
     return existing;
   }
 
   const newItem = {
-    id: notifId,
-    key: notif.key || null,
+    id: isUuid(rawId) ? rawId : crypto.randomUUID(),
+    key: notifKey,
     title: notif.title || "Update",
     message: notif.message || "",
     link: notif.link || null,
-    category: notif.category || "general", // "queue_expiry" | "gtp_overdue" | "campaign_stage" | "new_interest" | "general"
-    type: notif.type || "info", // "info" | "success" | "warning" | "error"
+    category: notif.category || "general",
+    type: notif.type || "info",
     timestamp: notif.timestamp || new Date().toISOString(),
     read: false,
+    user_id: notif.user_id || null,
   };
 
   const updated = [newItem, ...current].slice(0, 60);
@@ -71,6 +122,32 @@ export function addNotification(notif) {
     toast.info(newItem.title, { description: newItem.message });
   }
 
+  // Persist to Supabase for multi-device sync
+  (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUserId = newItem.user_id || session?.user?.id || null;
+
+      await supabase.from("user_notifications").upsert(
+        {
+          id: newItem.id,
+          user_id: currentUserId,
+          key: newItem.key,
+          title: newItem.title,
+          message: newItem.message,
+          link: newItem.link,
+          category: newItem.category,
+          type: newItem.type,
+          read: newItem.read,
+          created_at: newItem.timestamp,
+        },
+        { onConflict: "id" }
+      );
+    } catch (err) {
+      console.warn("Could not save notification to Supabase:", err);
+    }
+  })();
+
   return newItem;
 }
 
@@ -78,28 +155,110 @@ export function markAllNotificationsRead() {
   const current = getStoredNotifications();
   const updated = current.map((n) => ({ ...n, read: true }));
   saveNotifications(updated);
+
+  // Sync to database
+  (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (userId) {
+        await supabase
+          .from("user_notifications")
+          .update({ read: true })
+          .or(`user_id.eq.${userId},user_id.is.null`);
+      } else {
+        await supabase.from("user_notifications").update({ read: true }).is("user_id", null);
+      }
+    } catch (err) {
+      console.warn("Could not mark all notifications as read in Supabase:", err);
+    }
+  })();
 }
 
 export function markNotificationRead(id) {
   const current = getStoredNotifications();
   const updated = current.map((n) => (n.id === id ? { ...n, read: true } : n));
   saveNotifications(updated);
+
+  // Sync to database
+  (async () => {
+    try {
+      if (isUuid(id)) {
+        await supabase.from("user_notifications").update({ read: true }).eq("id", id);
+      } else {
+        await supabase.from("user_notifications").update({ read: true }).eq("key", id);
+      }
+    } catch (err) {
+      console.warn("Could not mark notification as read in Supabase:", err);
+    }
+  })();
 }
 
 export function toggleNotificationRead(id) {
   const current = getStoredNotifications();
-  const updated = current.map((n) => (n.id === id ? { ...n, read: !n.read } : n));
+  let nextRead = true;
+  const updated = current.map((n) => {
+    if (n.id === id) {
+      nextRead = !n.read;
+      return { ...n, read: nextRead };
+    }
+    return n;
+  });
   saveNotifications(updated);
+
+  // Sync to database
+  (async () => {
+    try {
+      if (isUuid(id)) {
+        await supabase.from("user_notifications").update({ read: nextRead }).eq("id", id);
+      } else {
+        await supabase.from("user_notifications").update({ read: nextRead }).eq("key", id);
+      }
+    } catch (err) {
+      console.warn("Could not toggle notification read state in Supabase:", err);
+    }
+  })();
 }
 
 export function deleteNotification(id) {
   const current = getStoredNotifications();
-  const updated = current.filter((n) => n.id !== id);
+  const updated = current.filter((n) => n.id !== id && n.key !== id);
   saveNotifications(updated);
+
+  // Sync to database
+  (async () => {
+    try {
+      if (isUuid(id)) {
+        await supabase.from("user_notifications").delete().eq("id", id);
+      } else {
+        await supabase.from("user_notifications").delete().eq("key", id);
+      }
+    } catch (err) {
+      console.warn("Could not delete notification in Supabase:", err);
+    }
+  })();
 }
 
 export function clearAllNotifications() {
   saveNotifications([]);
+
+  // Sync to database
+  (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (userId) {
+        await supabase
+          .from("user_notifications")
+          .delete()
+          .or(`user_id.eq.${userId},user_id.is.null`);
+      } else {
+        await supabase.from("user_notifications").delete().is("user_id", null);
+      }
+    } catch (err) {
+      console.warn("Could not clear notifications in Supabase:", err);
+    }
+  })();
 }
 
 /**
@@ -549,6 +708,50 @@ export function initRealtimeFeed(currentUser = null) {
       ({ payload }) => {
         if (payload) {
           addNotification(payload);
+        }
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "user_notifications" },
+      (payload) => {
+        const { eventType, new: record, old: oldRecord } = payload;
+        const current = getStoredNotifications();
+        if (eventType === "INSERT" && record) {
+          const exists = current.some((n) => n.id === record.id || (record.key && n.key === record.key));
+          if (!exists) {
+            const item = {
+              id: record.id,
+              key: record.key,
+              title: record.title,
+              message: record.message,
+              link: record.link,
+              category: record.category,
+              type: record.type,
+              timestamp: record.created_at,
+              read: record.read,
+              user_id: record.user_id,
+            };
+            saveNotifications([item, ...current].slice(0, 60));
+            sound?.notification?.();
+            if (item.type === "success") {
+              toast.success(item.title, { description: item.message });
+            } else if (item.type === "warning") {
+              toast.warning(item.title, { description: item.message });
+            } else {
+              toast.info(item.title, { description: item.message });
+            }
+          }
+        } else if (eventType === "UPDATE" && record) {
+          const updated = current.map((n) =>
+            n.id === record.id || (record.key && n.key === record.key)
+              ? { ...n, read: record.read, title: record.title, message: record.message }
+              : n
+          );
+          saveNotifications(updated);
+        } else if (eventType === "DELETE" && oldRecord) {
+          const updated = current.filter((n) => n.id !== oldRecord.id && n.key !== oldRecord.id);
+          saveNotifications(updated);
         }
       }
     )
