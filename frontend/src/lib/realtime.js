@@ -86,6 +86,12 @@ export function markNotificationRead(id) {
   saveNotifications(updated);
 }
 
+export function deleteNotification(id) {
+  const current = getStoredNotifications();
+  const updated = current.filter((n) => n.id !== id);
+  saveNotifications(updated);
+}
+
 export function clearAllNotifications() {
   saveNotifications([]);
 }

@@ -18,6 +18,7 @@ import {
   subscribeToNotificationFeed,
   markAllNotificationsRead,
   markNotificationRead,
+  deleteNotification,
   clearAllNotifications,
   triggerTestNotification,
   evaluateSystemAlerts,
@@ -279,7 +280,7 @@ export default function NotificationCenter() {
                 const content = (
                   <div
                     className={cn(
-                      "group flex items-start gap-3 rounded-xl p-3 transition-colors duration-150 cursor-pointer",
+                      "group relative flex items-start gap-2.5 rounded-xl p-2.5 transition-colors duration-150 cursor-pointer",
                       isUnread
                         ? "bg-primary/5 hover:bg-primary/10"
                         : "hover:bg-muted/50 text-muted-foreground"
@@ -293,7 +294,7 @@ export default function NotificationCenter() {
                       <Icon className="size-4" />
                     </div>
 
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 pr-1">
                       <div className="flex items-center justify-between gap-1 flex-wrap">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <p className={cn("text-xs font-semibold truncate", isUnread ? "text-foreground" : "text-foreground/80")}>
@@ -310,9 +311,24 @@ export default function NotificationCenter() {
                       </p>
                     </div>
 
-                    {isUnread && (
-                      <span className="size-2 rounded-full bg-primary mt-1.5 shrink-0" />
-                    )}
+                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                      {isUnread && (
+                        <span className="size-2 rounded-full bg-primary shrink-0" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteNotification(item.id);
+                        }}
+                        className="rounded-md p-1 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                        title="Delete notification"
+                        aria-label="Delete notification"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
                   </div>
                 );
 
