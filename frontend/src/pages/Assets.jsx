@@ -29,6 +29,7 @@ import EmptyState from "@/components/shared/EmptyState";
 import FileUploader from "@/components/shared/FileUploader";
 import PhotoSlideshow from "@/components/shared/PhotoSlideshow";
 import AssetMap from "@/components/assets/AssetMap";
+import Pagination from "@/components/shared/Pagination";
 import { AssetStatusBadge } from "@/components/shared/StatusBadges";
 import { Button } from "@/components/ui/button";
 import { AssetsSkeleton } from "@/components/skeletons";
@@ -1712,6 +1713,18 @@ export default function Assets() {
 
   const [viewMode, setViewMode] = useState("grid");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+
+  // Reset page when any filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [status, district, mall, venueType, q]);
+
+  const paginatedAssets = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return assets.slice(start, start + pageSize);
+  }, [assets, currentPage, pageSize]);
 
   const activeFilterCount =
     (venueType !== "all" ? 1 : 0) +
@@ -1728,6 +1741,7 @@ export default function Assets() {
     setDistrict("all");
     setMall("all");
     setQ("");
+    setCurrentPage(1);
   }
 
   return (
@@ -2269,113 +2283,127 @@ export default function Assets() {
           viewMode === "map" ? (
             <AssetMap assets={assets} />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
-          {(assets ?? []).map((a) => {
-            const venue = getAssetVenueType(a);
-            const isMetro = venue === "metro";
-            const isMall = venue === "mall";
-            const aspectClass = isMetro ? "aspect-[16/9]" : isMall ? "aspect-[9/16]" : "aspect-[16/9]";
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
+                {paginatedAssets.map((a) => {
+                  const venue = getAssetVenueType(a);
+                  const isMetro = venue === "metro";
+                  const isMall = venue === "mall";
+                  const aspectClass = isMetro ? "aspect-[16/9]" : isMall ? "aspect-[9/16]" : "aspect-[16/9]";
 
-            return (
-            <Card
-              key={a.id}
-              className="group h-full overflow-hidden border-border/80 bg-card p-0 shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/45 rounded-xl"
-              data-testid={`asset-card-${a.asset_code}`}
-            >
-              <Link to={`/assets/${a.id}`} className="block">
-                <div className={cn("relative w-full overflow-hidden bg-secondary/40", aspectClass)}>
-                  <PhotoSlideshow asset={a} variant="card" />
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
-                  <div className="pointer-events-none absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
-                    <span className="mono-label truncate text-white drop-shadow-sm font-semibold">{a.asset_code}</span>
-                    <AssetStatusBadge status={a.status} />
-                  </div>
-                </div>
-                <CardContent className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-1.5">
-                    <p className="truncate font-heading text-sm font-semibold">{a.location_name}</p>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const url =
-                          a.map_url
-                            ? a.map_url
-                            : a.latitude && a.longitude
-                            ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
-                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.description ? " " + a.description : "") + (a.city ? `, ${a.city}` : ", Kerala"))}`;
-                        window.open(url, "_blank", "noopener,noreferrer");
-                      }}
-                      className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
-                      title={a.description ? `${a.location_name}\nSpot: ${a.description}` : "Open location on Google Maps"}
+                  return (
+                    <Card
+                      key={a.id}
+                      className="group h-full overflow-hidden border-border/80 bg-card p-0 shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/45 rounded-xl"
+                      data-testid={`asset-card-${a.asset_code}`}
                     >
-                      <ExternalLink className="size-3.5" />
-                    </button>
-                  </div>
-                  {a.description && (
-                    <div className="mt-1 flex items-start gap-1 rounded bg-secondary/70 px-2 py-0.5 text-[11px] font-medium text-foreground/90">
-                      <MapPin className="mt-0.5 size-3 shrink-0 text-primary" />
-                      <span className="truncate" title={a.description}>{a.description}</span>
-                    </div>
-                  )}
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
-                  </p>
-                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                    {a.current_brand &&
-                      a.current_brand.split(",").map((b) => (
-                        <Badge
-                          key={b.trim()}
-                          variant="outline"
-                          className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs"
-                        >
-                          {b.trim()}
-                        </Badge>
-                      ))}
-                    {a.queue_count > 0 && (
-                      <Badge
-                        variant="outline"
-                        className="mono-label rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs"
-                        data-testid={`asset-queue-count-${a.asset_code}`}
-                      >
-                        <Users className="mr-1 size-3" />
-                        {a.queue_count} in queue
-                      </Badge>
-                    )}
-                    {a.next_gtp_date && (
-                      <Badge
-                        variant="outline"
-                        className={
-                          a.gtp_overdue
-                            ? "mono-label rounded-full border-red-200 bg-red-50 text-[#ba1a1a] shadow-xs"
-                            : "mono-label rounded-full border-slate-200 bg-slate-100 text-slate-600 shadow-xs"
-                        }
-                        data-testid={`asset-next-gtp-${a.asset_code}`}
-                      >
-                        GTP {a.next_gtp_date}
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Link>
-              {canManage && (
-                <div className="flex items-center gap-1.5 border-t border-border/60 px-4 py-2.5">
-                  <AssetDialog
-                    asset={a}
-                    trigger={
-                      <Button variant="outline" size="xs" data-testid={`edit-asset-button-${a.asset_code}`}>
-                        <Pencil className="size-3.5" />
-                        Edit
-                      </Button>
-                    }
-                  />
-                  {me?.role === "admin" && <DeleteAssetDialog asset={a} />}
-                </div>
+                      <Link to={`/assets/${a.id}`} className="block">
+                        <div className={cn("relative w-full overflow-hidden bg-secondary/40", aspectClass)}>
+                          <PhotoSlideshow asset={a} variant="card" />
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
+                          <div className="pointer-events-none absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
+                            <span className="mono-label truncate text-white drop-shadow-sm font-semibold">{a.asset_code}</span>
+                            <AssetStatusBadge status={a.status} />
+                          </div>
+                        </div>
+                        <CardContent className="px-4 py-3">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <p className="truncate font-heading text-sm font-semibold">{a.location_name}</p>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const url =
+                                  a.map_url
+                                    ? a.map_url
+                                    : a.latitude && a.longitude
+                                    ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
+                                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.description ? " " + a.description : "") + (a.city ? `, ${a.city}` : ", Kerala"))}`;
+                                window.open(url, "_blank", "noopener,noreferrer");
+                              }}
+                              className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
+                              title={a.description ? `${a.location_name}\nSpot: ${a.description}` : "Open location on Google Maps"}
+                            >
+                              <ExternalLink className="size-3.5" />
+                            </button>
+                          </div>
+                          {a.description && (
+                            <div className="mt-1 flex items-start gap-1 rounded bg-secondary/70 px-2 py-0.5 text-[11px] font-medium text-foreground/90">
+                              <MapPin className="mt-0.5 size-3 shrink-0 text-primary" />
+                              <span className="truncate" title={a.description}>{a.description}</span>
+                            </div>
+                          )}
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
+                          </p>
+                          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                            {a.current_brand &&
+                              a.current_brand.split(",").map((b) => (
+                                <Badge
+                                  key={b.trim()}
+                                  variant="outline"
+                                  className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs"
+                                >
+                                  {b.trim()}
+                                </Badge>
+                              ))}
+                            {a.queue_count > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="mono-label rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs"
+                                data-testid={`asset-queue-count-${a.asset_code}`}
+                              >
+                                <Users className="mr-1 size-3" />
+                                {a.queue_count} in queue
+                              </Badge>
+                            )}
+                            {a.next_gtp_date && (
+                              <Badge
+                                variant="outline"
+                                className={
+                                  a.gtp_overdue
+                                    ? "mono-label rounded-full border-red-200 bg-red-50 text-[#ba1a1a] shadow-xs"
+                                    : "mono-label rounded-full border-slate-200 bg-slate-100 text-slate-600 shadow-xs"
+                                }
+                                data-testid={`asset-next-gtp-${a.asset_code}`}
+                              >
+                                GTP {a.next_gtp_date}
+                              </Badge>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Link>
+                      {canManage && (
+                        <div className="flex items-center gap-1.5 border-t border-border/60 px-4 py-2.5">
+                          <AssetDialog
+                            asset={a}
+                            trigger={
+                              <Button variant="outline" size="xs" data-testid={`edit-asset-button-${a.asset_code}`}>
+                                <Pencil className="size-3.5" />
+                                Edit
+                              </Button>
+                            }
+                          />
+                          {me?.role === "admin" && <DeleteAssetDialog asset={a} />}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {assets.length > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalItems={assets.length}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                  pageSizeOptions={[12, 24, 48]}
+                  itemLabel="assets"
+                />
               )}
-            </Card>
-            );
-          })}
             </div>
           )
         )}

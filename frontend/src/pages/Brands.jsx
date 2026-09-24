@@ -1,10 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { Building2, FileDown, Loader2, Mail, Phone, Plus, Search, Upload, User } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
+import Pagination from "@/components/shared/Pagination";
 import { Button } from "@/components/ui/button";
 import { BrandsSkeleton } from "@/components/skeletons";
 import { Card, CardContent } from "@/components/ui/card";
@@ -226,10 +227,23 @@ function BrandDialog() {
 export default function Brands() {
   const { data: me } = useMe();
   const [q, setQ] = useState("");
-  const { data: brands, isError, isLoading } = useBrands(q);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+
+  const { data: brands = [], isError, isLoading } = useBrands(q);
   const canCreate = me?.role === "sales" || me?.role === "admin" || me?.role === "ops";
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Reset page when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [q]);
+
+  const paginatedBrands = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return brands.slice(start, start + pageSize);
+  }, [brands, currentPage, pageSize]);
 
   const handleCsvImport = async (e) => {
     const file = e.target.files?.[0];
@@ -330,7 +344,7 @@ export default function Brands() {
 
         {isError && <EmptyState title="Brands unavailable" hint="Try again shortly." testId="brands-error-state" />}
         {isLoading && <BrandsSkeleton count={6} />}
-        {!isLoading && !isError && brands?.length === 0 && (
+        {!isLoading && !isError && brands.length === 0 && (
           <EmptyState
             title="No brands yet"
             hint="Brands are created here, or automatically the first time Sales adds one to an interest queue."
@@ -339,58 +353,72 @@ export default function Brands() {
           />
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="brand-grid">
-          {(brands ?? []).map((b) => (
-            <Link key={b.id} to={`/brands/${b.id}`} data-testid={`brand-card-${b.name.replace(/\s+/g, "-")}`}>
-              <Card className="h-full border-border/70 bg-card/80 transition-colors duration-200 hover:border-primary/45">
-                <CardContent className="space-y-2.5 px-4 py-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-heading text-base font-semibold">{b.name}</p>
-                      {b.industry && <p className="mono-label text-muted-foreground">{b.industry}</p>}
+        {paginatedBrands.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="brand-grid">
+            {paginatedBrands.map((b) => (
+              <Link key={b.id} to={`/brands/${b.id}`} data-testid={`brand-card-${b.name.replace(/\s+/g, "-")}`}>
+                <Card className="h-full border-border/70 bg-card/80 transition-colors duration-200 hover:border-primary/45">
+                  <CardContent className="space-y-2.5 px-4 py-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-heading text-base font-semibold">{b.name}</p>
+                        {b.industry && <p className="mono-label text-muted-foreground">{b.industry}</p>}
+                      </div>
+                      <Building2 className="size-4 shrink-0 text-primary" />
                     </div>
-                    <Building2 className="size-4 shrink-0 text-primary" />
-                  </div>
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    {b.contact_person && (
-                      <p className="flex items-center gap-1.5 truncate">
-                        <User className="size-3.5 shrink-0" />
-                        {b.contact_person}
-                      </p>
-                    )}
-                    {b.contact_email && (
-                      <p className="flex items-center gap-1.5 truncate">
-                        <Mail className="size-3.5 shrink-0" />
-                        {b.contact_email}
-                      </p>
-                    )}
-                    {b.contact_phone && (
-                      <p className="flex items-center gap-1.5 truncate">
-                        <Phone className="size-3.5 shrink-0" />
-                        {b.contact_phone}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className="mono-label border-border/70 text-muted-foreground">
-                      {b.campaign_count} campaign{b.campaign_count === 1 ? "" : "s"}
-                    </Badge>
-                    {b.live_campaigns > 0 && (
-                      <Badge variant="outline" className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs">
-                        {b.live_campaigns} live
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      {b.contact_person && (
+                        <p className="flex items-center gap-1.5 truncate">
+                          <User className="size-3.5 shrink-0" />
+                          {b.contact_person}
+                        </p>
+                      )}
+                      {b.contact_email && (
+                        <p className="flex items-center gap-1.5 truncate">
+                          <Mail className="size-3.5 shrink-0" />
+                          {b.contact_email}
+                        </p>
+                      )}
+                      {b.contact_phone && (
+                        <p className="flex items-center gap-1.5 truncate">
+                          <Phone className="size-3.5 shrink-0" />
+                          {b.contact_phone}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge variant="outline" className="mono-label border-border/70 text-muted-foreground">
+                        {b.campaign_count} campaign{b.campaign_count === 1 ? "" : "s"}
                       </Badge>
-                    )}
-                    {b.open_queue_entries > 0 && (
-                      <Badge variant="outline" className="mono-label rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs">
-                        {b.open_queue_entries} in queue
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+                      {b.live_campaigns > 0 && (
+                        <Badge variant="outline" className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs">
+                          {b.live_campaigns} live
+                        </Badge>
+                      )}
+                      {b.open_queue_entries > 0 && (
+                        <Badge variant="outline" className="mono-label rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs">
+                          {b.open_queue_entries} in queue
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {brands.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={brands.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[12, 24, 48]}
+            itemLabel="brands"
+          />
+        )}
       </div>
     </AppShell>
   );
