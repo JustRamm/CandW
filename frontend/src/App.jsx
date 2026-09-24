@@ -8,31 +8,66 @@ import { useMe } from "@/lib/queries";
 
 import { NotFound, Forbidden, ServerError, OfflineBanner } from "@/pages/errors";
 
+// Safe lazy loader that gracefully handles deployment version chunk updates
+function safeLazy(importFn) {
+  return lazy(async () => {
+    try {
+      return await importFn();
+    } catch (err) {
+      const isChunkError =
+        err?.message?.includes("Failed to fetch dynamically imported module") ||
+        err?.message?.includes("Importing a module script failed") ||
+        err?.name === "TypeError";
+      if (isChunkError) {
+        const reloadKey = `chunk_reload_${Date.now()}`;
+        const lastReload = sessionStorage.getItem("last_chunk_reload");
+        if (!lastReload || Date.now() - Number(lastReload) > 10000) {
+          sessionStorage.setItem("last_chunk_reload", String(Date.now()));
+          window.location.reload();
+          return { default: () => null };
+        }
+      }
+      throw err;
+    }
+  });
+}
+
 // Route-level Code Splitting for ultra-fast initial bundle loading
-const Login = lazy(() => import("@/pages/Login"));
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const Assets = lazy(() => import("@/pages/Assets"));
-const AssetDetail = lazy(() => import("@/pages/AssetDetail"));
-const Queue = lazy(() => import("@/pages/Queue"));
-const Brands = lazy(() => import("@/pages/Brands"));
-const BrandDetail = lazy(() => import("@/pages/BrandDetail"));
-const Campaigns = lazy(() => import("@/pages/Campaigns"));
-const CampaignDetail = lazy(() => import("@/pages/CampaignDetail"));
-const Audit = lazy(() => import("@/pages/Audit"));
-const Admin = lazy(() => import("@/pages/Admin"));
-const ClientPortal = lazy(() => import("@/pages/ClientPortal"));
+const Login = safeLazy(() => import("@/pages/Login"));
+const Dashboard = safeLazy(() => import("@/pages/Dashboard"));
+const Assets = safeLazy(() => import("@/pages/Assets"));
+const AssetDetail = safeLazy(() => import("@/pages/AssetDetail"));
+const Queue = safeLazy(() => import("@/pages/Queue"));
+const Brands = safeLazy(() => import("@/pages/Brands"));
+const BrandDetail = safeLazy(() => import("@/pages/BrandDetail"));
+const Campaigns = safeLazy(() => import("@/pages/Campaigns"));
+const CampaignDetail = safeLazy(() => import("@/pages/CampaignDetail"));
+const Audit = safeLazy(() => import("@/pages/Audit"));
+const Admin = safeLazy(() => import("@/pages/Admin"));
+const ClientPortal = safeLazy(() => import("@/pages/ClientPortal"));
 
 // ErrorBoundary catches any render-time crash and renders ServerError recovery page
 class ErrorBoundary extends Component {
   state = { hasError: false, error: null };
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, info) { console.error("ErrorBoundary caught:", error, info); }
+  componentDidCatch(error, info) {
+    console.error("ErrorBoundary caught:", error, info);
+    if (
+      error?.message?.includes("Failed to fetch dynamically imported module") ||
+      error?.message?.includes("Importing a module script failed")
+    ) {
+      window.location.reload();
+    }
+  }
   render() {
     if (this.state.hasError) {
       return (
         <ServerError
           error={this.state.error}
-          onReset={() => this.setState({ hasError: false, error: null })}
+          onReset={() => {
+            this.setState({ hasError: false, error: null });
+            window.location.reload();
+          }}
         />
       );
     }

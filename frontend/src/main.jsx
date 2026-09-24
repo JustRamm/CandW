@@ -7,6 +7,12 @@ import App from "./App.jsx";
 import { queryClient } from "./lib/queryClient";
 import { registerServiceWorker } from "./lib/pwa";
 
+// Automatically reload to latest deployment bundle if an old cached chunk hash is requested
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  window.location.reload();
+});
+
 registerServiceWorker();
 
 createRoot(document.getElementById("root")).render(
