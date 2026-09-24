@@ -86,6 +86,12 @@ export function markNotificationRead(id) {
   saveNotifications(updated);
 }
 
+export function toggleNotificationRead(id) {
+  const current = getStoredNotifications();
+  const updated = current.map((n) => (n.id === id ? { ...n, read: !n.read } : n));
+  saveNotifications(updated);
+}
+
 export function deleteNotification(id) {
   const current = getStoredNotifications();
   const updated = current.filter((n) => n.id !== id);

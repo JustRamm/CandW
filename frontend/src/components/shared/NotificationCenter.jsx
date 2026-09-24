@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Bell,
+  Check,
   CheckCheck,
   Trash2,
   ExternalLink,
@@ -18,6 +19,7 @@ import {
   subscribeToNotificationFeed,
   markAllNotificationsRead,
   markNotificationRead,
+  toggleNotificationRead,
   deleteNotification,
   clearAllNotifications,
   evaluateSystemAlerts,
@@ -152,11 +154,11 @@ export default function NotificationCenter() {
                   variant="ghost"
                   size="xs"
                   onClick={markAllNotificationsRead}
-                  className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                  className="h-6 px-2 text-[11px] font-medium text-primary hover:text-primary hover:bg-primary/10 transition-colors"
                   title="Mark all as read"
                 >
-                  <CheckCheck className="size-3 mr-1" />
-                  Read all
+                  <CheckCheck className="size-3.5 mr-1" />
+                  Mark all read
                 </Button>
               )}
               {notifications.length > 0 && (
@@ -301,8 +303,34 @@ export default function NotificationCenter() {
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                      {isUnread && (
-                        <span className="size-2 rounded-full bg-primary shrink-0" />
+                      {isUnread ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            markNotificationRead(item.id);
+                          }}
+                          className="rounded-md p-1 text-primary hover:bg-primary/15 transition-colors cursor-pointer"
+                          title="Mark as read"
+                          aria-label="Mark as read"
+                        >
+                          <Check className="size-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleNotificationRead(item.id);
+                          }}
+                          className="rounded-md p-1 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                          title="Mark as unread"
+                          aria-label="Mark as unread"
+                        >
+                          <span className="size-2 rounded-full border border-muted-foreground/60 inline-block" />
+                        </button>
                       )}
                       <button
                         type="button"
