@@ -1578,26 +1578,25 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
       data-testid={`asset-card-${a.asset_code}`}
     >
       <Link to={`/assets/${a.id}`} className="block flex-1 flex flex-col">
-        {/* Native Orientation Media Frame: 16:9 for Metro vs 9:16 for Mall */}
+        {/* Native Orientation: 16:9 Landscape for Metro vs 4:5 Natural Portrait for Mall */}
         <div
           className={cn(
             "relative w-full overflow-hidden bg-secondary/35 border-b border-border/60 flex items-center justify-center select-none",
-            isMetro ? "aspect-video" : isMall ? "aspect-[9/16]" : "aspect-[4/3]"
+            isMetro ? "aspect-video" : "aspect-[4/5]"
           )}
         >
-          {/* Ad image uncropped (0% content cut) */}
           <PhotoSlideshow
             asset={a}
             variant="card"
-            fitMode="contain"
+            fitMode={isMetro ? "contain" : "cover"}
             className="size-full"
-            imageClassName="size-full p-1.5"
+            imageClassName={isMetro ? "size-full p-1.5" : "size-full"}
           />
 
           {/* Top Tag: Theme Venue & Orientation Badge */}
           <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1">
             <span className="inline-flex items-center gap-1 rounded-md bg-card/95 backdrop-blur-md px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/80 shadow-xs">
-              {isMetro ? "🚇 Metro (16:9)" : isMall ? "🏢 Mall (9:16)" : "🪧 Billboard"}
+              {isMetro ? "🚇 Metro (16:9)" : isMall ? "🏢 Mall" : "🪧 Billboard"}
             </span>
           </div>
 
@@ -2488,14 +2487,14 @@ export default function Assets() {
                         🏢
                       </span>
                       <h3 className="font-heading text-base font-bold text-foreground">
-                        Mall Bench Displays (9:16 Portrait)
+                        Mall Bench Displays
                       </h3>
                       <Badge variant="outline" className="rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border-emerald-200">
                         {paginatedAssets.filter((a) => getAssetVenueType(a) === "mall").length} displays
                       </Badge>
                     </div>
                   </div>
-                  <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
                     {paginatedAssets
                       .filter((a) => getAssetVenueType(a) === "mall")
                       .map((a) => (
@@ -2544,9 +2543,9 @@ export default function Assets() {
               )}
             </div>
           ) : (
-            /* Collage Masonry Grid View */
+            /* Grid View */
             <div className="space-y-4">
-              <div className="columns-1 sm:columns-2 md:columns-3 xl:columns-4 gap-4" data-testid="asset-grid">
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
                 {paginatedAssets.map((a) => (
                   <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
                 ))}
