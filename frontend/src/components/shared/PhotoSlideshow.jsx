@@ -81,24 +81,24 @@ export default function PhotoSlideshow({
   if (!current) {
     return (
       <div
-        className={cn("flex size-full items-center justify-center bg-secondary/60", className)}
+        className={cn("flex size-full items-center justify-center bg-secondary/40 text-muted-foreground", className)}
         data-testid="photo-slideshow-empty"
       >
-        <ImageIcon className="size-7 text-muted-foreground" />
+        <ImageIcon className="size-6 opacity-60" />
       </div>
     );
   }
 
   return (
-    <div className={cn("group/slide relative size-full overflow-hidden bg-secondary/60", className)} data-testid="photo-slideshow">
+    <div className={cn("group/slide relative size-full overflow-hidden bg-secondary/30 flex items-center justify-center", className)} data-testid="photo-slideshow">
       <SmartImage
         src={current}
         alt={`${asset.location_name} photo ${i + 1} of ${count}`}
         preset={variant === "card" ? "card" : "hero"}
         aspectRatio="aspect-auto"
-        containerClassName="size-full"
+        containerClassName="size-full bg-transparent"
         className={cn(
-          "size-full transition-transform duration-300 group-hover:scale-[1.03]",
+          "size-full transition-transform duration-300 group-hover:scale-[1.02]",
           fitMode === "contain" ? "object-contain" : "object-cover",
           imageClassName
         )}

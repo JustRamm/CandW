@@ -11,6 +11,7 @@ import {
   ExternalLink,
   FileDown,
   LayoutGrid,
+  Layers,
   Link2,
   MapPin,
   MapPinned,
@@ -1566,6 +1567,145 @@ export function DeleteAssetDialog({ asset }) {
   );
 }
 
+export function AssetCard({ asset: a, canManage, isAdmin }) {
+  const venue = getAssetVenueType(a);
+  const isMetro = venue === "metro";
+  const isMall = venue === "mall";
+
+  return (
+    <Card
+      className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs transition-all duration-200 hover:shadow-md hover:border-primary/50 break-inside-avoid mb-4"
+      data-testid={`asset-card-${a.asset_code}`}
+    >
+      <Link to={`/assets/${a.id}`} className="block flex-1 flex flex-col">
+        {/* Native Orientation Media Frame: 16:9 for Metro vs 9:16 for Mall */}
+        <div
+          className={cn(
+            "relative w-full overflow-hidden bg-secondary/35 border-b border-border/60 flex items-center justify-center select-none",
+            isMetro ? "aspect-video" : isMall ? "aspect-[9/16]" : "aspect-[4/3]"
+          )}
+        >
+          {/* Ad image uncropped (0% content cut) */}
+          <PhotoSlideshow
+            asset={a}
+            variant="card"
+            fitMode="contain"
+            className="size-full"
+            imageClassName="size-full p-1.5"
+          />
+
+          {/* Top Tag: Theme Venue & Orientation Badge */}
+          <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1">
+            <span className="inline-flex items-center gap-1 rounded-md bg-card/95 backdrop-blur-md px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/80 shadow-xs">
+              {isMetro ? "🚇 Metro (16:9)" : isMall ? "🏢 Mall (9:16)" : "🪧 Billboard"}
+            </span>
+          </div>
+
+          {/* Bottom Bar: Asset Code & Status */}
+          <div className="pointer-events-none absolute bottom-2 inset-x-2.5 flex items-center justify-between gap-1.5 z-10">
+            <span className="mono-label rounded-md bg-card/95 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-foreground border border-border/80 shadow-xs tracking-wide">
+              {a.asset_code}
+            </span>
+            <AssetStatusBadge status={a.status} />
+          </div>
+        </div>
+
+        {/* Card Body */}
+        <CardContent className="p-3.5 flex flex-col justify-between flex-1 gap-2.5 bg-card">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-1.5">
+              <p className="truncate font-heading text-sm font-semibold text-foreground leading-tight" title={a.location_name}>
+                {a.location_name}
+              </p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const url =
+                    a.map_url
+                      ? a.map_url
+                      : a.latitude && a.longitude
+                      ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
+                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.description ? " " + a.description : "") + (a.city ? `, ${a.city}` : ", Kerala"))}`;
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }}
+                className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
+                title={a.description ? `${a.location_name}\nSpot: ${a.description}` : "Open location on Google Maps"}
+              >
+                <ExternalLink className="size-3.5" />
+              </button>
+            </div>
+
+            {a.description && (
+              <div className="flex items-start gap-1 rounded-md bg-secondary/70 px-2 py-1 text-[11px] font-medium text-foreground/90">
+                <MapPin className="mt-0.5 size-3 shrink-0 text-primary" />
+                <span className="truncate" title={a.description}>{a.description}</span>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            {a.current_brand &&
+              a.current_brand.split(",").map((b) => (
+                <Badge
+                  key={b.trim()}
+                  variant="outline"
+                  className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs"
+                >
+                  {b.trim()}
+                </Badge>
+              ))}
+            {a.queue_count > 0 && (
+              <Badge
+                variant="outline"
+                className="mono-label rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs"
+                data-testid={`asset-queue-count-${a.asset_code}`}
+              >
+                <Users className="mr-1 size-3" />
+                {a.queue_count} in queue
+              </Badge>
+            )}
+            {a.next_gtp_date && (
+              <Badge
+                variant="outline"
+                className={
+                  a.gtp_overdue
+                    ? "mono-label rounded-full border-red-200 bg-red-50 text-[#ba1a1a] shadow-xs"
+                    : "mono-label rounded-full border-slate-200 bg-slate-100 text-slate-600 shadow-xs"
+                }
+                data-testid={`asset-next-gtp-${a.asset_code}`}
+              >
+                GTP {a.next_gtp_date}
+              </Badge>
+            )}
+          </div>
+        </CardContent>
+      </Link>
+
+      {/* Card Action Footer */}
+      {canManage && (
+        <div className="flex items-center gap-1.5 border-t border-border/60 bg-secondary/20 px-3.5 py-2 mt-auto">
+          <AssetDialog
+            asset={a}
+            trigger={
+              <Button variant="outline" size="xs" data-testid={`edit-asset-button-${a.asset_code}`} className="h-7 text-xs">
+                <Pencil className="size-3.5" />
+                Edit
+              </Button>
+            }
+          />
+          {isAdmin && <DeleteAssetDialog asset={a} />}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function CsvImport() {
   const [busy, setBusy] = useState(false);
   // Bug #22 fix: use a ref to reliably reset the file input (plain `e.target.value = ""` fails on Safari iOS)
@@ -2201,7 +2341,7 @@ export default function Assets() {
               </Button>
             )}
 
-            {/* View Mode Switcher: Grid vs Map */}
+            {/* View Mode Switcher: Collage Grid vs Grouped vs Map */}
             <div className="relative flex items-center rounded-xl border border-border/80 bg-muted/60 p-1 shrink-0 ml-auto shadow-inner">
               <button
                 type="button"
@@ -2210,12 +2350,13 @@ export default function Assets() {
                   setViewMode("grid");
                 }}
                 className={cn(
-                  "relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
+                  "relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
                   viewMode === "grid"
                     ? "text-primary-foreground font-bold"
                     : "text-muted-foreground hover:text-foreground"
                 )}
                 data-testid="view-grid-btn"
+                title="Collage masonry grid with natural orientations"
               >
                 {viewMode === "grid" && (
                   <motion.div
@@ -2226,7 +2367,35 @@ export default function Assets() {
                 )}
                 <span className="relative z-10 flex items-center gap-1.5">
                   <LayoutGrid className="size-3.5" />
-                  Grid View
+                  Collage Grid
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  sound.click();
+                  setViewMode("grouped");
+                }}
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
+                  viewMode === "grouped"
+                    ? "text-primary-foreground font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                data-testid="view-grouped-btn"
+                title="Grouped by Metro (16:9) and Mall (9:16) categories"
+              >
+                {viewMode === "grouped" && (
+                  <motion.div
+                    layoutId="active-viewmode-pill-desktop"
+                    className="absolute inset-0 rounded-lg bg-primary shadow-sm"
+                    transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <Layers className="size-3.5" />
+                  Grouped
                 </span>
               </button>
 
@@ -2237,7 +2406,7 @@ export default function Assets() {
                   setViewMode("map");
                 }}
                 className={cn(
-                  "relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
+                  "relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
                   viewMode === "map"
                     ? "text-primary-foreground font-bold"
                     : "text-muted-foreground hover:text-foreground"
@@ -2268,7 +2437,7 @@ export default function Assets() {
           />
         )}
 
-        {isLoading && <AssetsSkeleton count={6} />}
+        {isLoading && <AssetsSkeleton count={8} />}
 
         {!isLoading && !isError && assets?.length === 0 && (
           <EmptyState
@@ -2282,155 +2451,105 @@ export default function Assets() {
         {!isLoading && !isError && assets?.length > 0 && (
           viewMode === "map" ? (
             <AssetMap assets={assets} />
+          ) : viewMode === "grouped" ? (
+            <div className="space-y-8">
+              {/* Grouped Mode: Metro Stations Section */}
+              {paginatedAssets.filter((a) => getAssetVenueType(a) === "metro").length > 0 && (
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-border/80 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        🚇
+                      </span>
+                      <h3 className="font-heading text-base font-bold text-foreground">
+                        Metro Station Displays (16:9 Landscape)
+                      </h3>
+                      <Badge variant="outline" className="rounded-full bg-primary/5 text-primary text-xs font-semibold border-primary/20">
+                        {paginatedAssets.filter((a) => getAssetVenueType(a) === "metro").length} displays
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {paginatedAssets
+                      .filter((a) => getAssetVenueType(a) === "metro")
+                      .map((a) => (
+                        <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Grouped Mode: Mall Displays Section */}
+              {paginatedAssets.filter((a) => getAssetVenueType(a) === "mall").length > 0 && (
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-border/80 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                        🏢
+                      </span>
+                      <h3 className="font-heading text-base font-bold text-foreground">
+                        Mall Bench Displays (9:16 Portrait)
+                      </h3>
+                      <Badge variant="outline" className="rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border-emerald-200">
+                        {paginatedAssets.filter((a) => getAssetVenueType(a) === "mall").length} displays
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                    {paginatedAssets
+                      .filter((a) => getAssetVenueType(a) === "mall")
+                      .map((a) => (
+                        <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Grouped Mode: Other Displays Section */}
+              {paginatedAssets.filter((a) => getAssetVenueType(a) === "other").length > 0 && (
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-border/80 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+                        🪧
+                      </span>
+                      <h3 className="font-heading text-base font-bold text-foreground">
+                        Other Billboards & Displays
+                      </h3>
+                      <Badge variant="outline" className="rounded-full bg-amber-50 text-amber-700 text-xs font-semibold border-amber-200">
+                        {paginatedAssets.filter((a) => getAssetVenueType(a) === "other").length} displays
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                    {paginatedAssets
+                      .filter((a) => getAssetVenueType(a) === "other")
+                      .map((a) => (
+                        <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {assets.length > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalItems={assets.length}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                  pageSizeOptions={[12, 24, 48]}
+                  itemLabel="assets"
+                />
+              )}
+            </div>
           ) : (
+            /* Collage Masonry Grid View */
             <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
-                {paginatedAssets.map((a) => {
-                  const venue = getAssetVenueType(a);
-                  const isMetro = venue === "metro";
-                  const isMall = venue === "mall";
-
-                  return (
-                    <Card
-                      key={a.id}
-                      className="group flex flex-col justify-between h-full overflow-hidden border-border/80 bg-card p-0 shadow-xs transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/50 rounded-xl"
-                      data-testid={`asset-card-${a.asset_code}`}
-                    >
-                      <Link to={`/assets/${a.id}`} className="block flex-1 flex flex-col">
-                        {/* ── Unified Media Stage (Aspect 4:5 for balanced showcase) ── */}
-                        <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950 flex items-center justify-center select-none">
-                          {/* Ambient Frosted Glow for landscape / wide ads */}
-                          {isMetro ? (
-                            <div className="absolute inset-0 overflow-hidden opacity-35 filter blur-xl scale-125 pointer-events-none">
-                              <PhotoSlideshow asset={a} variant="card" fitMode="cover" />
-                            </div>
-                          ) : null}
-
-                          {/* Primary Centered Ad Image */}
-                          <div className={cn("relative z-10 size-full flex items-center justify-center", isMetro && "p-2")}>
-                            <PhotoSlideshow
-                              asset={a}
-                              variant="card"
-                              fitMode={isMetro ? "contain" : "cover"}
-                              className="size-full"
-                              imageClassName={isMetro ? "max-h-full rounded-md shadow-md" : "size-full"}
-                            />
-                          </div>
-
-                          {/* Top Tag: Venue Type & Format Badge */}
-                          <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1">
-                            <span className="inline-flex items-center gap-1 rounded-md bg-black/65 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 border border-white/10 shadow-xs">
-                              {isMetro ? "🚇 Metro (16:9)" : isMall ? "🏢 Mall (9:16)" : "🪧 Billboard"}
-                            </span>
-                          </div>
-
-                          {/* Bottom Gradient Overlay for High Contrast */}
-                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/85 via-black/40 to-transparent z-20" />
-
-                          {/* Bottom Overlay: Asset Code & Status Badge */}
-                          <div className="pointer-events-none absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2 z-30">
-                            <span className="mono-label truncate text-white drop-shadow-sm font-bold tracking-wide">
-                              {a.asset_code}
-                            </span>
-                            <AssetStatusBadge status={a.status} />
-                          </div>
-                        </div>
-
-                        {/* ── Card Content Body ── */}
-                        <CardContent className="px-3.5 py-3 flex-1 flex flex-col justify-between space-y-2.5">
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-1.5">
-                              <p className="truncate font-heading text-sm font-semibold text-foreground leading-tight" title={a.location_name}>
-                                {a.location_name}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const url =
-                                    a.map_url
-                                      ? a.map_url
-                                      : a.latitude && a.longitude
-                                      ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
-                                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.description ? " " + a.description : "") + (a.city ? `, ${a.city}` : ", Kerala"))}`;
-                                  window.open(url, "_blank", "noopener,noreferrer");
-                                }}
-                                className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
-                                title={a.description ? `${a.location_name}\nSpot: ${a.description}` : "Open location on Google Maps"}
-                              >
-                                <ExternalLink className="size-3.5" />
-                              </button>
-                            </div>
-
-                            {a.description && (
-                              <div className="flex items-start gap-1 rounded bg-secondary/70 px-2 py-0.5 text-[11px] font-medium text-foreground/90">
-                                <MapPin className="mt-0.5 size-3 shrink-0 text-primary" />
-                                <span className="truncate" title={a.description}>{a.description}</span>
-                              </div>
-                            )}
-
-                            <p className="text-xs text-muted-foreground">
-                              {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
-                            </p>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                            {a.current_brand &&
-                              a.current_brand.split(",").map((b) => (
-                                <Badge
-                                  key={b.trim()}
-                                  variant="outline"
-                                  className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs"
-                                >
-                                  {b.trim()}
-                                </Badge>
-                              ))}
-                            {a.queue_count > 0 && (
-                              <Badge
-                                variant="outline"
-                                className="mono-label rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs"
-                                data-testid={`asset-queue-count-${a.asset_code}`}
-                              >
-                                <Users className="mr-1 size-3" />
-                                {a.queue_count} in queue
-                              </Badge>
-                            )}
-                            {a.next_gtp_date && (
-                              <Badge
-                                variant="outline"
-                                className={
-                                  a.gtp_overdue
-                                    ? "mono-label rounded-full border-red-200 bg-red-50 text-[#ba1a1a] shadow-xs"
-                                    : "mono-label rounded-full border-slate-200 bg-slate-100 text-slate-600 shadow-xs"
-                                }
-                                data-testid={`asset-next-gtp-${a.asset_code}`}
-                              >
-                                GTP {a.next_gtp_date}
-                              </Badge>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Link>
-
-                      {/* ── Card Action Footer ── */}
-                      {canManage && (
-                        <div className="flex items-center gap-1.5 border-t border-border/60 bg-muted/20 px-3.5 py-2 mt-auto">
-                          <AssetDialog
-                            asset={a}
-                            trigger={
-                              <Button variant="outline" size="xs" data-testid={`edit-asset-button-${a.asset_code}`} className="h-7 text-xs">
-                                <Pencil className="size-3.5" />
-                                Edit
-                              </Button>
-                            }
-                          />
-                          {me?.role === "admin" && <DeleteAssetDialog asset={a} />}
-                        </div>
-                      )}
-                    </Card>
-                  );
-                })}
+              <div className="columns-1 sm:columns-2 md:columns-3 xl:columns-4 gap-4" data-testid="asset-grid">
+                {paginatedAssets.map((a) => (
+                  <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
+                ))}
               </div>
 
               {assets.length > 0 && (
