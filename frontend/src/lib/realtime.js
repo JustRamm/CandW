@@ -6,6 +6,9 @@ import { fmtDate } from "@/lib/helpers";
 
 const STORAGE_KEY = "ims_notifications_v2";
 
+let activeChannel = null;
+let backgroundIntervalId = null;
+
 // In-memory subscribers for UI updates
 const listeners = new Set();
 
@@ -353,9 +356,6 @@ export async function evaluateSystemAlerts(currentUser = null) {
   }
 }
 
-let activeChannel = null;
-let backgroundIntervalId = null;
-
 /**
  * Initializes Supabase Realtime Channel
  * Listens to postgres_changes across queue_entries, campaigns, and assets
@@ -372,8 +372,18 @@ export function initRealtimeFeed(currentUser = null) {
 
   if (activeChannel) return activeChannel;
 
-  activeChannel = supabase
-    .channel("ims-realtime-feed-v2")
+  try {
+    const existing = supabase.getChannels().find((c) => c.topic === "realtime:ims-realtime-feed-v2");
+    if (existing) {
+      activeChannel = existing;
+      return activeChannel;
+    }
+  } catch {}
+
+  const channel = supabase.channel("ims-realtime-feed-v2");
+  activeChannel = channel;
+
+  channel
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "queue_entries" },

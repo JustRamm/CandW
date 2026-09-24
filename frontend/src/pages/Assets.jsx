@@ -1967,7 +1967,7 @@ export default function Assets() {
           viewMode === "map" ? (
             <AssetMap assets={assets} />
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="asset-grid">
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
           {(assets ?? []).map((a) => (
             <Card
               key={a.id}
@@ -1975,11 +1975,11 @@ export default function Assets() {
               data-testid={`asset-card-${a.asset_code}`}
             >
               <Link to={`/assets/${a.id}`} className="block">
-                <div className="relative h-36 overflow-hidden">
+                <div className="relative aspect-[9/16] w-full overflow-hidden bg-secondary/40">
                   <PhotoSlideshow asset={a} variant="card" />
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
-                  <div className="pointer-events-none absolute bottom-2 left-3 right-3 flex items-center justify-between gap-2">
-                    <span className="mono-label truncate text-white drop-shadow-xs font-semibold">{a.asset_code}</span>
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
+                  <div className="pointer-events-none absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
+                    <span className="mono-label truncate text-white drop-shadow-sm font-semibold">{a.asset_code}</span>
                     <AssetStatusBadge status={a.status} />
                   </div>
                 </div>

@@ -3,18 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export default function AssetsSkeleton({ count = 6 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="assets-skeleton">
+    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="assets-skeleton">
       {[...Array(count)].map((_, i) => (
         <Card key={i} className="overflow-hidden rounded-xl border-border/80 bg-card shadow-xs">
-          {/* Card Top / Image or Code Bar */}
-          <div className="border-b border-border/50 bg-secondary/30 p-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="space-y-1.5 min-w-0 flex-1">
-                <Skeleton className="h-5 w-28 rounded-md" />
-                <Skeleton className="h-3.5 w-44" />
-              </div>
-              <Skeleton className="h-5 w-20 rounded-full" />
-            </div>
+          {/* Card Top / Image 9:16 aspect preview */}
+          <div className="relative aspect-[9/16] w-full bg-secondary/30">
+            <Skeleton className="size-full rounded-none" />
           </div>
 
           <CardContent className="space-y-4 p-4">

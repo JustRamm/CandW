@@ -20,28 +20,37 @@ import { errMessage, fmtDate } from "@/lib/helpers";
 function UsersPanel() {
   const { data: users, isError } = useUsers();
   const { data: roles } = useRoles();
-  const [form, setForm] = useState({ email: "", name: "", role: "sales", password: "" });
+  const [form, setForm] = useState({ email: "", name: "", role: "sales" });
+  const [editing, setEditing] = useState(null); // { id, name, role, email }
+
+  const ROLE_LABELS = {
+    admin: "Admin",
+    sales: "Sales",
+    ops: "Operations",
+    finance: "Finance",
+    finance_manager: "Finance Manager",
+  };
 
   const create = useMutation({
     mutationFn: async (body) => {
-      // Note: in production, user creation goes via a Supabase Edge Function
-      // to use the service-role key. For the prototype, we call the RPC directly.
-      const { data, error } = await supabase.rpc("admin_create_user", {
-        p_email: body.email,
-        p_name: body.name,
-        p_role: body.role,
-        p_password: body.password,
+      // Insert into the authorized_users allowlist so the invitee can self-sign-up.
+      // The Supabase trigger on auth.users will then sync their profile automatically.
+      const { error } = await supabase.from("authorized_users").insert({
+        id: crypto.randomUUID(),
+        email: body.email.trim().toLowerCase(),
+        name: body.name.trim(),
+        role: body.role,
       });
       if (error) throw { body: { detail: error.message } };
       const ROLE_LABELS = { admin: "Admin", sales: "Sales", ops: "Operations", finance: "Finance", finance_manager: "Finance Manager" };
-      return { ...data, name: body.name, role_label: ROLE_LABELS[body.role] ?? body.role };
+      return { name: body.name, role_label: ROLE_LABELS[body.role] ?? body.role };
     },
     onSuccess: (u) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success(`${u.name} invited as ${u.role_label}`);
-      setForm({ email: "", name: "", role: "sales", password: "" });
+      toast.success(`${u.name} invited as ${u.role_label} — they can now sign up with their email`);
+      setForm({ email: "", name: "", role: "sales" });
     },
-    onError: (err) => toast.error(errMessage(err, "Could not create the user")),
+    onError: (err) => toast.error(errMessage(err, "Could not invite the user")),
   });
 
   const toggle = useMutation({
@@ -58,7 +67,30 @@ function UsersPanel() {
     onError: (err) => toast.error(errMessage(err, "Could not update the user")),
   });
 
-  const roleLabel = (v) => roles?.find((r) => r.value === v)?.label ?? v;
+  // ── Edit name + role ──────────────────────────────────────
+  const editUser = useMutation({
+    mutationFn: async ({ id, name, role, email }) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ name: name.trim(), role })
+        .eq("id", id);
+      if (error) throw { body: { detail: error.message } };
+      // Keep authorized_users in sync
+      await supabase
+        .from("authorized_users")
+        .update({ name: name.trim(), role })
+        .eq("email", email);
+      return { name, role };
+    },
+    onSuccess: ({ name, role }) => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success(`${name} updated to ${ROLE_LABELS[role] ?? role}`);
+      setEditing(null);
+    },
+    onError: (err) => toast.error(errMessage(err, "Could not update the user")),
+  });
+
+  const roleLabel = (v) => ROLE_LABELS[v] ?? v;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
@@ -76,36 +108,87 @@ function UsersPanel() {
             {(users ?? []).map((u) => (
               <li
                 key={u.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2.5"
+                className="rounded-lg border border-border/60 bg-secondary/30 px-3 py-2.5"
                 data-testid={`user-row-${u.email}`}
               >
-                <div className="min-w-0">
-                  <p className="truncate font-heading text-sm font-medium">{u.name}</p>
-                  <p className="mono-label truncate text-muted-foreground">{u.email}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="mono-label border-primary/40 text-primary">
-                    {u.role_label || roleLabel(u.role)}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className={
-                      u.active
-                        ? "mono-label border-emerald-800 text-emerald-300"
-                        : "mono-label border-border/70 text-muted-foreground"
-                    }
+                {editing?.id === u.id ? (
+                  <form
+                    className="space-y-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      editUser.mutate({ id: u.id, email: u.email, name: editing.name, role: editing.role });
+                    }}
+                    data-testid={`edit-user-form-${u.email}`}
                   >
-                    {u.active ? "active" : "disabled"}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => toggle.mutate(u.id)}
-                    data-testid={`toggle-user-${u.email}`}
-                  >
-                    {u.active ? "Disable" : "Enable"}
-                  </Button>
-                </div>
+                    <Input
+                      value={editing.name}
+                      onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                      required
+                      placeholder="Full name"
+                      data-testid="edit-user-name-input"
+                    />
+                    <p className="mono-label text-muted-foreground">{u.email}</p>
+                    <Select value={editing.role} onValueChange={(v) => setEditing({ ...editing, role: v })}>
+                      <SelectTrigger size="sm" data-testid="edit-user-role-select">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(roles ?? []).map((r) => (
+                          <SelectItem key={r.value} value={r.value} data-testid={`edit-role-option-${r.value}`}>
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex gap-2">
+                      <Button type="submit" size="xs" disabled={editUser.isPending} data-testid="save-user-button">
+                        Save
+                      </Button>
+                      <Button type="button" variant="outline" size="xs" onClick={() => setEditing(null)} data-testid="cancel-edit-user-button">
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate font-heading text-sm font-medium">{u.name}</p>
+                      <p className="mono-label truncate text-muted-foreground">{u.email}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="mono-label border-primary/40 text-primary">
+                        {u.role_label || roleLabel(u.role)}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={
+                          u.active
+                            ? "mono-label border-emerald-800 text-emerald-300"
+                            : "mono-label border-border/70 text-muted-foreground"
+                        }
+                      >
+                        {u.active ? "active" : "disabled"}
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => setEditing({ id: u.id, name: u.name, role: u.role, email: u.email })}
+                        data-testid={`edit-user-${u.email}`}
+                      >
+                        <Pencil className="size-3.5" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => toggle.mutate(u.id)}
+                        data-testid={`toggle-user-${u.email}`}
+                      >
+                        {u.active ? "Disable" : "Enable"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -164,20 +247,11 @@ function UsersPanel() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="u-password">Temporary password</Label>
-              <Input
-                id="u-password"
-                type="password"
-                required
-                minLength={6}
-                value={form.password}
-                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                data-testid="invite-password-input"
-              />
-            </div>
+            <p className="text-[11px] text-muted-foreground">
+              The user will set their own password when they sign up with this email.
+            </p>
             <Button type="submit" className="w-full" disabled={create.isPending} data-testid="submit-invite-button">
-              {create.isPending ? "Inviting…" : "Create account"}
+              {create.isPending ? "Sending invite…" : "Send invite"}
             </Button>
           </form>
         </CardContent>

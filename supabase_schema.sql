@@ -372,8 +372,44 @@ drop policy if exists "documents: public delete" on storage.objects;
 create policy "documents: public delete" on storage.objects
   for delete using (bucket_id = 'documents');
 
--- ── 16. Realtime Publication Setup ───────────────────────────
--- Enables live Supabase feeds for queue entries, campaigns, and audit logs
+-- ── 16. authorized_users (pre-authorization allowlist) ───────
+-- Admins pre-register email + role before the user signs up.
+-- The role check must stay in sync with public.profiles role check.
+create table if not exists public.authorized_users (
+  id              uuid primary key default uuid_generate_v4(),
+  email           text not null unique,
+  name            text not null default '',
+  role            text not null default 'sales'
+                    check (role in ('admin','sales','ops','finance','finance_manager')),
+  active          boolean not null default true,
+  is_registered   boolean not null default false,
+  registered_at   timestamptz,
+  created_at      timestamptz default now()
+);
+
+-- Fix the constraint in case it was created without finance_manager
+alter table public.authorized_users
+  drop constraint if exists authorized_users_role_check;
+alter table public.authorized_users
+  add constraint authorized_users_role_check
+  check (role in ('admin','sales','ops','finance','finance_manager'));
+
+alter table public.authorized_users enable row level security;
+drop policy if exists "authorized_users: admin all" on public.authorized_users;
+drop policy if exists "authorized_users: read own" on public.authorized_users;
+
+create policy "authorized_users: admin all" on public.authorized_users
+  for all using (public.is_admin());
+create policy "authorized_users: read own" on public.authorized_users
+  for select using (
+    auth.role() = 'authenticated'
+    and email = auth.email()
+  );
+create policy "authorized_users: signup check" on public.authorized_users
+  for select using (true);
+
+-- ── 17. Realtime Publication Setup ───────────────────────────
+-- Enables live Supabase feeds for queue entries, campaigns, audit logs, profiles, and authorized_users
 do $$
 begin
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'queue_entries') then
@@ -385,4 +421,11 @@ begin
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'audit_logs') then
     alter publication supabase_realtime add table public.audit_logs;
   end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'profiles') then
+    alter publication supabase_realtime add table public.profiles;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'authorized_users') then
+    alter publication supabase_realtime add table public.authorized_users;
+  end if;
 end $$;
+
