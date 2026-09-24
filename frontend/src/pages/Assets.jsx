@@ -462,7 +462,7 @@ export function AssetDialog({ asset, trigger }) {
         ? `${body.notes ? body.notes + " · " : ""}${isDigitalAsset ? "Digital Ad Loop: " : "Brand Partner: "}${brandSummary}`
         : body.notes;
 
-      const { brand_name, brand_names, ...dbFields } = body;
+      const { brand_name, brand_names, create_dual_sided, ...dbFields } = body;
 
       const payload = {
         ...dbFields,
