@@ -20,7 +20,6 @@ import {
   markNotificationRead,
   deleteNotification,
   clearAllNotifications,
-  triggerTestNotification,
   evaluateSystemAlerts,
 } from "@/lib/realtime";
 import { Button } from "@/components/ui/button";
@@ -128,7 +127,7 @@ export default function NotificationCenter() {
       {open && (
         <div
           className={cn(
-            "absolute right-0 mt-2 z-50 w-80 sm:w-96 rounded-2xl border border-border/80 bg-card p-0 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150",
+            "absolute right-0 mt-2 z-50 w-80 sm:w-[490px] md:w-[520px] rounded-2xl border border-border/80 bg-card p-0 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150",
             // Mobile alignment
             "max-sm:fixed max-sm:inset-x-3 max-sm:top-14 max-sm:w-auto"
           )}
@@ -182,9 +181,9 @@ export default function NotificationCenter() {
             </div>
           </div>
 
-          {/* Category Tabs */}
-          <div className="px-3 pt-2 pb-1 border-b border-border/40 bg-muted/10">
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 text-xs">
+          {/* Category Tabs — Fitted horizontally without scroll */}
+          <div className="px-3 py-2 border-b border-border/40 bg-muted/10">
+            <div className="flex items-center gap-1.5 justify-start text-xs">
               <button
                 type="button"
                 onClick={() => setActiveTab("all")}
@@ -246,19 +245,9 @@ export default function NotificationCenter() {
                   <Sparkles className="size-5 text-muted-foreground/60" />
                 </div>
                 <p className="text-xs font-medium">All caught up</p>
-                <p className="text-[11px] text-muted-foreground/70 mt-0.5 max-w-[240px]">
+                <p className="text-[11px] text-muted-foreground/70 mt-0.5 max-w-[260px]">
                   New assets, brand updates, queue expiry warnings, and campaign updates will surface here.
                 </p>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={triggerTestNotification}
-                  className="mt-3 text-[11px] gap-1 cursor-pointer"
-                  data-testid="test-notification-button"
-                >
-                  <Sparkles className="size-3 text-primary" />
-                  Test notification
-                </Button>
               </div>
             ) : (
               filteredNotifications.map((item) => {
