@@ -361,20 +361,11 @@ export default function ClientPortal() {
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 selection:text-primary">
       {/* ── Internal Staff Preview Notice Bar (Only for logged-in CRM users) ── */}
       {me && (
-        <div className="bg-primary/10 border-b border-primary/25 px-4 py-2 text-xs flex items-center justify-between text-foreground">
-          <div className="flex items-center gap-2">
-            <span className="size-2 rounded-full bg-primary inline-block" />
-            <span>
-              Internal CRM Preview as <strong>{me.name}</strong> ({me.role_label}) · External clients see only the verified report.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={handleBackToCrm}
-            className="font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-          >
-            <ArrowLeft className="size-3.5" /> Return to CRM
-          </button>
+        <div className="bg-primary/10 border-b border-primary/25 px-4 py-2 text-xs flex items-center gap-2 text-foreground">
+          <span className="size-2 rounded-full bg-primary inline-block shrink-0" />
+          <span>
+            Internal CRM Preview as <strong>{me.name}</strong> ({me.role_label}) · External clients see only the verified report.
+          </span>
         </div>
       )}
 
