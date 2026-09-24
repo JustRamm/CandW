@@ -653,7 +653,15 @@ export default function AssetDetail() {
                     </div>
                   ))}
                 </dl>
-                {asset.description && <p className="text-xs text-foreground">{asset.description}</p>}
+                {asset.description && (
+                  <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
+                    <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <div>
+                      <p className="text-[11px] font-semibold text-primary">Exact Placement / Spot Details</p>
+                      <p className="mt-0.5 text-xs text-foreground/90 font-medium">{asset.description}</p>
+                    </div>
+                  </div>
+                )}
                 {asset.notes && <p className="text-xs text-muted-foreground">{asset.notes}</p>}
                 {asset.current_brand && (
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">

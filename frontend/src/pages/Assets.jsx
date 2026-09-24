@@ -1042,6 +1042,24 @@ export function AssetDialog({ asset, trigger }) {
               </p>
             )}
           </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description">Exact Bench Placement / Spot Details</Label>
+              <span className="text-[10px] text-muted-foreground">Optional</span>
+            </div>
+            <Input
+              id="description"
+              value={form.description}
+              onChange={set("description")}
+              placeholder="e.g. MAIN ENTRY BETWEEN ENT 01-02 (LOCATION 01)(BOTH SIDE)"
+              data-testid="asset-description-input"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Specific entrance, floor, gate, atrium, or pillar where this bench is placed.
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="width_ft">Width (ft)</Label>
@@ -1992,18 +2010,26 @@ export default function Assets() {
                         e.preventDefault();
                         e.stopPropagation();
                         const url =
-                          a.latitude && a.longitude
+                          a.map_url
+                            ? a.map_url
+                            : a.latitude && a.longitude
                             ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
-                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.city ? `, ${a.city}` : ", Kerala"))}`;
+                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.description ? " " + a.description : "") + (a.city ? `, ${a.city}` : ", Kerala"))}`;
                         window.open(url, "_blank", "noopener,noreferrer");
                       }}
                       className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
-                      title="Open location on Google Maps"
+                      title={a.description ? `${a.location_name}\nSpot: ${a.description}` : "Open location on Google Maps"}
                     >
                       <ExternalLink className="size-3.5" />
                     </button>
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  {a.description && (
+                    <div className="mt-1 flex items-start gap-1 rounded bg-secondary/70 px-2 py-0.5 text-[11px] font-medium text-foreground/90">
+                      <MapPin className="mt-0.5 size-3 shrink-0 text-primary" />
+                      <span className="truncate" title={a.description}>{a.description}</span>
+                    </div>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
                   </p>
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
