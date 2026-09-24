@@ -746,76 +746,93 @@ export function AssetDialog({ asset, trigger }) {
             </div>
           </div>
 
-          {/* Brand Partner Section: Multi-brand loop for Digital Screens, Single-brand for Static */}
-          {isDigital ? (
-            <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3" data-testid="digital-loop-brand-section">
-              <div className="flex items-center justify-between">
-                <div>
+          {/* Brand Partner and Kerala District — in the same horizontal line */}
+          <div className="grid gap-3 sm:grid-cols-2 items-start">
+            {isDigital ? (
+              <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5" data-testid="digital-loop-brand-section">
+                <div className="flex items-center justify-between">
                   <Label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                    <span>Digital Screen Ad Loop Brands</span>
+                    <span>Ad Loop Brands</span>
                     <span className="text-destructive">*</span>
                   </Label>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Digital displays showcase rotating ad slots (e.g. 10–20s loop). Select all brands running on this screen.
-                  </p>
+                  <Badge variant="outline" className="mono-label text-[10px] border-primary/40 text-primary">
+                    {form.brand_names?.length || 0} in loop
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="mono-label text-[10px] border-primary/40 text-primary">
-                  {form.brand_names?.length || 0} in rotation
-                </Badge>
-              </div>
 
-              {/* Selected Brands Roster */}
-              <div className="flex flex-wrap items-center gap-1.5 min-h-[34px] p-1.5 rounded-md border border-input bg-background">
-                {form.brand_names && form.brand_names.length > 0 ? (
-                  form.brand_names.map((bName) => (
-                    <Badge
-                      key={bName}
-                      variant="secondary"
-                      className="gap-1 px-2 py-0.5 text-xs font-medium bg-primary/10 text-foreground hover:bg-primary/20"
-                    >
-                      <span>{bName}</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            brand_names: (f.brand_names || []).filter((b) => b !== bName),
-                          }))
-                        }
-                        className="rounded-full hover:bg-destructive/20 hover:text-destructive p-0.5 ml-0.5 text-muted-foreground transition-colors cursor-pointer"
-                        title={`Remove ${bName}`}
+                <div className="flex flex-wrap items-center gap-1 min-h-[30px] p-1 rounded-md border border-input bg-background">
+                  {form.brand_names && form.brand_names.length > 0 ? (
+                    form.brand_names.map((bName) => (
+                      <Badge
+                        key={bName}
+                        variant="secondary"
+                        className="gap-1 px-1.5 py-0.5 text-[11px] font-medium bg-primary/10 text-foreground"
                       >
-                        <X className="size-3" />
-                      </button>
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-[11px] text-muted-foreground italic px-1">
-                    No brands in rotation yet. Select below to add.
-                  </span>
-                )}
-              </div>
+                        <span className="truncate max-w-[80px]">{bName}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((f) => ({
+                              ...f,
+                              brand_names: (f.brand_names || []).filter((b) => b !== bName),
+                            }))
+                          }
+                          className="rounded-full hover:bg-destructive/20 hover:text-destructive p-0.5 ml-0.5 text-muted-foreground transition-colors cursor-pointer"
+                        >
+                          <X className="size-2.5" />
+                        </button>
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground italic px-1">
+                      No brands in rotation
+                    </span>
+                  )}
+                </div>
 
-              {/* Brand Selector to Add */}
-              <Select
-                value=""
-                onValueChange={(val) => {
-                  if (val && !(form.brand_names || []).includes(val)) {
-                    setForm((f) => ({
-                      ...f,
-                      brand_names: [...(f.brand_names || []), val],
-                      brand_name: val,
-                    }));
-                  }
-                }}
-              >
-                <SelectTrigger className="bg-background text-xs h-8" data-testid="digital-brand-select">
-                  <SelectValue placeholder="+ Add registered brand to loop rotation..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {brands
-                    .filter((b) => !(form.brand_names || []).includes(b.name))
-                    .map((b) => (
+                <Select
+                  value=""
+                  onValueChange={(val) => {
+                    if (val && !(form.brand_names || []).includes(val)) {
+                      setForm((f) => ({
+                        ...f,
+                        brand_names: [...(f.brand_names || []), val],
+                        brand_name: val,
+                      }));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="bg-background text-xs h-7" data-testid="digital-brand-select">
+                    <SelectValue placeholder="+ Add brand to loop..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {brands
+                      .filter((b) => !(form.brand_names || []).includes(b.name))
+                      .map((b) => (
+                        <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
+                          <span className="font-semibold text-foreground">{b.name}</span>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="asset-brand-select" className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-foreground">
+                    Placeholder Brand Partner <span className="text-destructive">*</span>
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">Required</span>
+                </Label>
+                <Select
+                  value={form.brand_name}
+                  onValueChange={(val) => setForm((f) => ({ ...f, brand_name: val, brand_names: [val] }))}
+                >
+                  <SelectTrigger id="asset-brand-select" className="bg-background text-xs" data-testid="asset-brand-select">
+                    <SelectValue placeholder="Select registered brand..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {brands.map((b) => (
                       <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
                         <span className="font-semibold text-foreground">{b.name}</span>
                         {b.industry && (
@@ -823,65 +840,34 @@ export function AssetDialog({ asset, trigger }) {
                         )}
                       </SelectItem>
                     ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+                {!form.brand_name && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    A registered brand partner is required for all new assets.
+                  </p>
+                )}
+              </div>
+            )}
 
-              {(!form.brand_names || form.brand_names.length === 0) && (
-                <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                  At least one brand partner is required for this digital screen.
-                </p>
-              )}
-            </div>
-          ) : (
             <div className="space-y-1.5">
-              <Label htmlFor="asset-brand-select" className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-foreground">
-                  Placeholder Brand Partner <span className="text-destructive">*</span>
-                </span>
-                <span className="text-[10px] text-muted-foreground">Required</span>
-              </Label>
+              <Label>Kerala District</Label>
               <Select
-                value={form.brand_name}
-                onValueChange={(val) => setForm((f) => ({ ...f, brand_name: val, brand_names: [val] }))}
+                value={form.city}
+                onValueChange={(v) => setForm((f) => ({ ...f, city: v, district: v }))}
               >
-                <SelectTrigger id="asset-brand-select" className="bg-background text-xs" data-testid="asset-brand-select">
-                  <SelectValue placeholder="Select registered brand partner (required)..." />
+                <SelectTrigger data-testid="asset-district-select">
+                  <SelectValue>{(v) => v || "Ernakulam"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {brands.map((b) => (
-                    <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
-                      <span className="font-semibold text-foreground">{b.name}</span>
-                      {b.industry && (
-                        <span className="ml-2 text-[11px] text-muted-foreground">({b.industry})</span>
-                      )}
+                  {KERALA_DISTRICTS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {!form.brand_name && (
-                <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                  A registered brand partner is required for all new assets.
-                </p>
-              )}
             </div>
-          )}
-          <div className="space-y-1.5">
-            <Label>Kerala District</Label>
-            <Select
-              value={form.city}
-              onValueChange={(v) => setForm((f) => ({ ...f, city: v, district: v }))}
-            >
-              <SelectTrigger data-testid="asset-district-select">
-                <SelectValue>{(v) => v || "Ernakulam"}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {KERALA_DISTRICTS.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {d}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {form.location_type === "Mall" && (

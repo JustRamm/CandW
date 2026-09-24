@@ -142,6 +142,8 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 109, 55, 0.25) transparent;
   }
   html, body, #root {
     width: 100%;
@@ -154,6 +156,22 @@
   }
   html {
     @apply font-sans;
+  }
+
+  /* Sleek modern custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 109, 55, 0.2);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 109, 55, 0.5);
   }
 }
 
