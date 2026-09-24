@@ -133,6 +133,8 @@ create table if not exists public.assets (
   location_type  text,
   location_code  text not null,
   location_name  text not null,
+  bench_number   integer default 1,
+  display_side   text default 'DA',
   city           text not null default 'Ernakulam',
   district       text not null default 'Ernakulam',
   width_ft       numeric(6,2) not null default 6,

@@ -200,10 +200,14 @@ export function extractDistrict(asset) {
 }
 
 const BLANK = {
+  asset_code: "",
   asset_type: "",
   location_type: "Mall",
   location_code: "",
   location_name: "",
+  bench_number: 1,
+  display_side: "DA",
+  create_dual_sided: false,
   brand_name: "",
   brand_names: [],
   city: "Ernakulam",
@@ -240,14 +244,17 @@ export function AssetDialog({ asset, trigger }) {
       : [];
     return asset
       ? {
+          asset_code: asset.asset_code ?? "",
           asset_type: asset.asset_type,
           location_type: asset.location_type ?? "Metro",
-          location_code: asset.location_code,
+          location_code: asset.location_code ?? "",
           location_name: asset.location_name,
+          bench_number: asset.bench_number ?? 1,
+          display_side: asset.display_side ?? (asset.asset_code?.endsWith("-DB") ? "DB" : "DA"),
+          create_dual_sided: false,
           brand_name: existingBrands[0] ?? "",
           brand_names: existingBrands,
           city: asset.city ?? "",
-          // Bug #21 fix: include district so it's not wiped on edit-save
           district: asset.district ?? asset.city ?? "",
           width_ft: asset.width_ft,
           height_ft: asset.height_ft,
@@ -522,15 +529,51 @@ export function AssetDialog({ asset, trigger }) {
         }
         return data;
       }
-      // Create new — generate asset code
-      const assetType = body.asset_type;
-      const locationCode = body.location_code.toUpperCase();
-      const prefix = `${assetType.toUpperCase().replace(/\s+/g, "").slice(0, 5)}-${locationCode}`;
-      const { count } = await supabase.from("assets").select("*", { count: "exact", head: true }).like("asset_code", `${prefix}-%`);
-      const code = `${prefix}-${String((count ?? 0) + 1).padStart(3, "0")}`;
+      // Create new — generate asset code(s) following [LOC]-B[#]-D[A|B] standard
+      const locCode = (body.location_code || "LOC").trim().toUpperCase();
+      const bNum = Number(body.bench_number) || 1;
+
+      if (body.create_dual_sided) {
+        const codeA = `${locCode}-B${bNum}-DA`;
+        const codeB = `${locCode}-B${bNum}-DB`;
+
+        const { data: itemA, error: errA } = await supabase.from("assets").insert({
+          id: crypto.randomUUID(),
+          asset_code: codeA,
+          bench_number: bNum,
+          display_side: "DA",
+          ...payload,
+          description: payload.description ? `${payload.description} — DISPLAY A (FRONT)` : "DISPLAY A (FRONT)",
+          status: "available",
+          created_at: new Date().toISOString(),
+        }).select().single();
+        if (errA) throw { body: { detail: errA.message } };
+
+        const { error: errB } = await supabase.from("assets").insert({
+          id: crypto.randomUUID(),
+          asset_code: codeB,
+          bench_number: bNum,
+          display_side: "DB",
+          ...payload,
+          description: payload.description ? `${payload.description} — DISPLAY B (BACKSIDE)` : "DISPLAY B (BACKSIDE)",
+          status: "available",
+          created_at: new Date().toISOString(),
+        });
+        if (errB) throw { body: { detail: errB.message } };
+
+        return itemA;
+      }
+
+      // Single display creation
+      const dSide = body.display_side || "DA";
+      const customCode = body.asset_code?.trim().toUpperCase();
+      const code = customCode || `${locCode}-B${bNum}-${dSide}`;
+
       const { data, error } = await supabase.from("assets").insert({
         id: crypto.randomUUID(),
         asset_code: code,
+        bench_number: bNum,
+        display_side: dSide,
         ...payload,
         status: "available",
         created_at: new Date().toISOString(),
@@ -822,36 +865,23 @@ export function AssetDialog({ asset, trigger }) {
               )}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="location_code">Location code</Label>
-              <Input
-                id="location_code"
-                required
-                value={form.location_code}
-                onChange={set("location_code")}
-                placeholder="e.g. CSMK"
-                data-testid="asset-location-code-input"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Kerala District</Label>
-              <Select
-                value={form.city}
-                onValueChange={(v) => setForm((f) => ({ ...f, city: v, district: v }))}
-              >
-                <SelectTrigger data-testid="asset-district-select">
-                  <SelectValue>{(v) => v || "Ernakulam"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {KERALA_DISTRICTS.map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {d}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label>Kerala District</Label>
+            <Select
+              value={form.city}
+              onValueChange={(v) => setForm((f) => ({ ...f, city: v, district: v }))}
+            >
+              <SelectTrigger data-testid="asset-district-select">
+                <SelectValue>{(v) => v || "Ernakulam"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {KERALA_DISTRICTS.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {form.location_type === "Mall" && (
@@ -871,17 +901,19 @@ export function AssetDialog({ asset, trigger }) {
                     }
                     const km = KERALA_MALLS.find((m) => m.name === mName);
                     if (km) {
+                      const lCode = km.location_code || km.name
+                        .split(" ")
+                        .map((w) => w[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 4);
                       setForm((f) => ({
                         ...f,
                         location_name: `${km.name} — `,
                         city: km.city || km.district,
                         district: km.district,
-                        location_code: km.location_code || km.name
-                          .split(" ")
-                          .map((w) => w[0])
-                          .join("")
-                          .toUpperCase()
-                          .slice(0, 4),
+                        location_code: lCode,
+                        asset_code: `${lCode}-B${f.bench_number || 1}-${f.display_side || "DA"}`,
                         latitude: km.latitude ?? f.latitude,
                         longitude: km.longitude ?? f.longitude,
                         map_url: km.latitude && km.longitude ? `https://www.google.com/maps?q=${km.latitude},${km.longitude}` : f.map_url,
@@ -975,7 +1007,14 @@ export function AssetDialog({ asset, trigger }) {
                       <Input
                         placeholder="Auto-generated (e.g. NMK)"
                         value={form.location_code}
-                        onChange={set("location_code")}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase();
+                          setForm((f) => ({
+                            ...f,
+                            location_code: val,
+                            asset_code: `${val}-B${f.bench_number || 1}-${f.display_side || "DA"}`,
+                          }));
+                        }}
                         className="h-7 text-xs uppercase bg-background"
                       />
                     </div>
@@ -1005,6 +1044,98 @@ export function AssetDialog({ asset, trigger }) {
               )}
             </div>
           )}
+
+          {/* Location Code & Bench Display Configuration — Placed BELOW Mall Preset */}
+          <div className="rounded-lg border border-border/80 bg-secondary/20 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground">Asset Code &amp; Bench Setup</Label>
+              <span className="mono-label text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                Code: {form.create_dual_sided 
+                  ? `${(form.location_code || "LOC").toUpperCase()}-B${form.bench_number || 1}-DA & DB`
+                  : (form.asset_code?.trim() || `${(form.location_code || "LOC").toUpperCase()}-B${form.bench_number || 1}-${form.display_side || "DA"}`)}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="location_code" className="text-[11px]">Location code</Label>
+                <Input
+                  id="location_code"
+                  required
+                  value={form.location_code}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    setForm((f) => ({
+                      ...f,
+                      location_code: val,
+                      asset_code: `${val}-B${f.bench_number || 1}-${f.display_side || "DA"}`,
+                    }));
+                  }}
+                  placeholder="e.g. LUKO, CSMK"
+                  className="uppercase h-8 text-xs font-mono bg-background"
+                  data-testid="asset-location-code-input"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="bench_number" className="text-[11px]">Bench #</Label>
+                <Input
+                  id="bench_number"
+                  type="number"
+                  min="1"
+                  value={form.bench_number}
+                  onChange={(e) => {
+                    const num = parseInt(e.target.value, 10) || 1;
+                    setForm((f) => ({
+                      ...f,
+                      bench_number: num,
+                      asset_code: `${(f.location_code || "LOC").toUpperCase()}-B${num}-${f.display_side || "DA"}`,
+                    }));
+                  }}
+                  placeholder="1"
+                  className="h-8 text-xs font-mono bg-background"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[11px]">Display face</Label>
+                <Select
+                  value={form.display_side}
+                  disabled={form.create_dual_sided}
+                  onValueChange={(val) =>
+                    setForm((f) => ({
+                      ...f,
+                      display_side: val,
+                      asset_code: `${(f.location_code || "LOC").toUpperCase()}-B${f.bench_number || 1}-${val}`,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue>{form.display_side === "DB" ? "DB (Back)" : "DA (Front)"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DA">DA (Front)</SelectItem>
+                    <SelectItem value="DB">DB (Back)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {!asset && (
+              <label className="flex items-center justify-between pt-2 border-t border-border/40 cursor-pointer select-none">
+                <div>
+                  <p className="text-xs font-medium text-foreground">Dual-Sided Bench</p>
+                  <p className="text-[10px] text-muted-foreground">Creates both DA (Front) and DB (Backside) screens together</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={form.create_dual_sided}
+                  onChange={(e) => setForm((f) => ({ ...f, create_dual_sided: e.target.checked }))}
+                  className="size-4 rounded border-input text-primary accent-primary"
+                />
+              </label>
+            )}
+          </div>
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
