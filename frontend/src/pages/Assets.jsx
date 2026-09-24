@@ -15,10 +15,12 @@ import {
   Link2,
   MapPin,
   MapPinned,
+  PanelTop,
   Pencil,
   Plus,
   Search,
   SlidersHorizontal,
+  TrainFront,
   Trash2,
   Upload,
   Users,
@@ -1574,11 +1576,11 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
 
   return (
     <Card
-      className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs transition-all duration-200 hover:shadow-md hover:border-primary/50 break-inside-avoid mb-4"
+      className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs transition-all duration-200 hover:shadow-md hover:border-primary/50 h-fit self-start w-full"
       data-testid={`asset-card-${a.asset_code}`}
     >
-      <Link to={`/assets/${a.id}`} className="block flex-1 flex flex-col">
-        {/* Native Orientation: 16:9 Landscape for Metro vs 4:5 Natural Portrait for Mall */}
+      <Link to={`/assets/${a.id}`} className="block w-full">
+        {/* Native Orientation Media Frame: 16:9 Landscape for Metro vs 4:5 Natural Portrait for Mall */}
         <div
           className={cn(
             "relative w-full overflow-hidden bg-secondary/35 border-b border-border/60 flex items-center justify-center select-none",
@@ -1593,10 +1595,25 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
             imageClassName={isMetro ? "size-full p-1.5" : "size-full"}
           />
 
-          {/* Top Tag: Theme Venue & Orientation Badge */}
+          {/* Top Tag: Theme Venue Badge (with Lucide icons, no emojis, no aspect ratio text) */}
           <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1">
-            <span className="inline-flex items-center gap-1 rounded-md bg-card/95 backdrop-blur-md px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/80 shadow-xs">
-              {isMetro ? "🚇 Metro (16:9)" : isMall ? "🏢 Mall" : "🪧 Billboard"}
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-card/95 backdrop-blur-md px-2 py-0.5 text-[11px] font-medium text-foreground border border-border/80 shadow-xs">
+              {isMetro ? (
+                <>
+                  <TrainFront className="size-3 text-primary" />
+                  <span>Metro</span>
+                </>
+              ) : isMall ? (
+                <>
+                  <Building2 className="size-3 text-primary" />
+                  <span>Mall</span>
+                </>
+              ) : (
+                <>
+                  <PanelTop className="size-3 text-primary" />
+                  <span>Billboard</span>
+                </>
+              )}
             </span>
           </div>
 
@@ -1610,7 +1627,7 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
         </div>
 
         {/* Card Body */}
-        <CardContent className="p-3.5 flex flex-col justify-between flex-1 gap-2.5 bg-card">
+        <CardContent className="p-3.5 flex flex-col justify-between gap-2.5 bg-card">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-1.5">
               <p className="truncate font-heading text-sm font-semibold text-foreground leading-tight" title={a.location_name}>
@@ -2458,17 +2475,17 @@ export default function Assets() {
                   <div className="flex items-center justify-between border-b border-border/80 pb-2">
                     <div className="flex items-center gap-2">
                       <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        🚇
+                        <TrainFront className="size-4" />
                       </span>
                       <h3 className="font-heading text-base font-bold text-foreground">
-                        Metro Station Displays (16:9 Landscape)
+                        Metro Station Displays
                       </h3>
                       <Badge variant="outline" className="rounded-full bg-primary/5 text-primary text-xs font-semibold border-primary/20">
                         {paginatedAssets.filter((a) => getAssetVenueType(a) === "metro").length} displays
                       </Badge>
                     </div>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {paginatedAssets
                       .filter((a) => getAssetVenueType(a) === "metro")
                       .map((a) => (
@@ -2484,7 +2501,7 @@ export default function Assets() {
                   <div className="flex items-center justify-between border-b border-border/80 pb-2">
                     <div className="flex items-center gap-2">
                       <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                        🏢
+                        <Building2 className="size-4" />
                       </span>
                       <h3 className="font-heading text-base font-bold text-foreground">
                         Mall Bench Displays
@@ -2494,7 +2511,7 @@ export default function Assets() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                  <div className="grid items-start gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
                     {paginatedAssets
                       .filter((a) => getAssetVenueType(a) === "mall")
                       .map((a) => (
@@ -2510,7 +2527,7 @@ export default function Assets() {
                   <div className="flex items-center justify-between border-b border-border/80 pb-2">
                     <div className="flex items-center gap-2">
                       <span className="flex size-7 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
-                        🪧
+                        <PanelTop className="size-4" />
                       </span>
                       <h3 className="font-heading text-base font-bold text-foreground">
                         Other Billboards & Displays
@@ -2520,7 +2537,7 @@ export default function Assets() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  <div className="grid items-start gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                     {paginatedAssets
                       .filter((a) => getAssetVenueType(a) === "other")
                       .map((a) => (
@@ -2545,7 +2562,7 @@ export default function Assets() {
           ) : (
             /* Grid View */
             <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
+              <div className="grid items-start gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
                 {paginatedAssets.map((a) => (
                   <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
                 ))}
