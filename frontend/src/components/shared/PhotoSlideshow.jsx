@@ -8,7 +8,13 @@ import { cn } from "@/lib/utils";
  * Slideshow over an asset's uploaded photo attachments.
  * `variant="card"` renders the compact grid-card version without controls.
  */
-export default function PhotoSlideshow({ asset, variant = "detail", className }) {
+export default function PhotoSlideshow({
+  asset,
+  variant = "detail",
+  className,
+  imageClassName,
+  fitMode = "cover",
+}) {
   const initialShots = Array.from(
     new Set(
       [
@@ -91,7 +97,11 @@ export default function PhotoSlideshow({ asset, variant = "detail", className })
         preset={variant === "card" ? "card" : "hero"}
         aspectRatio="aspect-auto"
         containerClassName="size-full"
-        className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        className={cn(
+          "size-full transition-transform duration-300 group-hover:scale-[1.03]",
+          fitMode === "contain" ? "object-contain" : "object-cover",
+          imageClassName
+        )}
         fallbackText={asset.asset_code}
       />
       {count > 1 && (

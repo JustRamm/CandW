@@ -2289,55 +2289,93 @@ export default function Assets() {
                   const venue = getAssetVenueType(a);
                   const isMetro = venue === "metro";
                   const isMall = venue === "mall";
-                  const aspectClass = isMetro ? "aspect-[16/9]" : isMall ? "aspect-[9/16]" : "aspect-[16/9]";
 
                   return (
                     <Card
                       key={a.id}
-                      className="group h-full overflow-hidden border-border/80 bg-card p-0 shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/45 rounded-xl"
+                      className="group flex flex-col justify-between h-full overflow-hidden border-border/80 bg-card p-0 shadow-xs transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/50 rounded-xl"
                       data-testid={`asset-card-${a.asset_code}`}
                     >
-                      <Link to={`/assets/${a.id}`} className="block">
-                        <div className={cn("relative w-full overflow-hidden bg-secondary/40", aspectClass)}>
-                          <PhotoSlideshow asset={a} variant="card" />
-                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
-                          <div className="pointer-events-none absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
-                            <span className="mono-label truncate text-white drop-shadow-sm font-semibold">{a.asset_code}</span>
+                      <Link to={`/assets/${a.id}`} className="block flex-1 flex flex-col">
+                        {/* ── Unified Media Stage (Aspect 4:5 for balanced showcase) ── */}
+                        <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950 flex items-center justify-center select-none">
+                          {/* Ambient Frosted Glow for landscape / wide ads */}
+                          {isMetro ? (
+                            <div className="absolute inset-0 overflow-hidden opacity-35 filter blur-xl scale-125 pointer-events-none">
+                              <PhotoSlideshow asset={a} variant="card" fitMode="cover" />
+                            </div>
+                          ) : null}
+
+                          {/* Primary Centered Ad Image */}
+                          <div className={cn("relative z-10 size-full flex items-center justify-center", isMetro && "p-2")}>
+                            <PhotoSlideshow
+                              asset={a}
+                              variant="card"
+                              fitMode={isMetro ? "contain" : "cover"}
+                              className="size-full"
+                              imageClassName={isMetro ? "max-h-full rounded-md shadow-md" : "size-full"}
+                            />
+                          </div>
+
+                          {/* Top Tag: Venue Type & Format Badge */}
+                          <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-black/65 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 border border-white/10 shadow-xs">
+                              {isMetro ? "🚇 Metro (16:9)" : isMall ? "🏢 Mall (9:16)" : "🪧 Billboard"}
+                            </span>
+                          </div>
+
+                          {/* Bottom Gradient Overlay for High Contrast */}
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/85 via-black/40 to-transparent z-20" />
+
+                          {/* Bottom Overlay: Asset Code & Status Badge */}
+                          <div className="pointer-events-none absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2 z-30">
+                            <span className="mono-label truncate text-white drop-shadow-sm font-bold tracking-wide">
+                              {a.asset_code}
+                            </span>
                             <AssetStatusBadge status={a.status} />
                           </div>
                         </div>
-                        <CardContent className="px-4 py-3">
-                          <div className="flex items-center justify-between gap-1.5">
-                            <p className="truncate font-heading text-sm font-semibold">{a.location_name}</p>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const url =
-                                  a.map_url
-                                    ? a.map_url
-                                    : a.latitude && a.longitude
-                                    ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
-                                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.description ? " " + a.description : "") + (a.city ? `, ${a.city}` : ", Kerala"))}`;
-                                window.open(url, "_blank", "noopener,noreferrer");
-                              }}
-                              className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
-                              title={a.description ? `${a.location_name}\nSpot: ${a.description}` : "Open location on Google Maps"}
-                            >
-                              <ExternalLink className="size-3.5" />
-                            </button>
-                          </div>
-                          {a.description && (
-                            <div className="mt-1 flex items-start gap-1 rounded bg-secondary/70 px-2 py-0.5 text-[11px] font-medium text-foreground/90">
-                              <MapPin className="mt-0.5 size-3 shrink-0 text-primary" />
-                              <span className="truncate" title={a.description}>{a.description}</span>
+
+                        {/* ── Card Content Body ── */}
+                        <CardContent className="px-3.5 py-3 flex-1 flex flex-col justify-between space-y-2.5">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-1.5">
+                              <p className="truncate font-heading text-sm font-semibold text-foreground leading-tight" title={a.location_name}>
+                                {a.location_name}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const url =
+                                    a.map_url
+                                      ? a.map_url
+                                      : a.latitude && a.longitude
+                                      ? `https://www.google.com/maps?q=${a.latitude},${a.longitude}`
+                                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.description ? " " + a.description : "") + (a.city ? `, ${a.city}` : ", Kerala"))}`;
+                                  window.open(url, "_blank", "noopener,noreferrer");
+                                }}
+                                className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
+                                title={a.description ? `${a.location_name}\nSpot: ${a.description}` : "Open location on Google Maps"}
+                              >
+                                <ExternalLink className="size-3.5" />
+                              </button>
                             </div>
-                          )}
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
-                          </p>
-                          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+
+                            {a.description && (
+                              <div className="flex items-start gap-1 rounded bg-secondary/70 px-2 py-0.5 text-[11px] font-medium text-foreground/90">
+                                <MapPin className="mt-0.5 size-3 shrink-0 text-primary" />
+                                <span className="truncate" title={a.description}>{a.description}</span>
+                              </div>
+                            )}
+
+                            <p className="text-xs text-muted-foreground">
+                              {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
                             {a.current_brand &&
                               a.current_brand.split(",").map((b) => (
                                 <Badge
@@ -2374,12 +2412,14 @@ export default function Assets() {
                           </div>
                         </CardContent>
                       </Link>
+
+                      {/* ── Card Action Footer ── */}
                       {canManage && (
-                        <div className="flex items-center gap-1.5 border-t border-border/60 px-4 py-2.5">
+                        <div className="flex items-center gap-1.5 border-t border-border/60 bg-muted/20 px-3.5 py-2 mt-auto">
                           <AssetDialog
                             asset={a}
                             trigger={
-                              <Button variant="outline" size="xs" data-testid={`edit-asset-button-${a.asset_code}`}>
+                              <Button variant="outline" size="xs" data-testid={`edit-asset-button-${a.asset_code}`} className="h-7 text-xs">
                                 <Pencil className="size-3.5" />
                                 Edit
                               </Button>

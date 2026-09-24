@@ -6,8 +6,8 @@ export default function AssetsSkeleton({ count = 6 }) {
     <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="assets-skeleton">
       {[...Array(count)].map((_, i) => (
         <Card key={i} className="overflow-hidden rounded-xl border-border/80 bg-card shadow-xs">
-          {/* Card Top / Image 9:16 aspect preview */}
-          <div className="relative aspect-[9/16] w-full bg-secondary/30">
+          {/* Card Top / Image 4:5 unified preview */}
+          <div className="relative aspect-[4/5] w-full bg-secondary/30">
             <Skeleton className="size-full rounded-none" />
           </div>
 
