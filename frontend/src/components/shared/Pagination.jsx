@@ -13,6 +13,7 @@ export default function Pagination({
   pageSizeOptions = [12, 24, 48],
   className,
   itemLabel = "items",
+  sticky = true,
 }) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(Math.max(1, currentPage), totalPages);
@@ -58,7 +59,9 @@ export default function Pagination({
   return (
     <div
       className={cn(
-        "flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-border/60 text-xs text-muted-foreground select-none",
+        sticky
+          ? "sticky bottom-4 z-20 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-border/80 bg-card/95 p-3.5 backdrop-blur-md shadow-lg select-none text-xs text-muted-foreground"
+          : "flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-border/60 text-xs text-muted-foreground select-none",
         className
       )}
       data-testid="pagination-container"

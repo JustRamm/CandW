@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardList, Upload, WifiOff } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import EmptyState from "@/components/shared/EmptyState";
+import Pagination from "@/components/shared/Pagination";
 import { StageBadge } from "@/components/shared/StatusBadges";
 import PriorityBadge from "@/components/shared/PriorityBadge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,8 @@ export default function Campaigns() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStage = searchParams.get("stage") || "all";
   const [stage, setStage] = useState(urlStage);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const { data: rawCampaigns, isError, isLoading } = useCampaigns(stage);
   const [offlineData, setOfflineData] = useState([]);
 
@@ -28,6 +31,11 @@ export default function Campaigns() {
       setStage(current);
     }
   }, [searchParams]);
+
+  // Reset to page 1 on stage change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [stage]);
 
   useEffect(() => {
     if (rawCampaigns?.length) {
@@ -44,6 +52,11 @@ export default function Campaigns() {
   }, [rawCampaigns, isError, stage]);
 
   const campaigns = rawCampaigns ?? (offlineData.length > 0 ? offlineData : []);
+
+  const paginatedCampaigns = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return (campaigns ?? []).slice(start, start + pageSize);
+  }, [campaigns, currentPage, pageSize]);
 
 
   return (
@@ -106,7 +119,7 @@ export default function Campaigns() {
         )}
 
         <div className="grid gap-3 lg:grid-cols-2" data-testid="campaign-list">
-          {(campaigns ?? []).map((c) => (
+          {paginatedCampaigns.map((c) => (
             <Link key={c.id} to={`/campaigns/${c.id}`} data-testid={`campaign-card-${c.asset_code}`}>
               <Card className="h-full border-border/70 bg-card/80 transition-colors duration-200 hover:border-primary/45">
                 <CardContent className="space-y-2.5 px-4 py-4">
@@ -153,6 +166,18 @@ export default function Campaigns() {
             </Link>
           ))}
         </div>
+
+        {campaigns.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={campaigns.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[12, 24, 48]}
+            itemLabel="campaigns"
+          />
+        )}
       </div>
     </AppShell>
   );

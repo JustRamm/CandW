@@ -8,8 +8,8 @@ export default function AssetsSkeleton({ count = 8 }) {
         const isLandscape = i % 2 === 0;
         return (
           <Card key={i} className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs">
-            {/* Alternating aspect ratio placeholder */}
-            <div className={`relative w-full bg-secondary/40 border-b border-border/50 ${isLandscape ? "aspect-video" : "aspect-[9/16]"}`}>
+            {/* Uniform 4:5 aspect ratio placeholder */}
+            <div className="relative w-full bg-secondary/40 border-b border-border/50 aspect-[4/5]">
               <Skeleton className="size-full rounded-none" />
             </div>
 

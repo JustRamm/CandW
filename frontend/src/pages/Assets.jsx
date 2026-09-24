@@ -1580,19 +1580,14 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
       data-testid={`asset-card-${a.asset_code}`}
     >
       <Link to={`/assets/${a.id}`} className="block w-full">
-        {/* Native Orientation Media Frame: 16:9 Landscape for Metro vs 4:5 Natural Portrait for Mall */}
-        <div
-          className={cn(
-            "relative w-full overflow-hidden bg-secondary/35 border-b border-border/60 flex items-center justify-center select-none",
-            isMetro ? "aspect-video" : "aspect-[4/5]"
-          )}
-        >
+        {/* Unified 4:5 Aspect Ratio for all Asset Cards */}
+        <div className="relative w-full overflow-hidden bg-secondary/35 border-b border-border/60 flex items-center justify-center select-none aspect-[4/5]">
           <PhotoSlideshow
             asset={a}
             variant="card"
             fitMode={isMetro ? "contain" : "cover"}
             className="size-full"
-            imageClassName={isMetro ? "size-full p-1.5" : "size-full"}
+            imageClassName={isMetro ? "size-full p-2" : "size-full"}
           />
 
           {/* Top Tag: Theme Venue Badge (with Lucide icons, no emojis, no aspect ratio text) */}
@@ -1627,7 +1622,7 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
         </div>
 
         {/* Card Body */}
-        <CardContent className="p-3.5 flex flex-col justify-between gap-2.5 bg-card">
+        <CardContent className="p-3 flex flex-col justify-between gap-2 bg-card">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-1.5">
               <p className="truncate font-heading text-sm font-semibold text-foreground leading-tight" title={a.location_name}>
@@ -2357,7 +2352,7 @@ export default function Assets() {
               </Button>
             )}
 
-            {/* View Mode Switcher: Collage Grid vs Grouped vs Map */}
+            {/* View Mode Switcher: Grid vs Map */}
             <div className="relative flex items-center rounded-xl border border-border/80 bg-muted/60 p-1 shrink-0 ml-auto shadow-inner">
               <button
                 type="button"
@@ -2366,13 +2361,12 @@ export default function Assets() {
                   setViewMode("grid");
                 }}
                 className={cn(
-                  "relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
+                  "relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
                   viewMode === "grid"
                     ? "text-primary-foreground font-bold"
                     : "text-muted-foreground hover:text-foreground"
                 )}
                 data-testid="view-grid-btn"
-                title="Collage masonry grid with natural orientations"
               >
                 {viewMode === "grid" && (
                   <motion.div
@@ -2383,35 +2377,7 @@ export default function Assets() {
                 )}
                 <span className="relative z-10 flex items-center gap-1.5">
                   <LayoutGrid className="size-3.5" />
-                  Collage Grid
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  sound.click();
-                  setViewMode("grouped");
-                }}
-                className={cn(
-                  "relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
-                  viewMode === "grouped"
-                    ? "text-primary-foreground font-bold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                data-testid="view-grouped-btn"
-                title="Grouped by Metro (16:9) and Mall (9:16) categories"
-              >
-                {viewMode === "grouped" && (
-                  <motion.div
-                    layoutId="active-viewmode-pill-desktop"
-                    className="absolute inset-0 rounded-lg bg-primary shadow-sm"
-                    transition={{ type: "spring", stiffness: 450, damping: 30 }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-1.5">
-                  <Layers className="size-3.5" />
-                  Grouped
+                  Grid View
                 </span>
               </button>
 
@@ -2422,7 +2388,7 @@ export default function Assets() {
                   setViewMode("map");
                 }}
                 className={cn(
-                  "relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
+                  "relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer",
                   viewMode === "map"
                     ? "text-primary-foreground font-bold"
                     : "text-muted-foreground hover:text-foreground"
@@ -2467,100 +2433,7 @@ export default function Assets() {
         {!isLoading && !isError && assets?.length > 0 && (
           viewMode === "map" ? (
             <AssetMap assets={assets} />
-          ) : viewMode === "grouped" ? (
-            <div className="space-y-8">
-              {/* Grouped Mode: Metro Stations Section */}
-              {paginatedAssets.filter((a) => getAssetVenueType(a) === "metro").length > 0 && (
-                <div className="space-y-3.5">
-                  <div className="flex items-center justify-between border-b border-border/80 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <TrainFront className="size-4" />
-                      </span>
-                      <h3 className="font-heading text-base font-bold text-foreground">
-                        Metro Station Displays
-                      </h3>
-                      <Badge variant="outline" className="rounded-full bg-primary/5 text-primary text-xs font-semibold border-primary/20">
-                        {paginatedAssets.filter((a) => getAssetVenueType(a) === "metro").length} displays
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {paginatedAssets
-                      .filter((a) => getAssetVenueType(a) === "metro")
-                      .map((a) => (
-                        <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Grouped Mode: Mall Displays Section */}
-              {paginatedAssets.filter((a) => getAssetVenueType(a) === "mall").length > 0 && (
-                <div className="space-y-3.5">
-                  <div className="flex items-center justify-between border-b border-border/80 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                        <Building2 className="size-4" />
-                      </span>
-                      <h3 className="font-heading text-base font-bold text-foreground">
-                        Mall Bench Displays
-                      </h3>
-                      <Badge variant="outline" className="rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border-emerald-200">
-                        {paginatedAssets.filter((a) => getAssetVenueType(a) === "mall").length} displays
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="grid items-start gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-                    {paginatedAssets
-                      .filter((a) => getAssetVenueType(a) === "mall")
-                      .map((a) => (
-                        <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Grouped Mode: Other Displays Section */}
-              {paginatedAssets.filter((a) => getAssetVenueType(a) === "other").length > 0 && (
-                <div className="space-y-3.5">
-                  <div className="flex items-center justify-between border-b border-border/80 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="flex size-7 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
-                        <PanelTop className="size-4" />
-                      </span>
-                      <h3 className="font-heading text-base font-bold text-foreground">
-                        Other Billboards & Displays
-                      </h3>
-                      <Badge variant="outline" className="rounded-full bg-amber-50 text-amber-700 text-xs font-semibold border-amber-200">
-                        {paginatedAssets.filter((a) => getAssetVenueType(a) === "other").length} displays
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="grid items-start gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                    {paginatedAssets
-                      .filter((a) => getAssetVenueType(a) === "other")
-                      .map((a) => (
-                        <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {assets.length > 0 && (
-                <Pagination
-                  currentPage={currentPage}
-                  totalItems={assets.length}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
-                  pageSizeOptions={[12, 24, 48]}
-                  itemLabel="assets"
-                />
-              )}
-            </div>
           ) : (
-            /* Grid View */
             <div className="space-y-4">
               <div className="grid items-start gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
                 {paginatedAssets.map((a) => (
