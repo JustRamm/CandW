@@ -1014,10 +1014,30 @@ export function isMetroAsset(asset) {
   );
 }
 
+export function isMallAsset(asset) {
+  if (!asset) return false;
+  if (isMetroAsset(asset)) return false;
+  const locType = (asset.location_type || "").toLowerCase().trim();
+  const assetType = (asset.asset_type || "").toLowerCase().trim();
+  const locName = (asset.location_name || "").toLowerCase().trim();
+
+  return (
+    locType === "mall" ||
+    locType.includes("mall") ||
+    assetType.includes("mall") ||
+    /mall|marketcity|plaza|galleria|forum|centre|center|mot|hilite|oberon|sobha|secura|gokulam|lulu/i.test(locName)
+  );
+}
+
 export function getAssetVacantPhoto(asset) {
+  if (!asset) return null;
   if (isMetroAsset(asset)) {
     return "/asset.png";
   }
-  return null;
+  if (isMallAsset(asset)) {
+    return "/mallasset.png";
+  }
+  return "/mallasset.png";
 }
+
 
