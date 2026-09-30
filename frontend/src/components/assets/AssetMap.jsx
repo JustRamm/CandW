@@ -18,8 +18,7 @@ import {
 import { AssetStatusBadge } from "@/components/shared/StatusBadges";
 import SmartImage from "@/components/shared/SmartImage";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { fmtMoney, KNOWN_KERALA_VENUES } from "@/lib/helpers";
+import { fmtMoney, KNOWN_KERALA_VENUES, getAssetVacantPhoto } from "@/lib/helpers";
 import sound from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import {
@@ -822,7 +821,7 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
           <div className="flex gap-3 pt-2.5 mt-1 border-t border-border/50">
             <div className="w-20 shrink-0 overflow-hidden rounded-lg border border-border/60">
               <SmartImage
-                src={selectedAsset.photo_url}
+                src={selectedAsset.photo_url || getAssetVacantPhoto(selectedAsset) || ""}
                 alt={selectedAsset.location_name}
                 preset="card"
                 aspectRatio="aspect-square"

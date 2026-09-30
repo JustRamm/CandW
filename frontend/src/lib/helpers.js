@@ -995,3 +995,29 @@ export function fmtMoney(v) {
   if (v == null) return "—";
   return `₹${Number(v).toLocaleString("en-IN")}`;
 }
+
+export function isMetroAsset(asset) {
+  if (!asset) return false;
+  const locType = (asset.location_type || "").toLowerCase().trim();
+  const assetType = (asset.asset_type || "").toLowerCase().trim();
+  const locName = (asset.location_name || "").toLowerCase().trim();
+  const assetCode = (asset.asset_code || "").toLowerCase().trim();
+
+  return (
+    locType === "metro" ||
+    assetType.includes("metro") ||
+    locName.includes("metro") ||
+    assetCode.startsWith("km-") ||
+    assetCode.startsWith("kmetro-") ||
+    assetCode.startsWith("kmed-") ||
+    assetCode.startsWith("kmth-")
+  );
+}
+
+export function getAssetVacantPhoto(asset) {
+  if (isMetroAsset(asset)) {
+    return "/asset.png";
+  }
+  return null;
+}
+

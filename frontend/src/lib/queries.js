@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { getAssetVacantPhoto } from "@/lib/helpers";
 
 // ── Helper: throw on Supabase errors ──────────────────────────────────────
 function check({ data, error }) {
@@ -268,13 +269,15 @@ export function useAssets(params = {}) {
         if (a.photo_url && !resolvedUrls.includes(a.photo_url)) {
           resolvedUrls.push(a.photo_url);
         }
+        const vacantPhoto = getAssetVacantPhoto(a);
+        const finalUrls = resolvedUrls.length > 0 ? resolvedUrls : (vacantPhoto ? [vacantPhoto] : []);
         return {
           ...a,
           queue_count: countMap[a.id] ?? a.queue_count ?? 0,
           current_brand: liveMap[a.id] ?? a.current_brand ?? null,
           photo_ids: a.photo_ids ?? [],
-          photo_urls: resolvedUrls,
-          photo_url: resolvedUrls[0] || a.photo_url || "",
+          photo_urls: finalUrls,
+          photo_url: resolvedUrls[0] || a.photo_url || vacantPhoto || "",
           ...(gtpMap[a.id] ?? (a.next_gtp_date ? { next_gtp_date: a.next_gtp_date, gtp_overdue: false } : {})),
         };
       });
@@ -312,11 +315,13 @@ export function useAsset(id) {
       if (asset.photo_url && !resolvedUrls.includes(asset.photo_url)) {
         resolvedUrls.push(asset.photo_url);
       }
+      const vacantPhoto = getAssetVacantPhoto(asset);
+      const finalUrls = resolvedUrls.length > 0 ? resolvedUrls : (vacantPhoto ? [vacantPhoto] : []);
 
       return {
         ...asset,
-        photo_urls: resolvedUrls,
-        photo_url: resolvedUrls[0] || asset.photo_url || "",
+        photo_urls: finalUrls,
+        photo_url: resolvedUrls[0] || asset.photo_url || vacantPhoto || "",
         campaigns: campaigns ?? [],
         audit: audit ?? [],
         queue: queueEntries ?? [],

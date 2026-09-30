@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import SmartImage from "@/components/shared/SmartImage";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { getAssetVacantPhoto } from "@/lib/helpers";
 
 /**
  * Slideshow over an asset's uploaded photo attachments.
@@ -15,6 +16,9 @@ export default function PhotoSlideshow({
   imageClassName,
   fitMode = "cover",
 }) {
+  const vacantPhoto = getAssetVacantPhoto(asset);
+  const defaultShots = vacantPhoto ? [vacantPhoto] : [];
+
   const initialShots = Array.from(
     new Set(
       [
@@ -24,7 +28,7 @@ export default function PhotoSlideshow({
     ),
   );
 
-  const [shots, setShots] = useState(initialShots);
+  const [shots, setShots] = useState(initialShots.length > 0 ? initialShots : defaultShots);
 
   useEffect(() => {
     let active = true;
@@ -37,8 +41,13 @@ export default function PhotoSlideshow({
       ),
     );
 
-    if (known.length > 0 || !asset?.photo_ids?.length) {
+    if (known.length > 0) {
       setShots(known);
+      return;
+    }
+
+    if (!asset?.photo_ids?.length) {
+      setShots(vacantPhoto ? [vacantPhoto] : []);
       return;
     }
 
@@ -58,15 +67,16 @@ export default function PhotoSlideshow({
                 : null),
           )
           .filter(Boolean);
-        setShots(
-          Array.from(new Set([...fetched, ...(asset?.photo_url ? [asset.photo_url] : [])].filter(Boolean))),
+        const combined = Array.from(
+          new Set([...fetched, ...(asset?.photo_url ? [asset.photo_url] : [])].filter(Boolean))
         );
+        setShots(combined.length > 0 ? combined : (vacantPhoto ? [vacantPhoto] : []));
       });
 
     return () => {
       active = false;
     };
-  }, [asset?.id, asset?.photo_url, JSON.stringify(asset?.photo_urls), JSON.stringify(asset?.photo_ids)]);
+  }, [asset?.id, asset?.photo_url, JSON.stringify(asset?.photo_urls), JSON.stringify(asset?.photo_ids), vacantPhoto]);
 
   const [i, setI] = useState(0);
   const count = shots.length;
