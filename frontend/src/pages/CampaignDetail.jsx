@@ -43,6 +43,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PriorityBadge from "@/components/shared/PriorityBadge";
 import PaymentMilestones from "@/components/campaigns/PaymentMilestones";
 import { calculateRevenueSplit, computeMilestoneSchedule, REVENUE_SHARE_MATRIX, matchVenueRule } from "@/lib/revenueShare";
+import { promoteNextWaitlistOrFreeAsset } from "@/lib/realtime";
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { useCampaign, useAsset, useMe } from "@/lib/queries";
@@ -689,24 +690,68 @@ function GtpCard({ campaign, gtp }) {
 
   const review = useMutation({
     mutationFn: async (body) => {
-      const { data: c } = await supabase.from("campaigns").select("gtps,stage").eq("id", campaign.id).single();
+      const { data: c } = await supabase.from("campaigns").select("gtps,stage,cancellation,asset_id,asset_code,brand").eq("id", campaign.id).single();
       const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
       const gtps = (c?.gtps ?? []).map((g) =>
         g.id === gtp.id
           ? { ...g, status: body.approve ? "approved" : "rejected", reject_reason: body.reason ?? null, reviewed_by: profile?.name, reviewed_at: new Date().toISOString() }
           : g,
       );
-      // If all GTPs approved and it's the final one, move to closing
+      
       const allApproved = gtps.every((g) => g.status === "approved");
-      const finalApproved = body.approve && gtp.is_final;
-      const newStage = finalApproved || allApproved ? "closing" : c.stage;
-      const { error } = await supabase.from("campaigns").update({ gtps, stage: newStage }).eq("id", campaign.id);
-      if (error) throw { body: { detail: error.message } };
-      return { approve: body.approve };
+      const isClosureGtp = gtp.is_final || gtp.seq === 99;
+      let assetFreed = false;
+
+      // If Finance approves closure GTP (or all GTPs for a closing campaign), automatically complete closure and release the asset!
+      if (body.approve && (isClosureGtp || (c.stage === "closing" && allApproved))) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        const updates = {
+          gtps,
+          stage: "closed",
+          actual_end_date: todayStr,
+        };
+        if (c.cancellation?.status === "approved") {
+          updates.cancellation = {
+            ...c.cancellation,
+            status: "completed",
+            completed_at: new Date().toISOString(),
+          };
+        }
+        const { error } = await supabase.from("campaigns").update(updates).eq("id", campaign.id);
+        if (error) throw { body: { detail: error.message } };
+
+        // Audit log
+        await supabase.from("audit_logs").insert({
+          id: crypto.randomUUID(),
+          entity_type: "campaign",
+          entity_id: campaign.id,
+          action: "campaign_closed_asset_freed",
+          actor_name: profile?.name || "System",
+          actor_role: me?.role || "finance",
+          comment: `Closure GTP #${gtp.seq} approved. Campaign for ${c.brand || campaign.brand} closed and asset ${c.asset_code || campaign.asset_code} freed.`,
+          created_at: new Date().toISOString(),
+        });
+
+        // Release asset and auto-promote waitlist
+        await promoteNextWaitlistOrFreeAsset(c.asset_id || campaign.asset_id, c.asset_code || campaign.asset_code);
+        notifyBrandAdStatusUpdate(campaign.id, "closed");
+        assetFreed = true;
+      } else {
+        const finalApproved = body.approve && gtp.is_final;
+        const newStage = finalApproved || allApproved ? "closing" : c.stage;
+        const { error } = await supabase.from("campaigns").update({ gtps, stage: newStage }).eq("id", campaign.id);
+        if (error) throw { body: { detail: error.message } };
+      }
+
+      return { approve: body.approve, assetFreed };
     },
     onSuccess: (_res, vars) => {
       refresh();
-      toast.success(vars.approve ? `GTP #${gtp.seq} approved` : `GTP #${gtp.seq} returned to Ops`);
+      if (_res?.assetFreed) {
+        toast.success(`Closure GTP #${gtp.seq} approved — Campaign closed & Asset freed!`);
+      } else {
+        toast.success(vars.approve ? `GTP #${gtp.seq} approved` : `GTP #${gtp.seq} returned to Ops`);
+      }
     },
     onError: (err) => toast.error(errMessage(err, "Could not review the GTP")),
   });
@@ -876,15 +921,38 @@ function CancellationPanel({ campaign }) {
   const review = useMutation({
     mutationFn: async (body) => {
       const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
-      const { data: c } = await supabase.from("campaigns").select("cancellation").eq("id", campaign.id).single();
+      const { data: c } = await supabase.from("campaigns").select("cancellation,start_date,asset_id").eq("id", campaign.id).single();
       const cancellation = { ...(c?.cancellation ?? {}), status: body.approve ? "approved" : "rejected", comment: body.comment, reviewed_by: profile?.name, reviewed_at: new Date().toISOString() };
       const updates = { cancellation };
       if (body.approve) {
         updates.stage = "closing";
-        // Create a closure GTP
-        const closureGtp = { id: crypto.randomUUID(), seq: 99, status: "pending", due_date: cancellation.proposed_cancel_date, is_final: true, doc_ids: [], priority: "high", notes: "Closure inspection" };
+        const cancelDate = cancellation.proposed_cancel_date || new Date().toISOString().split("T")[0];
+        updates.end_date = cancelDate;
+
+        // Recalculate duration days if start date exists
+        if (c?.start_date && cancellation.proposed_cancel_date) {
+          const diffDays = Math.max(1, Math.round((new Date(cancellation.proposed_cancel_date) - new Date(c.start_date)) / 86400000));
+          updates.duration_days = diffDays;
+        }
+
+        // Create high-priority closure GTP for Operations
+        const closureGtp = {
+          id: crypto.randomUUID(),
+          seq: 99,
+          status: "pending",
+          due_date: cancelDate,
+          is_final: true,
+          doc_ids: [],
+          priority: "high",
+          notes: "Premature Cancellation: Offboarding & dismantling field inspection",
+        };
         const { data: existing } = await supabase.from("campaigns").select("gtps").eq("id", campaign.id).single();
         updates.gtps = [...(existing?.gtps ?? []), closureGtp];
+
+        // Mark the asset status as closing
+        if (campaign.asset_id || c?.asset_id) {
+          await supabase.from("assets").update({ status: "closing" }).eq("id", campaign.asset_id || c.asset_id);
+        }
       }
       const { error } = await supabase.from("campaigns").update(updates).eq("id", campaign.id);
       if (error) throw { body: { detail: error.message } };
@@ -895,7 +963,7 @@ function CancellationPanel({ campaign }) {
       if (vars.approve) {
         notifyBrandAdStatusUpdate(campaign.id, "closing");
       }
-      toast.success(vars.approve ? "Cancellation approved — closure GTP created" : "Cancellation rejected");
+      toast.success(vars.approve ? "Cancellation approved — duration shortened & closure GTP created" : "Cancellation rejected");
     },
     onError: (err) => toast.error(errMessage(err, "Could not review the request")),
   });
@@ -1049,6 +1117,54 @@ export default function CampaignDetail() {
       toast.success("Ad onboarded — invoice request raised with Finance");
     },
     onError: (err) => toast.error(errMessage(err, "Could not mark as onboarded")),
+  });
+
+  const closeCampaign = useMutation({
+    mutationFn: async () => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
+
+      const updates = {
+        stage: "closed",
+        actual_end_date: todayStr,
+      };
+
+      if (campaign.cancellation) {
+        updates.cancellation = {
+          ...campaign.cancellation,
+          status: "completed",
+          completed_at: new Date().toISOString(),
+        };
+      }
+
+      const { error } = await supabase.from("campaigns").update(updates).eq("id", campaignId);
+      if (error) throw { body: { detail: error.message } };
+
+      // Record audit log
+      await supabase.from("audit_logs").insert({
+        id: crypto.randomUUID(),
+        entity_type: "campaign",
+        entity_id: campaign.id,
+        action: "campaign_closed_asset_freed",
+        actor_name: profile?.name || "System",
+        actor_role: me?.role || "finance",
+        comment: `Campaign for ${campaign.brand} (${campaign.asset_code}) closed and offboarded. Asset is now freed.`,
+        created_at: new Date().toISOString(),
+      });
+
+      // Free asset and auto-promote waitlist
+      await promoteNextWaitlistOrFreeAsset(campaign.asset_id, campaign.asset_code);
+
+      // Notify brand ad status
+      notifyBrandAdStatusUpdate(campaign.id, "closed");
+
+      return { ok: true };
+    },
+    onSuccess: () => {
+      refresh();
+      toast.success(`Campaign closed! Asset ${campaign.asset_code} has been freed.`);
+    },
+    onError: (err) => toast.error(errMessage(err, "Could not finalize campaign closure")),
   });
 
   const isOps = me?.role === "ops" || me?.role === "admin";
@@ -1206,6 +1322,62 @@ export default function CampaignDetail() {
 
           {/* 2-Stage Payment Milestone Tracker & Revenue Sharing Widget */}
           <PaymentMilestones campaign={campaign} me={me} />
+
+          {/* Campaign Closure & Asset Release Banner */}
+          {campaign.stage === "closing" && (
+            <div className="rounded-xl border border-orange-300 bg-orange-50/90 dark:bg-orange-950/40 p-4 shadow-xs space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-2 rounded-full bg-orange-500 animate-pulse" />
+                    <p className="font-heading text-sm font-semibold text-orange-950 dark:text-orange-100">
+                      Campaign in Closure &amp; Offboarding Phase
+                    </p>
+                    <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-800 dark:text-orange-300">
+                      Discharge Pending
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-orange-900/80 dark:text-orange-200/80">
+                    {campaign.cancellation?.reason
+                      ? `Cancellation: ${campaign.cancellation.reason} · Scheduled offboarding date: ${fmtDate(campaign.end_date)}`
+                      : `Flight concluding on ${fmtDate(campaign.end_date)}. Final GTP inspection required before releasing asset.`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {(isFinance || isOps) && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs shadow-xs gap-1.5 cursor-pointer"
+                      disabled={closeCampaign.isPending}
+                      onClick={() => closeCampaign.mutate()}
+                      data-testid="complete-closure-button"
+                    >
+                      <CheckCircle2 className="size-3.5" />
+                      Complete Closure &amp; Free Asset
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {campaign.stage === "closed" && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 dark:bg-emerald-950/30 p-3.5 flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-100 shadow-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div>
+                  <span className="font-semibold">Campaign Concluded &amp; Closed</span>
+                  <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
+                    Offboarded on {fmtDate(campaign.actual_end_date || campaign.end_date)}. Asset {campaign.asset_code} is freed and available.
+                  </p>
+                </div>
+              </div>
+              <Badge variant="outline" className="border-emerald-300 text-emerald-800 dark:text-emerald-300 text-[10px]">
+                Asset Available
+              </Badge>
+            </div>
+          )}
 
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList variant="line" data-testid="campaign-tabs">

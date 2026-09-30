@@ -484,31 +484,37 @@ export function AssetDialog({ asset, trigger }) {
     mutationFn: async (body) => {
       const { supabase } = await import("@/lib/supabase");
 
-      const isDigitalAsset =
-        body.asset_type === "Digital Screen" ||
-        body.asset_type === "Digital Totem" ||
-        body.location_type === "DOOH";
-
       const isCurrentlyLive = Boolean(body.is_live);
-
-      const selectedBrands = isDigitalAsset
-        ? (form.brand_names ?? []).filter(Boolean)
-        : (body.brand_name ? [body.brand_name.trim()] : []);
+      const selectedBrand = (body.brand_name || "").trim();
 
       // If marked as Currently Live, brand is required
-      if (isCurrentlyLive && !selectedBrands.length && !asset) {
+      if (isCurrentlyLive && !selectedBrand && !asset) {
         throw {
           body: {
-            detail: isDigitalAsset
-              ? "Please select at least one brand partner for the live digital ad loop."
-              : "Please select a registered brand partner for this live campaign.",
+            detail: "Please select a registered brand partner for this live campaign.",
           },
         };
       }
 
-      const brandSummary = selectedBrands.join(", ");
-      const notesWithBrand = brandSummary
-        ? `${body.notes ? body.notes + " · " : ""}${isDigitalAsset ? "Digital Ad Loop: " : "Brand Partner: "}${brandSummary}`
+      // If marking as live, verify that no other active campaign is already occupying this asset
+      if (isCurrentlyLive && asset?.id) {
+        const { data: activeCamps } = await supabase
+          .from("campaigns")
+          .select("id, brand, stage")
+          .eq("asset_id", asset.id)
+          .in("stage", ["onboarding", "invoicing", "live", "closing"]);
+
+        if (activeCamps && activeCamps.length > 0 && activeCamps[0].brand.toLowerCase() !== selectedBrand.toLowerCase()) {
+          throw {
+            body: {
+              detail: `This display is already occupied by ${activeCamps[0].brand} (Stage: ${activeCamps[0].stage}). Only 1 brand poster can be active on a display at a time. Other brands must queue up in the Interest Queue.`,
+            },
+          };
+        }
+      }
+
+      const notesWithBrand = selectedBrand
+        ? `${body.notes ? body.notes + " · " : ""}Brand Partner: ${selectedBrand}`
         : body.notes;
 
       const { brand_name, brand_names, create_dual_sided, is_live, ...dbFields } = body;
@@ -520,7 +526,7 @@ export function AssetDialog({ asset, trigger }) {
       const payload = {
         ...dbFields,
         notes: notesWithBrand,
-        current_brand: brandSummary || null,
+        current_brand: selectedBrand || null,
         status: determinedStatus,
         map_url: body.map_url || (body.latitude && body.longitude ? `https://www.google.com/maps?q=${body.latitude},${body.longitude}` : null),
         latitude: body.latitude && !isNaN(Number(body.latitude)) ? Number(body.latitude) : null,
@@ -616,29 +622,29 @@ export function AssetDialog({ asset, trigger }) {
         if (errB) throw { body: { detail: errB.message } };
 
         // If currently live, create active campaigns
-        if (isCurrentlyLive && selectedBrands.length) {
+        // If currently live, create active campaign for the single brand
+        if (isCurrentlyLive && selectedBrand) {
           const campaignStartDate = body.start_date || new Date().toISOString().split("T")[0];
           const campaignEndDate = body.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
           const calculatedDuration = Math.max(1, Math.round((new Date(campaignEndDate) - new Date(campaignStartDate)) / (1000 * 60 * 60 * 24)));
+          const matched = brands.find((b) => b.name.toLowerCase() === selectedBrand.toLowerCase());
 
-          for (const bName of selectedBrands) {
-            const matched = brands.find((b) => b.name.toLowerCase() === bName.toLowerCase());
-            await supabase.from("campaigns").insert({
-              id: crypto.randomUUID(),
-              asset_id: itemA.id,
-              asset_code: itemA.asset_code,
-              brand: bName,
-              brand_id: matched?.id || null,
-              duration_days: calculatedDuration,
-              proposed_duration_days: calculatedDuration,
-              stage: "live",
-              priority: "high",
-              start_date: campaignStartDate,
-              end_date: campaignEndDate,
-              notes: isDigitalAsset ? "Digital Screen Rotating Ad Loop Slot" : "Exclusive Static Slot",
-              gtps: gtpList,
-            });
-          }
+          await supabase.from("campaigns").insert({
+            id: crypto.randomUUID(),
+            asset_id: itemA.id,
+            asset_code: itemA.asset_code,
+            brand: selectedBrand,
+            brand_id: matched?.id || null,
+            duration_days: calculatedDuration,
+            proposed_duration_days: calculatedDuration,
+            stage: "live",
+            priority: "high",
+            start_date: campaignStartDate,
+            end_date: campaignEndDate,
+            notes: "Exclusive Static Display Poster",
+            gtps: gtpList,
+            created_at: new Date().toISOString(),
+          });
         }
 
         return itemA;
@@ -660,30 +666,29 @@ export function AssetDialog({ asset, trigger }) {
       }).select().single();
       if (error) throw { body: { detail: error.message } };
 
-      // If currently live, link brand campaign(s) automatically
-      if (isCurrentlyLive && selectedBrands.length) {
+      // If currently live, link brand campaign automatically
+      if (isCurrentlyLive && selectedBrand) {
         const campaignStartDate = body.start_date || new Date().toISOString().split("T")[0];
         const campaignEndDate = body.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
         const calculatedDuration = Math.max(1, Math.round((new Date(campaignEndDate) - new Date(campaignStartDate)) / (1000 * 60 * 60 * 24)));
+        const matched = brands.find((b) => b.name.toLowerCase() === selectedBrand.toLowerCase());
 
-        for (const bName of selectedBrands) {
-          const matched = brands.find((b) => b.name.toLowerCase() === bName.toLowerCase());
-          await supabase.from("campaigns").insert({
-            id: crypto.randomUUID(),
-            asset_id: data.id,
-            asset_code: data.asset_code,
-            brand: bName,
-            brand_id: matched?.id || null,
-            duration_days: calculatedDuration,
-            proposed_duration_days: calculatedDuration,
-            stage: "live",
-            priority: "high",
-            start_date: campaignStartDate,
-            end_date: campaignEndDate,
-            notes: isDigitalAsset ? "Digital Screen Rotating Ad Loop Slot" : "Exclusive Static Slot",
-            gtps: gtpList,
-          });
-        }
+        await supabase.from("campaigns").insert({
+          id: crypto.randomUUID(),
+          asset_id: data.id,
+          asset_code: data.asset_code,
+          brand: selectedBrand,
+          brand_id: matched?.id || null,
+          duration_days: calculatedDuration,
+          proposed_duration_days: calculatedDuration,
+          stage: "live",
+          priority: "high",
+          start_date: campaignStartDate,
+          end_date: campaignEndDate,
+          notes: "Exclusive Static Display Poster",
+          gtps: gtpList,
+          created_at: new Date().toISOString(),
+        });
       }
 
       return data;
@@ -875,137 +880,67 @@ export function AssetDialog({ asset, trigger }) {
 
           {/* Brand Partner and Kerala District — in the same horizontal line */}
           <div className="grid gap-3 sm:grid-cols-2 items-start">
-            {isDigital ? (
-              <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5" data-testid="digital-loop-brand-section">
-                <div className="flex items-center justify-between">
-                  <Label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                    <span>Ad Loop Brands</span>
-                    {isLive && <span className="text-destructive">*</span>}
-                  </Label>
-                  <Badge variant="outline" className="mono-label text-[10px] border-primary/40 text-primary">
-                    {form.brand_names?.length || 0} in loop
-                  </Badge>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1 min-h-[30px] p-1 rounded-md border border-input bg-background">
-                  {form.brand_names && form.brand_names.length > 0 ? (
-                    form.brand_names.map((bName) => (
-                      <Badge
-                        key={bName}
-                        variant="secondary"
-                        className="gap-1 px-1.5 py-0.5 text-[11px] font-medium bg-primary/10 text-foreground"
-                      >
-                        <span className="truncate max-w-[80px]">{bName}</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setForm((f) => ({
-                              ...f,
-                              brand_names: (f.brand_names || []).filter((b) => b !== bName),
-                            }))
-                          }
-                          className="rounded-full hover:bg-destructive/20 hover:text-destructive p-0.5 ml-0.5 text-muted-foreground transition-colors cursor-pointer"
-                        >
-                          <X className="size-2.5" />
-                        </button>
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground italic px-1">
-                      {isLive ? "Select brand(s) for loop" : "Vacant / No brands in loop"}
-                    </span>
-                  )}
-                </div>
-
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <Label htmlFor="asset-brand-select" className="font-semibold text-foreground">
+                  {isLive ? "Active Brand Display" : "Assigned Brand"} {isLive && <span className="text-destructive">*</span>}
+                </Label>
+                <span className="text-[10px] text-muted-foreground">
+                  {isLive ? "1 Brand Exclusive" : "Optional"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
                 <Select
-                  value=""
+                  value={form.brand_name || "__none__"}
                   onValueChange={(val) => {
-                    if (val && !(form.brand_names || []).includes(val)) {
-                      setForm((f) => ({
-                        ...f,
-                        brand_names: [...(f.brand_names || []), val],
-                        brand_name: val,
-                      }));
+                    if (val === "__none__") {
+                      setForm((f) => ({ ...f, brand_name: "", brand_names: [] }));
+                    } else {
+                      setForm((f) => ({ ...f, brand_name: val, brand_names: [val] }));
                     }
                   }}
                 >
-                  <SelectTrigger className="bg-background text-xs h-7" data-testid="digital-brand-select">
-                    <SelectValue placeholder="+ Add brand to loop..." />
+                  <SelectTrigger id="asset-brand-select" className="bg-background text-xs flex-1" data-testid="asset-brand-select">
+                    <SelectValue placeholder="Select brand (or leave vacant)..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {brands
-                      .filter((b) => !(form.brand_names || []).includes(b.name))
-                      .map((b) => (
-                        <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
-                          <span className="font-semibold text-foreground">{b.name}</span>
-                        </SelectItem>
-                      ))}
+                    <SelectItem value="__none__" className="text-muted-foreground text-xs italic cursor-pointer">
+                      — None (Vacant / Available) —
+                    </SelectItem>
+                    {brands.map((b) => (
+                      <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
+                        <span className="font-semibold text-foreground">{b.name}</span>
+                        {b.industry && (
+                          <span className="ml-2 text-[11px] text-muted-foreground">({b.industry})</span>
+                        )}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <Label htmlFor="asset-brand-select" className="font-semibold text-foreground">
-                    {isLive ? "Active Brand Partner" : "Assigned Brand"} {isLive && <span className="text-destructive">*</span>}
-                  </Label>
-                  <span className="text-[10px] text-muted-foreground">
-                    {isLive ? "Required" : "Optional"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Select
-                    value={form.brand_name || "__none__"}
-                    onValueChange={(val) => {
-                      if (val === "__none__") {
-                        setForm((f) => ({ ...f, brand_name: "", brand_names: [] }));
-                      } else {
-                        setForm((f) => ({ ...f, brand_name: val, brand_names: [val] }));
-                      }
-                    }}
+                {form.brand_name && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setForm((f) => ({ ...f, brand_name: "", brand_names: [] }))}
+                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    title="Clear brand"
                   >
-                    <SelectTrigger id="asset-brand-select" className="bg-background text-xs flex-1" data-testid="asset-brand-select">
-                      <SelectValue placeholder="Select brand (or leave vacant)..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__" className="text-muted-foreground text-xs italic cursor-pointer">
-                        — None (Vacant / Available) —
-                      </SelectItem>
-                      {brands.map((b) => (
-                        <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
-                          <span className="font-semibold text-foreground">{b.name}</span>
-                          {b.industry && (
-                            <span className="ml-2 text-[11px] text-muted-foreground">({b.industry})</span>
-                          )}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {form.brand_name && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setForm((f) => ({ ...f, brand_name: "", brand_names: [] }))}
-                      className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-                      title="Clear brand"
-                    >
-                      <X className="size-3.5" />
-                    </Button>
-                  )}
-                </div>
-                {isLive && !form.brand_name && (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                    A registered brand partner is required for live campaigns.
-                  </p>
-                )}
-                {!isLive && !form.brand_name && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Leave blank to keep asset vacant and available for sales queue.
-                  </p>
+                    <X className="size-3.5" />
+                  </Button>
                 )}
               </div>
-            )}
+              {isLive && !form.brand_name && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  A single registered brand partner is required for live static ad displays.
+                </p>
+              )}
+              {!isLive && !form.brand_name && (
+                <p className="text-[11px] text-muted-foreground">
+                  Leave blank to keep asset vacant and available for sales queue.
+                </p>
+              )}
+            </div>
 
             <div className="space-y-1.5">
               <Label>Kerala District</Label>

@@ -7,6 +7,8 @@ const ASSET_TONE = {
   reserved: "bg-cyan-50 text-cyan-800 border-cyan-200",
   onboarding: "bg-amber-50 text-amber-800 border-amber-200",
   live: "bg-emerald-50 text-[#006d37] border-emerald-200 font-semibold",
+  closing: "bg-orange-50 text-orange-800 border-orange-200 font-semibold",
+  closed: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 const STAGE_TONE = {

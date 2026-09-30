@@ -440,6 +440,119 @@ export async function processExpiredQueueEntries() {
 }
 
 /**
+ * Frees an asset upon campaign closure / discharge, and automatically promotes
+ * the next waitlisted brand in the Interest Queue (if any).
+ */
+export async function promoteNextWaitlistOrFreeAsset(assetId, assetCode = "") {
+  try {
+    if (!assetId) return;
+
+    // Check if there are active queue entries for this asset; mark previous ones completed/forfeited
+    await supabase
+      .from("queue_entries")
+      .update({ state: "forfeited", closed_at: new Date().toISOString() })
+      .eq("asset_id", assetId)
+      .eq("state", "active");
+
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("*")
+      .eq("id", "global")
+      .maybeSingle();
+    const { data: holidays } = await supabase.from("holidays").select("date");
+    const holidaySet = new Set((holidays ?? []).map((h) => h.date));
+    const holdDays = settings?.queue_active_business_days ?? 5;
+
+    // Find next pending entry by position
+    const { data: next } = await supabase
+      .from("queue_entries")
+      .select("*")
+      .eq("asset_id", assetId)
+      .eq("state", "pending")
+      .order("position")
+      .limit(1)
+      .maybeSingle();
+
+    if (next) {
+      let d = new Date();
+      let counted = 0;
+      while (counted < holdDays) {
+        d.setDate(d.getDate() + 1);
+        const ds = d.toISOString().split("T")[0];
+        const dow = d.getDay();
+        if (dow !== 0 && dow !== 6 && !holidaySet.has(ds)) counted++;
+      }
+      const nextExpiry = d.toISOString().split("T")[0];
+
+      await supabase
+        .from("queue_entries")
+        .update({
+          state: "active",
+          position: 0,
+          expires_on: nextExpiry,
+        })
+        .eq("id", next.id);
+
+      // Audit log
+      await supabase.from("audit_logs").insert({
+        id: crypto.randomUUID(),
+        entity_type: "queue_entry",
+        entity_id: next.id,
+        action: "queue_promoted",
+        actor_name: "Campaign Closure Worker",
+        actor_role: "system",
+        comment: `Campaign closed. Waitlist entry for ${next.brand} automatically promoted to active slot on ${next.asset_code || assetCode}. SLA expiry set to ${nextExpiry}.`,
+        created_at: new Date().toISOString(),
+      });
+
+      broadcastNotification({
+        key: `queue_promoted_${next.id}`,
+        title: "Waitlist Promoted to Active",
+        message: `${next.brand} is now ACTIVE for asset ${next.asset_code || assetCode}. 5-day confirmation clock started.`,
+        link: "/queue",
+        category: "queue_expiry",
+        type: "warning",
+      });
+
+      // Resequence remaining
+      const { data: remaining } = await supabase
+        .from("queue_entries")
+        .select("id")
+        .eq("asset_id", assetId)
+        .eq("state", "pending")
+        .neq("id", next.id)
+        .order("position");
+
+      for (let i = 0; i < (remaining ?? []).length; i++) {
+        await supabase
+          .from("queue_entries")
+          .update({ position: i + 1 })
+          .eq("id", remaining[i].id);
+      }
+
+      // Mark asset reserved for promoted brand
+      await supabase
+        .from("assets")
+        .update({ status: "reserved" })
+        .eq("id", assetId);
+    } else {
+      // No waitlist — free the asset
+      await supabase
+        .from("assets")
+        .update({ status: "available" })
+        .eq("id", assetId);
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["queue"] });
+    queryClient.invalidateQueries({ queryKey: ["assets"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+  } catch (err) {
+    console.warn("Error promoting waitlist on asset release:", err);
+  }
+}
+
+/**
  * Evaluates system state across:
  * 1. Queue expiry warnings (Slot expires in <= 2 days)
  * 2. GTP overdue alerts (Pending GTP with due_date <= today)

@@ -38,6 +38,21 @@ function ConfirmDialog({ entry }) {
 
   const confirm = useMutation({
     mutationFn: async (body) => {
+      // 0. Check if there's already an active/onboarding/live campaign on this asset
+      const { data: activeCamps } = await supabase
+        .from("campaigns")
+        .select("id, brand, stage")
+        .eq("asset_id", entry.asset_id)
+        .in("stage", ["onboarding", "invoicing", "live", "closing"]);
+
+      if (activeCamps && activeCamps.length > 0) {
+        throw {
+          body: {
+            detail: `Asset ${entry.asset_code} already has a campaign (${activeCamps[0].brand}) in ${activeCamps[0].stage} stage. Only 1 brand display can be active at a time. This entry will remain queued until that campaign is closed.`,
+          },
+        };
+      }
+
       // 1. Close the active entry as confirmed
       const { error: updErr } = await supabase.from("queue_entries").update({
         state: "confirmed",
@@ -53,16 +68,13 @@ function ConfirmDialog({ entry }) {
       }).eq("id", entry.id);
       if (updErr) throw { body: { detail: updErr.message } };
 
-      // 2. Auto-cancel other pending entries
-      const { data: losers } = await supabase.from("queue_entries").select("id").eq("asset_id", entry.asset_id).eq("state", "pending");
-      for (const l of losers ?? []) {
-        await supabase.from("queue_entries").update({ state: "cancelled", closed_at: new Date().toISOString(), cancel_reason: "Asset confirmed to another brand" }).eq("id", l.id);
-      }
+      // 2. Move asset to onboarding with current brand
+      await supabase.from("assets").update({
+        status: "onboarding",
+        current_brand: entry.brand,
+      }).eq("id", entry.asset_id);
 
-      // 3. Move asset to onboarding
-      await supabase.from("assets").update({ status: "onboarding" }).eq("id", entry.asset_id);
-
-      // 4. Create campaign
+      // 3. Create campaign
       const campaignId = crypto.randomUUID();
       const checklistItems = [
         { key: "creative_brief", label: "Creative brief", mandatory: true, status: "pending" },
@@ -88,7 +100,14 @@ function ConfirmDialog({ entry }) {
       });
       if (cErr) throw { body: { detail: cErr.message } };
 
-      return { campaign_id: campaignId, cancelled_entries: (losers ?? []).length };
+      // Get count of preserved waitlist entries
+      const { count: waitlistCount } = await supabase
+        .from("queue_entries")
+        .select("*", { count: "exact", head: true })
+        .eq("asset_id", entry.asset_id)
+        .eq("state", "pending");
+
+      return { campaign_id: campaignId, waitlist_count: waitlistCount || 0 };
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["queue"] });
@@ -96,9 +115,9 @@ function ConfirmDialog({ entry }) {
       queryClient.invalidateQueries({ queryKey: ["assets"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("Interest confirmed — onboarding task created", {
-        description: res.cancelled_entries
-          ? `${res.cancelled_entries} waitlist entr${res.cancelled_entries === 1 ? "y" : "ies"} auto-cancelled`
-          : undefined,
+        description: res.waitlist_count
+          ? `${res.waitlist_count} brand${res.waitlist_count === 1 ? " is" : "s are"} queued in waitlist for subsequent flights.`
+          : "Asset is now in onboarding.",
       });
       setOpen(false);
     },
@@ -178,9 +197,8 @@ function ConfirmDialog({ entry }) {
               data-testid="confirm-comment-input"
             />
           </div>
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-xs">
-            Confirming auto-cancels every other pending waitlist entry on this asset and notifies those
-            salespersons.
+          <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950 shadow-xs">
+            Confirming onboards <strong>{entry.brand}</strong> onto this display. Other waitlist entries are preserved and will activate automatically once this campaign concludes.
           </p>
           <DialogFooter>
             <Button type="submit" disabled={confirm.isPending} data-testid="submit-confirm-button">

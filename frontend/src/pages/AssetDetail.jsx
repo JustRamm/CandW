@@ -37,8 +37,8 @@ import { cn } from "@/lib/utils";
 function AddInterestDialog({ asset }) {
   const { data: brands } = useBrands();
   const [open, setOpen] = useState(false);
-  const [brandId, setBrandId] = useState("");
-  const [brand, setBrand] = useState("");
+  const [selectedBrandKey, setSelectedBrandKey] = useState("");
+  const [newBrandName, setNewBrandName] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [notes, setNotes] = useState("");
@@ -48,7 +48,6 @@ function AddInterestDialog({ asset }) {
     start && end ? Math.max(1, Math.round((new Date(end) - new Date(start)) / 86400000)) : 0;
   const [days, setDays] = useState(90);
   const effectiveDays = derivedDays || Number(days);
-  const selectedBrandName = brands?.find((b) => b.id === brandId)?.name ?? "";
 
   const add = useMutation({
     mutationFn: async (body) => {
@@ -61,9 +60,7 @@ function AddInterestDialog({ asset }) {
         else {
           const { data: newBrand, error: bErr } = await supabase.from("brands").insert({ id: crypto.randomUUID(), name: body.brand.trim(), created_at: new Date().toISOString() }).select().single();
           if (bErr) {
-            // Bug #18 fix: handle race condition — another user may have created the brand between our check and insert
             if (bErr.code === "23505") {
-              // unique violation — fetch the one that was just created
               const { data: raceWinner } = await supabase.from("brands").select("id, name").ilike("name", body.brand.trim()).maybeSingle();
               if (raceWinner) { brandId = raceWinner.id; brandName = raceWinner.name; }
               else throw { body: { detail: bErr.message } };
@@ -79,19 +76,21 @@ function AddInterestDialog({ asset }) {
       const { data: dupe } = await supabase.from("queue_entries").select("id").eq("asset_id", body.asset_id).eq("brand", brandName).in("state", ["active", "pending"]).maybeSingle();
       if (dupe) throw { body: { detail: "This brand is already in the queue for this asset" } };
 
-      // 3. Check if there's already an active slot
+      // 3. Check if there's already an active campaign or an active reservation slot on this asset
       const { data: existingActive } = await supabase.from("queue_entries").select("id").eq("asset_id", body.asset_id).eq("state", "active").maybeSingle();
+      const { data: existingCampaigns } = await supabase.from("campaigns").select("id, brand, stage").eq("asset_id", body.asset_id).in("stage", ["onboarding", "invoicing", "live", "closing"]);
       const { count: pendingCount } = await supabase.from("queue_entries").select("*", { count: "exact", head: true }).eq("asset_id", body.asset_id).eq("state", "pending");
 
-      // 4. Calculate expiry (5 business days by default)
+      const isAssetOccupied = Boolean(existingActive) || Boolean(existingCampaigns && existingCampaigns.length > 0) || asset.status === "live" || asset.status === "onboarding" || asset.status === "closing";
+      const isActive = !isAssetOccupied;
+
+      // 4. Calculate expiry (5 business days by default for active slots)
       const { data: settingsArr } = await supabase.from("settings").select("queue_active_business_days").eq("id", "global").maybeSingle();
       const holdDays = settingsArr?.queue_active_business_days ?? 5;
       const { data: holidays } = await supabase.from("holidays").select("date");
       const holidaySet = new Set((holidays ?? []).map((h) => h.date));
       let expiresOn = null;
-      const isActive = !existingActive;
       if (isActive) {
-        // Count forward holdDays business days
         let d = new Date(); let counted = 0;
         while (counted < holdDays) {
           d.setDate(d.getDate() + 1);
@@ -102,14 +101,12 @@ function AddInterestDialog({ asset }) {
         expiresOn = d.toISOString().split("T")[0];
       }
 
-      // Bug #9 fix: call getUser() once and reuse
       const { data: { user } } = await supabase.auth.getUser();
       const { data: myProfile } = await supabase.from("profiles").select("name").eq("id", user?.id).single();
 
       const entry = {
         id: crypto.randomUUID(),
         asset_id: body.asset_id,
-        // Bug #2 fix: store asset_code and asset_location so Queue page and ConfirmDialog can read them
         asset_code: asset.asset_code,
         asset_location: asset.location_name ?? "",
         brand_id: brandId,
@@ -127,8 +124,10 @@ function AddInterestDialog({ asset }) {
       };
       const { data: inserted, error } = await supabase.from("queue_entries").insert(entry).select().single();
       if (error) throw { body: { detail: error.message } };
-      // Update asset status to reserved
-      await supabase.from("assets").update({ status: "reserved" }).eq("id", body.asset_id);
+
+      if (asset.status === "available") {
+        await supabase.from("assets").update({ status: "reserved" }).eq("id", body.asset_id);
+      }
       return inserted;
     },
     onSuccess: (entry) => {
@@ -143,8 +142,8 @@ function AddInterestDialog({ asset }) {
           : `${entry.brand} added to the waitlist at position ${entry.position}`,
       );
       setOpen(false);
-      setBrand("");
-      setBrandId("");
+      setSelectedBrandKey("");
+      setNewBrandName("");
     },
     onError: (err) => toast.error(errMessage(err, "Could not add interest")),
   });
@@ -163,14 +162,18 @@ function AddInterestDialog({ asset }) {
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            const name = selectedBrandName || brand;
-            if (!name.trim()) {
-              toast.error("Pick an existing brand or type a new one");
+            const isNew = selectedBrandKey === "__new__";
+            const matchedBrand = brands?.find((b) => b.id === selectedBrandKey);
+            const name = isNew ? newBrandName.trim() : (matchedBrand?.name || "").trim();
+            const resolvedBrandId = isNew ? null : (matchedBrand?.id || null);
+
+            if (!name) {
+              toast.error(isNew ? "Please enter the new client / brand name" : "Please select a brand from the list");
               return;
             }
             add.mutate({
               asset_id: asset.id,
-              brand_id: brandId,
+              brand_id: resolvedBrandId,
               brand: name,
               proposed_start_date: start,
               proposed_end_date: end,
@@ -181,41 +184,49 @@ function AddInterestDialog({ asset }) {
           data-testid="add-interest-form"
         >
           <div className="space-y-1.5">
-            <Label>Existing brand</Label>
+            <Label className="font-semibold text-xs text-foreground">Select Brand Partner / Client</Label>
             <Select
-              value={brandId}
+              value={selectedBrandKey}
               onValueChange={(v) => {
-                setBrandId(v);
-                setBrand("");
+                setSelectedBrandKey(v);
+                if (v !== "__new__") setNewBrandName("");
               }}
             >
-              <SelectTrigger data-testid="interest-brand-select">
-                <SelectValue>{(v) => brands?.find((b) => b.id === v)?.name ?? "Select a brand"}</SelectValue>
+              <SelectTrigger data-testid="interest-brand-select" className="bg-background text-xs">
+                <SelectValue placeholder="Choose brand or + Add new client…" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__new__" className="font-semibold text-primary cursor-pointer border-b border-border/40 pb-1.5 mb-1">
+                  + Add new client / brand…
+                </SelectItem>
                 {(brands ?? []).map((b) => (
-                  <SelectItem key={b.id} value={b.id} data-testid={`interest-brand-option-${b.name.replace(/\s+/g, "-")}`}>
-                    {b.name}
+                  <SelectItem key={b.id} value={b.id} data-testid={`interest-brand-option-${b.name.replace(/\s+/g, "-")}`} className="cursor-pointer text-xs">
+                    <span className="font-medium text-foreground">{b.name}</span>
+                    {b.industry && <span className="ml-2 text-[10px] text-muted-foreground">({b.industry})</span>}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="brand">…or add a new brand</Label>
-            <Input
-              id="brand"
-              value={brand}
-              onChange={(e) => {
-                setBrand(e.target.value);
-                setBrandId("");
-              }}
-              placeholder="Tata Neu"
-              data-testid="interest-brand-input"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              A brand record is created automatically — add contacts later from the Brands page.
-            </p>
+
+            {selectedBrandKey === "__new__" && (
+              <div className="space-y-1 rounded-lg border border-primary/20 bg-primary/5 p-2.5 animate-in fade-in duration-150">
+                <Label htmlFor="new-brand-name" className="text-[11px] font-semibold text-primary">
+                  New Client / Brand Name *
+                </Label>
+                <Input
+                  id="new-brand-name"
+                  value={newBrandName}
+                  onChange={(e) => setNewBrandName(e.target.value)}
+                  placeholder="e.g. Tata Neu"
+                  className="h-8 text-xs bg-background"
+                  autoFocus
+                  data-testid="interest-brand-input"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  A brand profile will be automatically created in the Brands directory.
+                </p>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
