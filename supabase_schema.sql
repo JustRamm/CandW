@@ -466,3 +466,51 @@ begin
   end if;
 end $$;
 
+-- ── 19. venue_revenue_shares (Kerala Malls & Metro) ──────────
+create table if not exists public.venue_revenue_shares (
+  id                  uuid primary key default uuid_generate_v4(),
+  venue_name          text not null unique,
+  venue_type          text not null default 'Mall' check (venue_type in ('Mall', 'Metro', 'Other')),
+  district            text not null default 'Ernakulam',
+  share_type          text not null default 'percentage' check (share_type in ('percentage', 'fixed_monthly')),
+  cw_share_pct        numeric(5,2) not null default 50.00,
+  party_share_pct     numeric(5,2) not null default 50.00,
+  fixed_monthly_fee   numeric(12,2) default 0.00,
+  notes               text default '',
+  created_at          timestamptz default now()
+);
+alter table public.venue_revenue_shares enable row level security;
+drop policy if exists "venue_revenue_shares: read" on public.venue_revenue_shares;
+drop policy if exists "venue_revenue_shares: admin/finance write" on public.venue_revenue_shares;
+
+create policy "venue_revenue_shares: read" on public.venue_revenue_shares
+  for select using (true);
+create policy "venue_revenue_shares: admin/finance write" on public.venue_revenue_shares
+  for all using (public.get_my_role() in ('admin', 'finance', 'finance_manager'));
+
+insert into public.venue_revenue_shares 
+  (venue_name, venue_type, district, share_type, cw_share_pct, party_share_pct, fixed_monthly_fee, notes)
+values
+  ('Hilite Calicut', 'Mall', 'Kozhikode', 'percentage', 50.00, 50.00, 0, '50/50 Split on Untaxed Turnover'),
+  ('Hilite Malappuram', 'Mall', 'Malappuram', 'percentage', 50.00, 50.00, 0, '50/50 Split on Untaxed Turnover'),
+  ('Hilite Thrissur', 'Mall', 'Thrissur', 'percentage', 50.00, 50.00, 0, '50/50 Split on Untaxed Turnover'),
+  ('Hilite Mall Chemmad', 'Mall', 'Malappuram', 'percentage', 50.00, 50.00, 0, '50/50 Split on Untaxed Turnover'),
+  ('Lulu Calicut', 'Mall', 'Kozhikode', 'percentage', 50.00, 50.00, 0, '50/50 Split on Untaxed Turnover'),
+  ('Lulu Kottayam', 'Mall', 'Kottayam', 'percentage', 50.00, 50.00, 0, '50/50 Split on Untaxed Turnover'),
+  ('Secura Kannur', 'Mall', 'Kannur', 'percentage', 50.00, 50.00, 0, '50/50 Split on Untaxed Turnover'),
+  ('Y Mall Thrissur', 'Mall', 'Thrissur', 'percentage', 50.00, 50.00, 0, '50/50 Split on Untaxed Turnover'),
+  ('Oberon Kochi', 'Mall', 'Ernakulam', 'percentage', 60.00, 40.00, 0, '60% C&W / 40% Mall Split'),
+  ('Sobha City Thrissur', 'Mall', 'Thrissur', 'percentage', 60.00, 40.00, 0, '60% C&W / 40% Mall Split'),
+  ('Gokulam Calicut', 'Mall', 'Kozhikode', 'percentage', 60.00, 40.00, 0, '60% C&W / 40% Mall Split'),
+  ('Falcon Mall Thrissur', 'Mall', 'Thrissur', 'percentage', 60.00, 40.00, 0, '60% C&W / 40% Mall Split'),
+  ('Centre Square Kochi', 'Mall', 'Ernakulam', 'percentage', 70.00, 30.00, 0, '70% C&W / 30% Mall Split'),
+  ('Mall of Travancore', 'Mall', 'Thiruvananthapuram', 'percentage', 70.00, 30.00, 0, '70% C&W / 30% Mall Split'),
+  ('Lulu TVM', 'Mall', 'Thiruvananthapuram', 'fixed_monthly', 0.00, 0.00, 100000.00, 'Fixed monthly actuals fee of ₹1,00,000'),
+  ('Lulu Kochi', 'Mall', 'Ernakulam', 'fixed_monthly', 0.00, 0.00, 150000.00, 'Fixed monthly actuals fee of ₹1,50,000'),
+  ('Metro', 'Metro', 'Ernakulam', 'percentage', 30.00, 70.00, 0, '30% C&W / 70% KMRL Split')
+on conflict (venue_name) do update set
+  cw_share_pct = excluded.cw_share_pct,
+  party_share_pct = excluded.party_share_pct,
+  fixed_monthly_fee = excluded.fixed_monthly_fee,
+  share_type = excluded.share_type,
+  notes = excluded.notes;

@@ -41,9 +41,11 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PriorityBadge from "@/components/shared/PriorityBadge";
+import PaymentMilestones from "@/components/campaigns/PaymentMilestones";
+import { calculateRevenueSplit, computeMilestoneSchedule, REVENUE_SHARE_MATRIX, matchVenueRule } from "@/lib/revenueShare";
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
-import { useCampaign, useMe } from "@/lib/queries";
+import { useCampaign, useAsset, useMe } from "@/lib/queries";
 import { enqueueOfflineGtp, cacheCampaignsOffline } from "@/lib/offlineStore";
 import { notifyBrandAdStatusUpdate } from "@/lib/resend";
 import { errMessage, fmtDate, fmtDateTime, fmtMoney, getAppBaseUrl } from "@/lib/helpers";
@@ -292,20 +294,61 @@ function ChecklistItem({ campaign, item }) {
 
 function InvoiceDialog({ campaign }) {
   const [open, setOpen] = useState(false);
-  // Bug #7 fix: Let Finance pick the actual campaign start date instead of hardcoding to today
   const todayStr = new Date().toISOString().split("T")[0];
-  const [form, setForm] = useState({ invoice_number: "", amount: "", gst_percent: 18, notes: "", start_date: todayStr });
+  const { data: asset } = useAsset(campaign.asset_id);
+
+  // Auto-resolve venue from asset or campaign code
+  const initialVenue = asset?.location_name || campaign.asset_code || "Secura Kannur";
+  const matchedRule = matchVenueRule(initialVenue, asset?.location_type);
+
+  const [form, setForm] = useState({
+    invoice_number: "",
+    venue_name: matchedRule?.venue_name || "",
+    display_count: "",
+    unit_price: "",
+    untaxed_amount: "",
+    gst_percent: 18,
+    notes: "",
+    start_date: todayStr,
+    // Flexible Balance Milestone Terms
+    advance_percent: 50,
+    balance_term_type: "net_5_days",
+    custom_balance_due_date: "",
+  });
+
   const [docs, setDocs] = useState([]);
   const refresh = useRefresh(campaign.id);
+
+  // Auto calculate untaxed amount when display_count or unit_price changes
+  const handleUnitOrPriceChange = (count, price) => {
+    const totalUntaxed = (Number(count) || 0) * (Number(price) || 0);
+    setForm((f) => ({
+      ...f,
+      display_count: count,
+      unit_price: price,
+      untaxed_amount: totalUntaxed,
+    }));
+  };
+
+  // Live calculation of revenue share & net profit
+  const revenueSplit = calculateRevenueSplit({
+    untaxedAmount: form.untaxed_amount,
+    venueName: form.venue_name,
+  });
+
+  const untaxed = Number(form.untaxed_amount) || 0;
+  const gstPct = Number(form.gst_percent) || 18;
+  const gstAmount = Math.round((untaxed * gstPct) / 100);
+  const grossTotal = untaxed + gstAmount;
 
   const submit = useMutation({
     mutationFn: async (body) => {
       // Invoice: add invoice object, move to live, set start/end dates, generate GTP schedule
       const { data: settingsArr } = await supabase.from("settings").select("*").eq("id", "global").maybeSingle();
       const interval = settingsArr?.gtp_interval_days ?? 28;
-      // Bug #7 fix: use Finance-selected start date, not today
       const startDate = body.start_date;
       const endDate = new Date(new Date(startDate).getTime() + campaign.duration_days * 86400000).toISOString().split("T")[0];
+
       // Generate GTP schedule
       const gtps = [];
       let dueDateMs = new Date(startDate).getTime() + interval * 86400000;
@@ -315,29 +358,50 @@ function InvoiceDialog({ campaign }) {
         dueDateMs += interval * 86400000;
         seq++;
       }
-      // Add final GTP
       gtps.push({ id: crypto.randomUUID(), seq, status: "pending", due_date: endDate, is_final: true, doc_ids: [], priority: "medium" });
 
+      // Compute flexible 2-stage milestone schedule
+      const milestones = computeMilestoneSchedule({
+        totalAmount: grossTotal,
+        advancePercent: body.advance_percent,
+        balanceTermType: body.balance_term_type,
+        customBalanceDueDate: body.custom_balance_due_date,
+        campaignStartDate: startDate,
+      });
+
       const { data: profile } = await supabase.from("profiles").select("name").eq("id", (await supabase.auth.getUser()).data.user?.id).single();
+
       const invoice = {
         invoice_number: body.invoice_number,
-        amount: body.amount,
-        gst_percent: body.gst_percent,
-        total_amount: body.amount * (1 + body.gst_percent / 100),
+        venue_name: body.venue_name,
+        display_count: Number(body.display_count) || 1,
+        unit_price: Number(body.unit_price) || 0,
+        untaxed_amount: untaxed,
+        amount: untaxed, // backwards compat
+        gst_percent: gstPct,
+        gst_amount: gstAmount,
+        total_amount: grossTotal,
+        party_share_percent: revenueSplit.party_share_pct,
+        party_share_amount: revenueSplit.party_share_amount,
+        cw_share_percent: revenueSplit.cw_share_pct,
+        net_revenue: revenueSplit.net_revenue,
+        milestones,
         notes: body.notes,
         doc_ids: body.doc_ids,
+        invoice_date: startDate,
         raised_by: profile?.name ?? "",
         raised_at: new Date().toISOString(),
       };
+
       const { error } = await supabase.from("campaigns").update({ stage: "live", invoice, gtps, start_date: startDate, end_date: endDate }).eq("id", campaign.id);
       if (error) throw { body: { detail: error.message } };
-      await supabase.from("assets").update({ status: "live" }).eq("id", campaign.asset_id);
+      await supabase.from("assets").update({ status: "live", current_brand: campaign.brand }).eq("id", campaign.asset_id);
       return { ok: true };
     },
     onSuccess: () => {
       refresh();
       notifyBrandAdStatusUpdate(campaign.id, "live");
-      toast.success("Invoice recorded — campaign is now live");
+      toast.success("Invoice & Milestones recorded — campaign is now live!");
       setOpen(false);
     },
     onError: (err) => toast.error(errMessage(err, "Could not raise the invoice")),
@@ -347,91 +411,223 @@ function InvoiceDialog({ campaign }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm" data-testid="raise-invoice-button" />}>
         <Receipt className="size-4" />
-        Raise GST invoice
+        Raise GST invoice &amp; Schedule
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-heading">GST invoice · {campaign.brand}</DialogTitle>
+          <DialogTitle className="font-heading">
+            Odoo Invoice &amp; Payment Schedule · {campaign.brand}
+          </DialogTitle>
         </DialogHeader>
         <form
-          className="space-y-3"
+          className="space-y-3.5"
           onSubmit={(e) => {
             e.preventDefault();
             submit.mutate({
               invoice_number: form.invoice_number,
-              amount: Number(form.amount),
-              gst_percent: Number(form.gst_percent),
+              venue_name: form.venue_name,
+              display_count: form.display_count,
+              unit_price: form.unit_price,
+              untaxed_amount: form.untaxed_amount,
+              gst_percent: form.gst_percent,
               notes: form.notes,
               doc_ids: docs.map((d) => d.id),
               start_date: form.start_date,
+              advance_percent: form.advance_percent,
+              balance_term_type: form.balance_term_type,
+              custom_balance_due_date: form.custom_balance_due_date,
             });
           }}
           data-testid="invoice-form"
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="invoice_number">Invoice number</Label>
-            <Input
-              id="invoice_number"
-              required
-              value={form.invoice_number}
-              onChange={(e) => setForm((f) => ({ ...f, invoice_number: e.target.value }))}
-              placeholder="INV-2026-0042"
-              data-testid="invoice-number-input"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="start_date">Campaign start date</Label>
-            <Input
-              id="start_date"
-              type="date"
-              required
-              value={form.start_date}
-              onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
-              data-testid="invoice-start-date-input"
-            />
-            <p className="text-[11px] text-muted-foreground">Actual installation date — anchors the GTP schedule.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="amount">Amount (₹)</Label>
+          {/* Header invoice metadata */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <Label htmlFor="invoice_number" className="text-xs">Invoice Number (Odoo)</Label>
               <Input
-                id="amount"
-                type="number"
-                min={1}
+                id="invoice_number"
                 required
-                value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                data-testid="invoice-amount-input"
+                value={form.invoice_number}
+                onChange={(e) => setForm((f) => ({ ...f, invoice_number: e.target.value }))}
+                placeholder="e.g. CW137"
+                className="h-8 text-xs font-mono uppercase"
+                data-testid="invoice-number-input"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gst">GST %</Label>
+            <div className="space-y-1">
+              <Label htmlFor="start_date" className="text-xs">Invoice &amp; Start Date</Label>
               <Input
-                id="gst"
-                type="number"
-                value={form.gst_percent}
-                onChange={(e) => setForm((f) => ({ ...f, gst_percent: e.target.value }))}
-                data-testid="invoice-gst-input"
+                id="start_date"
+                type="date"
+                required
+                value={form.start_date}
+                onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
+                className="h-8 text-xs"
+                data-testid="invoice-start-date-input"
               />
             </div>
           </div>
-          <FileUploader value={docs} onChange={setDocs} label="Attach invoice PDF" testId="invoice-uploader" />
-          <div className="space-y-1.5">
-            <Label htmlFor="invoice-notes">Notes</Label>
+
+          {/* Venue & Displays Breakdown (Odoo Format) */}
+          <div className="rounded-lg border border-border/80 bg-secondary/20 p-3 space-y-2.5">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Venue Location</Label>
+              <Select
+                value={form.venue_name}
+                onValueChange={(v) => setForm((f) => ({ ...f, venue_name: v }))}
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {REVENUE_SHARE_MATRIX.map((m) => (
+                    <SelectItem key={m.venue_name} value={m.venue_name} className="text-xs">
+                      {m.venue_name} ({m.share_type === "fixed_monthly" ? `Fixed ₹${m.fixed_monthly_fee.toLocaleString()}` : `${m.party_share_pct}% Revenue Share`})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="display_count" className="text-[11px]">Display Count</Label>
+                <Input
+                  id="display_count"
+                  type="number"
+                  min="1"
+                  value={form.display_count}
+                  onChange={(e) => handleUnitOrPriceChange(e.target.value, form.unit_price)}
+                  className="h-7 text-xs font-mono"
+                  placeholder="5"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="unit_price" className="text-[11px]">Rate / Unit (₹)</Label>
+                <Input
+                  id="unit_price"
+                  type="number"
+                  min="0"
+                  value={form.unit_price}
+                  onChange={(e) => handleUnitOrPriceChange(form.display_count, e.target.value)}
+                  className="h-7 text-xs font-mono"
+                  placeholder="5000"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="untaxed_amount" className="text-[11px]">Turnover (₹)</Label>
+                <Input
+                  id="untaxed_amount"
+                  type="number"
+                  min="1"
+                  value={form.untaxed_amount}
+                  onChange={(e) => setForm((f) => ({ ...f, untaxed_amount: Number(e.target.value) }))}
+                  className="h-7 text-xs font-mono font-bold text-foreground"
+                  data-testid="invoice-amount-input"
+                />
+              </div>
+            </div>
+
+            {/* Inbuilt Revenue Share Calculation Preview */}
+            <div className="rounded-md border border-primary/20 bg-primary/5 p-2 flex items-center justify-between text-[11px]">
+              <div>
+                <span className="font-semibold text-primary">
+                  {form.venue_name}: {revenueSplit.party_share_pct}% Share
+                </span>
+                <p className="text-muted-foreground text-[10px]">
+                  Venue Payout: {fmtMoney(revenueSplit.party_share_amount)}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  Net C&amp;W Profit: {fmtMoney(revenueSplit.net_revenue)}
+                </span>
+                <p className="text-muted-foreground text-[10px] font-mono">
+                  Gross: {fmtMoney(grossTotal)} (incl. 18% GST)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Flexible Milestone Payment Scheduler */}
+          <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground">Flexible Payment Milestones</Label>
+              <Badge variant="outline" className="text-[10px] py-0 font-mono">
+                2-Stage Milestone
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label className="text-[11px]">Milestone 1: Advance %</Label>
+                <Select
+                  value={String(form.advance_percent)}
+                  onValueChange={(v) => setForm((f) => ({ ...f, advance_percent: Number(v) }))}
+                >
+                  <SelectTrigger className="h-7 text-xs bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="50">50% Advance ({fmtMoney(Math.round(grossTotal * 0.5))})</SelectItem>
+                    <SelectItem value="40">40% Advance ({fmtMoney(Math.round(grossTotal * 0.4))})</SelectItem>
+                    <SelectItem value="100">100% Full Upfront ({fmtMoney(grossTotal)})</SelectItem>
+                    <SelectItem value="0">0% (100% on Balance/PO)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[11px]">Milestone 2: Balance Term</Label>
+                <Select
+                  value={form.balance_term_type}
+                  onValueChange={(v) => setForm((f) => ({ ...f, balance_term_type: v }))}
+                >
+                  <SelectTrigger className="h-7 text-xs bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="on_onboarding">Day of Onboarding (0 Days)</SelectItem>
+                    <SelectItem value="net_5_days">After 5 Days (Post-GTP)</SelectItem>
+                    <SelectItem value="net_15_days">Net 15 Days</SelectItem>
+                    <SelectItem value="net_30_days">Net 30 Days</SelectItem>
+                    <SelectItem value="custom_po">Custom PO Due Date</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {form.balance_term_type === "custom_po" && (
+              <div className="space-y-1 pt-1 animate-in fade-in">
+                <Label className="text-[11px]">PO Specified Balance Due Date</Label>
+                <Input
+                  type="date"
+                  value={form.custom_balance_due_date}
+                  onChange={(e) => setForm((f) => ({ ...f, custom_balance_due_date: e.target.value }))}
+                  className="h-7 text-xs bg-background"
+                />
+              </div>
+            )}
+          </div>
+
+          <FileUploader value={docs} onChange={setDocs} label="Attach Odoo Invoice PDF" testId="invoice-uploader" />
+
+          <div className="space-y-1">
+            <Label htmlFor="invoice-notes" className="text-xs">Notes (optional)</Label>
             <Textarea
               id="invoice-notes"
               rows={2}
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="e.g. PO reference #PO-2026-9918, 5 displays booked"
+              className="text-xs"
               data-testid="invoice-notes-input"
             />
           </div>
-          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-[#006d37] shadow-xs">
-            Submitting flips the asset to Live and schedules the GTP cycle from today.
-          </p>
-          <DialogFooter>
-            <Button type="submit" disabled={submit.isPending} data-testid="submit-invoice-button">
-              {submit.isPending ? "Submitting…" : "Submit & go live"}
+
+          <DialogFooter className="pt-1">
+            <Button type="submit" disabled={submit.isPending} data-testid="submit-invoice-button" className="w-full sm:w-auto">
+              {submit.isPending ? "Recording…" : "Confirm Invoice & Schedule Payments"}
             </Button>
           </DialogFooter>
         </form>
@@ -984,11 +1180,20 @@ export default function CampaignDetail() {
 
               {campaign.invoice && (
                 <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3" data-testid="invoice-summary">
-                  <p className="mono-label text-muted-foreground">GST invoice</p>
-                  <p className="mt-1 text-sm">
-                    {campaign.invoice.invoice_number} · {fmtMoney(campaign.invoice.total_amount)} (incl.{" "}
-                    {campaign.invoice.gst_percent}% GST) · raised by {campaign.invoice.raised_by}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="mono-label text-muted-foreground">GST invoice</p>
+                      <p className="mt-0.5 text-sm font-semibold text-foreground">
+                        {campaign.invoice.invoice_number} · {fmtMoney(campaign.invoice.total_amount)} (incl.{" "}
+                        {campaign.invoice.gst_percent}% GST) · raised by {campaign.invoice.raised_by}
+                      </p>
+                    </div>
+                    {campaign.invoice.venue_name && (
+                      <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+                        {campaign.invoice.venue_name} ({campaign.invoice.display_count || 1} displays)
+                      </Badge>
+                    )}
+                  </div>
                   {campaign.invoice.doc_ids?.length > 0 && (
                     <div className="mt-2">
                       <DocumentList docIds={campaign.invoice.doc_ids} />
@@ -998,6 +1203,9 @@ export default function CampaignDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* 2-Stage Payment Milestone Tracker & Revenue Sharing Widget */}
+          <PaymentMilestones campaign={campaign} me={me} />
 
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList variant="line" data-testid="campaign-tabs">

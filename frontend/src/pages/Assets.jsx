@@ -313,6 +313,11 @@ export function AssetDialog({ asset, trigger }) {
       : { ...BLANK, brand_names: [] };
   };
 
+  const getInitialIsLive = () => {
+    if (!asset) return false;
+    return asset.status === "live" || Boolean(asset.start_date);
+  };
+
   const [form, setForm] = useState(getInitialForm);
   const [photos, setPhotos] = useState(
     (asset?.photo_ids ?? []).map((id) => ({ id, filename: "Existing photo" })),
@@ -323,8 +328,8 @@ export function AssetDialog({ asset, trigger }) {
   const [isCustomMall, setIsCustomMall] = useState(false);
   const [geoResolving, setGeoResolving] = useState(false);
   const [geoMatchInfo, setGeoMatchInfo] = useState(null);
-  // Bug #3: track whether the ad is currently live (controls display of schedule fields)
-  const [isLive, setIsLive] = useState(Boolean(asset?.start_date));
+  // Track whether the asset is currently live or vacant/available
+  const [isLive, setIsLive] = useState(getInitialIsLive);
   // Bug #11: track whether geo-fence is enabled
   const [geofenceEnabled, setGeofenceEnabled] = useState((asset?.geofence_radius_m ?? 500) > 0);
   // Bug #10: GPS section collapsed by default
@@ -417,7 +422,7 @@ export function AssetDialog({ asset, trigger }) {
     setIsCustomMall(false);
     setGeoResolving(false);
     setGeoMatchInfo(null);
-    setIsLive(Boolean(asset?.start_date));
+    setIsLive(getInitialIsLive());
     setGeofenceEnabled((asset?.geofence_radius_m ?? 500) > 0);
     setShowAdvanced(false);
     setNewMall({
@@ -484,16 +489,19 @@ export function AssetDialog({ asset, trigger }) {
         body.asset_type === "Digital Totem" ||
         body.location_type === "DOOH";
 
+      const isCurrentlyLive = Boolean(body.is_live);
+
       const selectedBrands = isDigitalAsset
         ? (form.brand_names ?? []).filter(Boolean)
         : (body.brand_name ? [body.brand_name.trim()] : []);
 
-      if (!selectedBrands.length && !asset) {
+      // If marked as Currently Live, brand is required
+      if (isCurrentlyLive && !selectedBrands.length && !asset) {
         throw {
           body: {
             detail: isDigitalAsset
-              ? "Please select at least one brand partner for the digital ad loop (required)."
-              : "Please select a registered brand partner (required).",
+              ? "Please select at least one brand partner for the live digital ad loop."
+              : "Please select a registered brand partner for this live campaign.",
           },
         };
       }
@@ -503,12 +511,17 @@ export function AssetDialog({ asset, trigger }) {
         ? `${body.notes ? body.notes + " · " : ""}${isDigitalAsset ? "Digital Ad Loop: " : "Brand Partner: "}${brandSummary}`
         : body.notes;
 
-      const { brand_name, brand_names, create_dual_sided, ...dbFields } = body;
+      const { brand_name, brand_names, create_dual_sided, is_live, ...dbFields } = body;
+
+      const determinedStatus = isCurrentlyLive
+        ? "live"
+        : (asset?.status && ["reserved", "onboarding", "closing", "closed"].includes(asset.status) ? asset.status : "available");
 
       const payload = {
         ...dbFields,
         notes: notesWithBrand,
         current_brand: brandSummary || null,
+        status: determinedStatus,
         map_url: body.map_url || (body.latitude && body.longitude ? `https://www.google.com/maps?q=${body.latitude},${body.longitude}` : null),
         latitude: body.latitude && !isNaN(Number(body.latitude)) ? Number(body.latitude) : null,
         longitude: body.longitude && !isNaN(Number(body.longitude)) ? Number(body.longitude) : null,
@@ -585,7 +598,7 @@ export function AssetDialog({ asset, trigger }) {
           display_side: "DA",
           ...payload,
           description: payload.description ? `${payload.description} — DISPLAY A (FRONT)` : "DISPLAY A (FRONT)",
-          status: "available",
+          status: determinedStatus,
           created_at: new Date().toISOString(),
         }).select().single();
         if (errA) throw { body: { detail: errA.message } };
@@ -597,10 +610,36 @@ export function AssetDialog({ asset, trigger }) {
           display_side: "DB",
           ...payload,
           description: payload.description ? `${payload.description} — DISPLAY B (BACKSIDE)` : "DISPLAY B (BACKSIDE)",
-          status: "available",
+          status: determinedStatus,
           created_at: new Date().toISOString(),
         });
         if (errB) throw { body: { detail: errB.message } };
+
+        // If currently live, create active campaigns
+        if (isCurrentlyLive && selectedBrands.length) {
+          const campaignStartDate = body.start_date || new Date().toISOString().split("T")[0];
+          const campaignEndDate = body.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          const calculatedDuration = Math.max(1, Math.round((new Date(campaignEndDate) - new Date(campaignStartDate)) / (1000 * 60 * 60 * 24)));
+
+          for (const bName of selectedBrands) {
+            const matched = brands.find((b) => b.name.toLowerCase() === bName.toLowerCase());
+            await supabase.from("campaigns").insert({
+              id: crypto.randomUUID(),
+              asset_id: itemA.id,
+              asset_code: itemA.asset_code,
+              brand: bName,
+              brand_id: matched?.id || null,
+              duration_days: calculatedDuration,
+              proposed_duration_days: calculatedDuration,
+              stage: "live",
+              priority: "high",
+              start_date: campaignStartDate,
+              end_date: campaignEndDate,
+              notes: isDigitalAsset ? "Digital Screen Rotating Ad Loop Slot" : "Exclusive Static Slot",
+              gtps: gtpList,
+            });
+          }
+        }
 
         return itemA;
       }
@@ -616,35 +655,36 @@ export function AssetDialog({ asset, trigger }) {
         bench_number: bNum,
         display_side: dSide,
         ...payload,
-        status: "available",
+        status: determinedStatus,
         created_at: new Date().toISOString(),
       }).select().single();
       if (error) throw { body: { detail: error.message } };
 
-      // Link brand campaign(s) automatically
-      const campaignStartDate = body.start_date || new Date().toISOString().split("T")[0];
-      const campaignEndDate = body.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-      const calculatedDuration = Math.max(1, Math.round((new Date(campaignEndDate) - new Date(campaignStartDate)) / (1000 * 60 * 60 * 24)));
+      // If currently live, link brand campaign(s) automatically
+      if (isCurrentlyLive && selectedBrands.length) {
+        const campaignStartDate = body.start_date || new Date().toISOString().split("T")[0];
+        const campaignEndDate = body.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const calculatedDuration = Math.max(1, Math.round((new Date(campaignEndDate) - new Date(campaignStartDate)) / (1000 * 60 * 60 * 24)));
 
-      for (const bName of selectedBrands) {
-        const matched = brands.find((b) => b.name.toLowerCase() === bName.toLowerCase());
-        await supabase.from("campaigns").insert({
-          id: crypto.randomUUID(),
-          asset_id: data.id,
-          asset_code: data.asset_code,
-          brand: bName,
-          brand_id: matched?.id || null,
-          duration_days: calculatedDuration,
-          proposed_duration_days: calculatedDuration,
-          stage: "live",
-          priority: "high",
-          start_date: campaignStartDate,
-          end_date: campaignEndDate,
-          notes: isDigitalAsset ? "Digital Screen Rotating Ad Loop Slot" : "Exclusive Static Slot",
-          gtps: gtpList,
-        });
+        for (const bName of selectedBrands) {
+          const matched = brands.find((b) => b.name.toLowerCase() === bName.toLowerCase());
+          await supabase.from("campaigns").insert({
+            id: crypto.randomUUID(),
+            asset_id: data.id,
+            asset_code: data.asset_code,
+            brand: bName,
+            brand_id: matched?.id || null,
+            duration_days: calculatedDuration,
+            proposed_duration_days: calculatedDuration,
+            stage: "live",
+            priority: "high",
+            start_date: campaignStartDate,
+            end_date: campaignEndDate,
+            notes: isDigitalAsset ? "Digital Screen Rotating Ad Loop Slot" : "Exclusive Static Slot",
+            gtps: gtpList,
+          });
+        }
       }
-
 
       return data;
     },
@@ -659,7 +699,7 @@ export function AssetDialog({ asset, trigger }) {
         broadcastNotification({
           key: `new_asset_${a.id}`,
           title: "New Asset Added",
-          message: `${a.asset_code} (${a.location_name || "New Location"}) added to inventory.`,
+          message: `${a.asset_code} (${a.location_name || "New Location"}) added as ${isLive ? "Live" : "Available"}.`,
           link: `/assets/${a.id}`,
           category: "inventory",
           type: "success",
@@ -676,10 +716,11 @@ export function AssetDialog({ asset, trigger }) {
     },
   });
 
-  // Bug #6: Auto-fill Carbon and Whale as default brands when brands load and no brand is selected
+  // Auto-fill default brands only when ad is set to Live and user hasn't selected a brand
   useEffect(() => {
     if (!brands.length) return;
     if (asset) return; // Edit mode: don't override existing brands
+    if (!isLive) return; // Vacant/available mode: leave brand clean & empty
     if (isDigital) {
       if (!form.brand_names?.length) {
         const defaults = brands
@@ -700,7 +741,7 @@ export function AssetDialog({ asset, trigger }) {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brands.length, isDigital]);
+  }, [brands.length, isDigital, isLive]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -736,6 +777,7 @@ export function AssetDialog({ asset, trigger }) {
             save.mutate({
               ...form,
               asset_type: activeType,
+              is_live: isLive,
               width_ft: Number(form.width_ft),
               height_ft: Number(form.height_ft),
               // Bug #1 fix: photo_ids = regular photos only (not merged with proof)
@@ -743,7 +785,7 @@ export function AssetDialog({ asset, trigger }) {
               proof_photo_ids: proofPhotoIds,
               proof_photo_url: primaryProofUrl,
               photo_url: primaryPhoto,
-              // Bug #3: only set dates when ad is live
+              // Only set dates when ad is live
               start_date: isLive ? form.start_date : null,
               end_date: isLive ? form.end_date : null,
               // Bug #11: set geofence to 0 when disabled
@@ -752,6 +794,50 @@ export function AssetDialog({ asset, trigger }) {
           }}
           data-testid={asset ? "edit-asset-form" : "add-asset-form"}
         >
+
+          {/* Initial Status Selector: Available (Vacant) vs Currently Live */}
+          <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-xs font-semibold text-foreground">Asset Status</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  {isLive
+                    ? "Live ad running — creates active brand campaign."
+                    : "Vacant inventory — ready for queue & sales booking."}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 p-0.5 bg-background rounded-lg border border-border/70">
+                <button
+                  type="button"
+                  onClick={() => setIsLive(false)}
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer flex items-center gap-1.5",
+                    !isLive
+                      ? "bg-emerald-600 text-white font-semibold shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  data-testid="status-available-btn"
+                >
+                  <span className={cn("size-2 rounded-full", !isLive ? "bg-white" : "bg-emerald-500")} />
+                  Available
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLive(true)}
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer flex items-center gap-1.5",
+                    isLive
+                      ? "bg-primary text-primary-foreground font-semibold shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  data-testid="status-live-btn"
+                >
+                  <span className={cn("size-2 rounded-full", isLive ? "bg-sky-200 animate-pulse" : "bg-primary")} />
+                  Currently Live
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -794,7 +880,7 @@ export function AssetDialog({ asset, trigger }) {
                 <div className="flex items-center justify-between">
                   <Label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
                     <span>Ad Loop Brands</span>
-                    <span className="text-destructive">*</span>
+                    {isLive && <span className="text-destructive">*</span>}
                   </Label>
                   <Badge variant="outline" className="mono-label text-[10px] border-primary/40 text-primary">
                     {form.brand_names?.length || 0} in loop
@@ -826,7 +912,7 @@ export function AssetDialog({ asset, trigger }) {
                     ))
                   ) : (
                     <span className="text-[10px] text-muted-foreground italic px-1">
-                      No brands in rotation
+                      {isLive ? "Select brand(s) for loop" : "Vacant / No brands in loop"}
                     </span>
                   )}
                 </div>
@@ -859,33 +945,63 @@ export function AssetDialog({ asset, trigger }) {
               </div>
             ) : (
               <div className="space-y-1.5">
-                <Label htmlFor="asset-brand-select" className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-foreground">
-                    Placeholder Brand Partner <span className="text-destructive">*</span>
+                <div className="flex items-center justify-between text-xs">
+                  <Label htmlFor="asset-brand-select" className="font-semibold text-foreground">
+                    {isLive ? "Active Brand Partner" : "Assigned Brand"} {isLive && <span className="text-destructive">*</span>}
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground">
+                    {isLive ? "Required" : "Optional"}
                   </span>
-                  <span className="text-[10px] text-muted-foreground">Required</span>
-                </Label>
-                <Select
-                  value={form.brand_name}
-                  onValueChange={(val) => setForm((f) => ({ ...f, brand_name: val, brand_names: [val] }))}
-                >
-                  <SelectTrigger id="asset-brand-select" className="bg-background text-xs" data-testid="asset-brand-select">
-                    <SelectValue placeholder="Select registered brand..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {brands.map((b) => (
-                      <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
-                        <span className="font-semibold text-foreground">{b.name}</span>
-                        {b.industry && (
-                          <span className="ml-2 text-[11px] text-muted-foreground">({b.industry})</span>
-                        )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Select
+                    value={form.brand_name || "__none__"}
+                    onValueChange={(val) => {
+                      if (val === "__none__") {
+                        setForm((f) => ({ ...f, brand_name: "", brand_names: [] }));
+                      } else {
+                        setForm((f) => ({ ...f, brand_name: val, brand_names: [val] }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="asset-brand-select" className="bg-background text-xs flex-1" data-testid="asset-brand-select">
+                      <SelectValue placeholder="Select brand (or leave vacant)..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__" className="text-muted-foreground text-xs italic cursor-pointer">
+                        — None (Vacant / Available) —
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!form.brand_name && (
+                      {brands.map((b) => (
+                        <SelectItem key={b.id} value={b.name} className="cursor-pointer text-xs">
+                          <span className="font-semibold text-foreground">{b.name}</span>
+                          {b.industry && (
+                            <span className="ml-2 text-[11px] text-muted-foreground">({b.industry})</span>
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.brand_name && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setForm((f) => ({ ...f, brand_name: "", brand_names: [] }))}
+                      className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      title="Clear brand"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+                {isLive && !form.brand_name && (
                   <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                    A registered brand partner is required for all new assets.
+                    A registered brand partner is required for live campaigns.
+                  </p>
+                )}
+                {!isLive && !form.brand_name && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Leave blank to keep asset vacant and available for sales queue.
                   </p>
                 )}
               </div>

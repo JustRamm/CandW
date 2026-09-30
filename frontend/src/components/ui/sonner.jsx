@@ -20,9 +20,9 @@ const Toaster = ({ ...props }) => {
       toastOptions={{
         classNames: {
           toast:
-            "group font-sans flex items-center gap-3 w-full p-3.5 px-4 rounded-xl border border-border/80 bg-card/95 backdrop-blur-md shadow-lg shadow-black/5 text-foreground transition-all duration-200 text-xs sm:text-sm",
-          title: "font-medium font-heading text-foreground",
-          description: "text-xs text-muted-foreground mt-0.5",
+            "group font-sans flex items-start gap-3 w-full p-4 rounded-xl border border-border/80 bg-card shadow-lg shadow-black/5 text-foreground transition-all duration-200 text-xs sm:text-sm",
+          title: "font-semibold font-heading text-sm text-foreground leading-snug",
+          description: "!text-xs !text-slate-800 dark:!text-slate-200 !mt-1 !opacity-100 !leading-relaxed font-normal",
           actionButton:
             "bg-primary text-primary-foreground font-medium rounded-lg text-xs px-2.5 py-1.5 hover:bg-primary/90 transition-colors",
           cancelButton:
@@ -30,13 +30,13 @@ const Toaster = ({ ...props }) => {
           closeButton:
             "text-muted-foreground hover:text-foreground border border-border/60 bg-background/80 rounded-full",
           success:
-            "!border-emerald-500/25 !bg-emerald-50/95 !text-emerald-950 dark:!bg-emerald-950/50 dark:!text-emerald-100 dark:!border-emerald-800/60 shadow-emerald-900/5",
+            "!border-emerald-500/40 !bg-emerald-50 !text-emerald-950 dark:!bg-emerald-950 dark:!text-emerald-50 [&_[data-title]]:!text-emerald-950 dark:[&_[data-title]]:!text-emerald-100 [&_[data-description]]:!text-emerald-900 dark:[&_[data-description]]:!text-emerald-200",
           error:
-            "!border-red-500/25 !bg-red-50/95 !text-red-950 dark:!bg-red-950/50 dark:!text-red-100 dark:!border-red-800/60 shadow-red-900/5",
+            "!border-red-500/40 !bg-red-50 !text-red-950 dark:!bg-red-950 dark:!text-red-50 [&_[data-title]]:!text-red-950 dark:[&_[data-title]]:!text-red-100 [&_[data-description]]:!text-red-900 dark:[&_[data-description]]:!text-red-200",
           info:
-            "!border-sky-500/25 !bg-sky-50/95 !text-sky-950 dark:!bg-sky-950/50 dark:!text-sky-100 dark:!border-sky-800/60 shadow-sky-900/5",
+            "!border-sky-500/40 !bg-sky-50 !text-sky-950 dark:!bg-sky-950 dark:!text-sky-50 [&_[data-title]]:!text-sky-950 dark:[&_[data-title]]:!text-sky-100 [&_[data-description]]:!text-sky-900 dark:[&_[data-description]]:!text-sky-200",
           warning:
-            "!border-amber-500/25 !bg-amber-50/95 !text-amber-950 dark:!bg-amber-950/50 dark:!text-amber-100 dark:!border-amber-800/60 shadow-amber-900/5",
+            "!border-amber-500/40 !bg-amber-50 !text-amber-950 dark:!bg-amber-950 dark:!text-amber-50 [&_[data-title]]:!text-amber-950 dark:[&_[data-title]]:!text-amber-100 [&_[data-description]]:!text-amber-900 dark:[&_[data-description]]:!text-amber-200",
         },
       }}
       icons={{

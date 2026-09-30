@@ -61,7 +61,7 @@ export function useDashboard(userProfile) {
         // Bug #20 fix: select only required columns for KPI calculation rather than all columns
         supabase.from("assets").select("id, status").then((r) => r, () => ({ data: [] })),
         supabase.from("queue_entries").select("*").in("state", ["active", "pending"]).then((r) => r, () => ({ data: [] })),
-        supabase.from("campaigns").select("id, brand, asset_code, stage, gtps, checklist, cancellation, duration_days, start_date, end_date").neq("stage", "closed").then((r) => r, () => ({ data: [] })),
+        supabase.from("campaigns").select("id, brand, asset_id, asset_code, stage, invoice, gtps, checklist, cancellation, duration_days, start_date, end_date").neq("stage", "closed").then((r) => r, () => ({ data: [] })),
         supabase.from("settings").select("*").then((r) => r, () => ({ data: [] })),
         supabase.from("holidays").select("date").then((r) => r, () => ({ data: [] })),
       ]);

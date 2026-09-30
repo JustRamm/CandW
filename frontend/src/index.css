@@ -214,3 +214,28 @@
     }
 }
 
+/* Sonner Toast High-Contrast Fix */
+[data-sonner-toast] [data-description] {
+    color: #1e293b !important;
+    opacity: 0.95 !important;
+    font-size: 0.8125rem !important;
+    line-height: 1.35rem !important;
+}
+
+[data-sonner-toast][data-type="warning"] [data-description] {
+    color: #78350f !important;
+}
+
+[data-sonner-toast][data-type="error"] [data-description] {
+    color: #7f1d1d !important;
+}
+
+[data-sonner-toast][data-type="success"] [data-description] {
+    color: #064e3b !important;
+}
+
+[data-sonner-toast][data-type="info"] [data-description] {
+    color: #0c4a6e !important;
+}
+
+

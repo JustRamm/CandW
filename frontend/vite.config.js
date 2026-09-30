@@ -28,11 +28,13 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    dedupe: ["react", "react-dom", "react-dom/client", "react-router-dom", "react-is"],
   },
   // Every shipped dep, pre-bundled up front. Vite discovers deps lazily, so the first
   // import outside the initial graph would trigger a re-optimize + reload mid-session.
   optimizeDeps: {
     include: [
+      "@base-ui/react",
       "@base-ui/react/button",
       "@base-ui/react/checkbox",
       "@base-ui/react/dialog",
@@ -52,7 +54,7 @@ export default defineConfig({
       "motion/react",
       "next-themes",
       "react",
-      "react-day-picker",
+      "react-dom",
       "react-dom/client",
       "react-is",
       "react-router-dom",

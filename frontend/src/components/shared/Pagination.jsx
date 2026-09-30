@@ -60,7 +60,7 @@ export default function Pagination({
     <div
       className={cn(
         sticky
-          ? "sticky bottom-4 z-20 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-border/80 bg-card/95 p-3.5 backdrop-blur-md shadow-lg select-none text-xs text-muted-foreground"
+          ? "sticky bottom-1.5 sm:bottom-2 z-20 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-border/80 bg-card/95 p-3 sm:p-3.5 backdrop-blur-md shadow-lg select-none text-xs text-muted-foreground"
           : "flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-border/60 text-xs text-muted-foreground select-none",
         className
       )}
