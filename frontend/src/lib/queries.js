@@ -455,7 +455,13 @@ export function useAuditLog(filters = {}) {
       // Bug #16 fix: support pagination limit (default 100) instead of hardcoding 500
       const limit = filters.limit ?? 100;
       let q = supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(limit);
-      if (filters.entity_type && filters.entity_type !== "all") q = q.eq("entity_type", filters.entity_type);
+      if (filters.entity_type && filters.entity_type !== "all") {
+        if (filters.entity_type === "gtp") {
+          q = q.or("entity_type.eq.gtp,action.ilike.%gtp%");
+        } else {
+          q = q.eq("entity_type", filters.entity_type);
+        }
+      }
       if (filters.asset_id) q = q.eq("asset_id", filters.asset_id);
       if (filters.actor_id && filters.actor_id !== "all") q = q.eq("actor_id", filters.actor_id);
       return check(await q);
