@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import {
-  ArrowLeft,
   Briefcase,
   Building2,
+  ChevronLeft,
   Clock,
   History,
   LayoutGrid,
@@ -121,16 +121,15 @@ export default function AppShell({
     <div className="flex h-screen overflow-hidden bg-background">
       <aside className="hidden w-[236px] shrink-0 border-r border-sidebar-border bg-sidebar md:flex md:flex-col h-screen select-none">
         {/* Brand Header */}
-        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-sidebar-border/60 shrink-0">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-slate-950 p-1.5 shadow-xs ring-1 ring-white/10 shrink-0">
-            <img src="/brand/logo.svg" alt="Carbon & Whale" className="h-full w-full object-contain" />
-          </div>
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-sidebar-border/60 shrink-0">
+          <img
+            src="/brand/logo.svg"
+            alt="Carbon & Whale"
+            className="size-9 object-contain shrink-0 transition-transform duration-200 hover:scale-105"
+          />
           <div className="min-w-0 flex-1">
-            <p className="font-heading text-xs font-bold leading-tight tracking-tight text-foreground truncate">
+            <p className="font-heading text-base font-bold leading-tight tracking-tight text-foreground truncate">
               Carbon &amp; Whale
-            </p>
-            <p className="mono-label text-[10px] text-muted-foreground truncate">
-              OOH Operations OS
             </p>
           </div>
         </div>
@@ -235,9 +234,11 @@ export default function AppShell({
                 className="group flex items-center gap-2.5 min-w-0 cursor-pointer rounded-xl text-left transition-transform active:scale-95 focus:outline-hidden"
                 data-testid="mobile-dashboard-logo-refresh"
               >
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-xs ring-1 ring-white/10 transition-transform group-hover:rotate-6 group-active:scale-90">
-                  <img src="/brand/logo.svg" alt="Carbon & Whale" className="h-full w-full object-contain" />
-                </div>
+                <img
+                  src="/brand/logo.svg"
+                  alt="Carbon & Whale"
+                  className="size-9 shrink-0 object-contain transition-transform group-hover:rotate-6 group-active:scale-90"
+                />
                 <div className="min-w-0">
                   <p className="truncate font-heading text-base font-bold tracking-tight text-foreground">
                     {me?.name ?? "User"}
@@ -271,11 +272,12 @@ export default function AppShell({
                   <Link
                     to={resolvedBackTo}
                     onClick={() => sound.click()}
-                    className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-secondary/70 text-foreground transition-all duration-150 hover:bg-secondary hover:text-primary active:scale-90 shadow-xs"
+                    className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-secondary/60 text-foreground transition-all duration-150 hover:bg-secondary hover:text-primary active:scale-90 shadow-2xs"
                     data-testid={resolvedBackTestId || "back-to-parent"}
                     aria-label={resolvedBackLabel ? `Back to ${resolvedBackLabel}` : "Go back"}
+                    title={resolvedBackLabel ? `Back to ${resolvedBackLabel}` : "Go back"}
                   >
-                    <ArrowLeft className="size-4.5 stroke-[2.25]" />
+                    <ChevronLeft className="size-5 stroke-[2.5] -translate-x-0.5" />
                   </Link>
                 )}
                 <div className="min-w-0 flex-1">
@@ -312,11 +314,12 @@ export default function AppShell({
                 <Link
                   to={resolvedBackTo}
                   onClick={() => sound.click()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-secondary/40 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground active:scale-95 shadow-2xs shrink-0"
+                  className="flex size-8.5 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-secondary/50 text-foreground transition-all duration-150 hover:bg-secondary hover:text-primary hover:border-primary/40 active:scale-90 shadow-2xs"
                   data-testid={resolvedBackTestId || "desktop-back-to-parent"}
+                  aria-label={resolvedBackLabel ? `Back to ${resolvedBackLabel}` : "Go back"}
+                  title={resolvedBackLabel ? `Back to ${resolvedBackLabel}` : "Go back"}
                 >
-                  <ArrowLeft className="size-3.5" />
-                  <span>{resolvedBackLabel || "Back"}</span>
+                  <ChevronLeft className="size-5 stroke-[2.5] -translate-x-0.5" />
                 </Link>
               )}
               <div className="min-w-0 flex-1">

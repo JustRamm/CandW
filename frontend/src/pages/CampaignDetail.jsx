@@ -1393,7 +1393,7 @@ export default function CampaignDetail() {
             </TabsList>
 
             <TabsContent value="checklist" className="pt-4">
-              <div className="mx-auto w-full max-w-2xl space-y-3" data-testid="checklist-flow">
+              <div className="w-full space-y-3" data-testid="checklist-flow">
                 {(campaign.checklist ?? []).map((item) => (
                   <ChecklistItem key={item.key} campaign={campaign} item={item} />
                 ))}

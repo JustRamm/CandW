@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
-  ArrowLeft,
+  ChevronLeft,
   ShieldCheck,
   MapPin,
   Calendar,
@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClientPortalSkeleton } from "@/components/skeletons";
+import BrandDoodles from "@/components/shared/BrandDoodles";
 
 
 const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_API_KEY || "";
@@ -357,61 +358,66 @@ export default function ClientPortal() {
   const estimatedReach = mappedAssets.length * (flightInfo?.daysPassed || 1) * 2450;
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 selection:text-primary">
-      {/* ── Internal Staff Preview Notice Bar (Only for logged-in CRM users) ── */}
-      {me && (
-        <div className="bg-primary/10 border-b border-primary/25 px-4 py-2 text-xs flex items-center gap-2 text-foreground">
-          <span className="size-2 rounded-full bg-primary inline-block shrink-0" />
-          <span>
-            Internal CRM Preview as <strong>{me.name}</strong> ({me.role_label}) · External clients see only the verified report.
-          </span>
-        </div>
-      )}
-
-      {/* ── Executive Branded Header ────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-xs ring-1 ring-white/10">
-              <img src="/brand/logo.svg" alt="Carbon & Whale" className="h-full w-full object-contain" />
-            </div>
-            <div className="min-w-0">
-              <span className="font-heading text-sm sm:text-base font-bold tracking-tight text-foreground truncate block">
-                Carbon & Whale
-              </span>
-            </div>
+    <div className="relative min-h-screen bg-background text-foreground selection:bg-primary/20 selection:text-primary overflow-x-hidden">
+      <BrandDoodles />
+      <div className="relative z-10">
+        {/* ── Internal Staff Preview Notice Bar (Only for logged-in CRM users) ── */}
+        {me && (
+          <div className="bg-primary/10 border-b border-primary/25 px-4 py-2 text-xs flex items-center gap-2 text-foreground">
+            <span className="size-2 rounded-full bg-primary inline-block shrink-0" />
+            <span>
+              Internal CRM Preview as <strong>{me.name}</strong> ({me.role_label}) · External clients see only the verified report.
+            </span>
           </div>
+        )}
 
-          <div className="flex items-center gap-2">
-            {me && (
+        {/* ── Executive Branded Header ────────────────────────────────────────── */}
+        <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur-md">
+          <div className="flex w-full items-center justify-between px-4 py-3 sm:px-6 md:px-8">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <img
+                src="/brand/logo.svg"
+                alt="Carbon & Whale"
+                className="size-8.5 shrink-0 object-contain"
+              />
+              <div className="min-w-0">
+                <span className="font-heading text-sm sm:text-base font-bold tracking-tight text-foreground truncate block">
+                  Carbon &amp; Whale
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {me && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBackToCrm}
+                  className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+                  data-testid="portal-back-to-crm"
+                  title="Back to CRM"
+                >
+                  <ChevronLeft className="size-4 stroke-[2.25] -translate-x-0.5" />
+                  <span className="hidden sm:inline">Back to CRM</span>
+                </Button>
+              )}
+
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
-                onClick={handleBackToCrm}
-                className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
-                data-testid="portal-back-to-crm"
+                onClick={handleCopyLink}
+                className="h-8 text-xs gap-1.5 cursor-pointer bg-primary hover:bg-primary/90"
               >
-                <ArrowLeft className="size-3.5" />
-                <span className="hidden sm:inline">Back to CRM</span>
+                <Share2 className="size-3.5" />
+                <span>{isCopied ? "Copied!" : "Share Link"}</span>
               </Button>
-            )}
-
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleCopyLink}
-              className="h-8 text-xs gap-1.5 cursor-pointer bg-primary hover:bg-primary/90"
-            >
-              <Share2 className="size-3.5" />
-              <span>{isCopied ? "Copied!" : "Share Link"}</span>
-            </Button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* ── Brand Hero Banner ──────────────────────────────────────────────── */}
-      <section className="border-b border-border/50 bg-gradient-to-b from-primary/5 via-transparent to-transparent py-8 px-4 sm:px-6">
-        <div className="mx-auto max-w-7xl">
+        {/* ── Brand Hero Banner ──────────────────────────────────────────────── */}
+        <section className="border-b border-border/50 bg-gradient-to-b from-primary/5 via-transparent to-transparent py-6 sm:py-8 px-4 sm:px-6 md:px-8">
+          <div className="w-full">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
@@ -532,7 +538,7 @@ export default function ClientPortal() {
       </section>
 
       {/* ── Main Interactive Section ───────────────────────────────────────── */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8">
+      <main className="w-full px-4 py-6 sm:px-6 md:px-8 space-y-6 sm:space-y-8">
         {/* Bug #12 responsiveness fix: tab bar scrolls horizontally on mobile */}
         <div className="overflow-x-auto no-scrollbar">
           <div className="flex items-center justify-between border-b border-border/60 pb-3 min-w-max sm:min-w-0">
@@ -898,18 +904,19 @@ export default function ClientPortal() {
         </div>
       )}
 
-      {/* ── Executive Certificate Footer ──────────────────────────────────── */}
-      <footer className="mt-16 border-t border-border/60 bg-secondary/30 py-8 px-4 sm:px-6">
-        <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="size-2 rounded-full bg-emerald-500" />
-            <span>Verification Hash: <span className="font-mono text-[10px]">CW-{lookupKey?.slice(0, 8).toUpperCase() || "VERIFIED"}</span></span>
+        {/* ── Executive Certificate Footer ──────────────────────────────────── */}
+        <footer className="mt-16 border-t border-border/60 bg-secondary/30 py-6 sm:py-8 px-4 sm:px-6 md:px-8">
+          <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <div className="size-2 rounded-full bg-emerald-500" />
+              <span>Verification Hash: <span className="font-mono text-[10px]">CW-{lookupKey?.slice(0, 8).toUpperCase() || "VERIFIED"}</span></span>
+            </div>
+            <div>
+              Powered by <strong className="text-foreground">Carbon &amp; Whale</strong>
+            </div>
           </div>
-          <div>
-            Powered by <strong className="text-foreground">Carbon & Whale</strong>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </div>
   );
 }
