@@ -347,12 +347,10 @@ export default function AppShell({
             </div>
           )}
         </header>
-        <main className="relative flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full pb-40 md:pb-12">
+        <main className="relative flex-1 px-4 py-4 md:px-8 md:py-6 max-w-full pb-20 md:pb-12 flex flex-col">
           <BrandDoodles />
-          <div className="relative z-10 pb-6 md:pb-0">
+          <div className="relative z-10 flex-1 flex flex-col">
             {children}
-            {/* Safe area spacer to guarantee last cards are never hidden behind fixed mobile nav */}
-            <div className="h-20 md:hidden w-full pointer-events-none" aria-hidden="true" />
           </div>
         </main>
       </div>

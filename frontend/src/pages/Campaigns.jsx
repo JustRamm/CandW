@@ -92,110 +92,114 @@ export default function Campaigns() {
         </Button>
       }
     >
-      <div className="space-y-4">
-        <Select value={stage} onValueChange={setStage}>
-          <SelectTrigger className="w-full sm:w-56" data-testid="campaign-stage-filter">
-            <SelectValue>{(v) => STAGES.find(([k]) => k === v)?.[1] ?? "All stages"}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {STAGES.map(([k, label]) => (
-              <SelectItem key={k} value={k} data-testid={`campaign-stage-option-${k}`}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="space-y-4 flex-1 flex flex-col justify-between">
+        <div className="space-y-4">
+          <Select value={stage} onValueChange={setStage}>
+            <SelectTrigger className="w-full sm:w-56" data-testid="campaign-stage-filter">
+              <SelectValue>{(v) => STAGES.find(([k]) => k === v)?.[1] ?? "All stages"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {STAGES.map(([k, label]) => (
+                <SelectItem key={k} value={k} data-testid={`campaign-stage-option-${k}`}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        {isError && (
-          <EmptyState title="Campaigns unavailable" hint="Try again shortly." testId="campaigns-error-state" />
-        )}
-        {isLoading && <CampaignsSkeleton count={4} />}
-        {!isLoading && !isError && campaigns?.length === 0 && (
-          <EmptyState
-            title="No campaigns in this stage"
-            hint="Finance Manager confirmations create campaigns from the interest queue."
-            icon={ClipboardList}
-            testId="campaigns-empty-state"
-          />
-        )}
+          {isError && (
+            <EmptyState title="Campaigns unavailable" hint="Try again shortly." testId="campaigns-error-state" />
+          )}
+          {isLoading && <CampaignsSkeleton count={4} />}
+          {!isLoading && !isError && campaigns?.length === 0 && (
+            <EmptyState
+              title="No campaigns in this stage"
+              hint="Finance Manager confirmations create campaigns from the interest queue."
+              icon={ClipboardList}
+              testId="campaigns-empty-state"
+            />
+          )}
 
-        <div className="grid grid-cols-2 items-stretch gap-2.5 sm:gap-4 lg:grid-cols-2 xl:grid-cols-3" data-testid="campaign-list">
-          {paginatedCampaigns.map((c) => (
-            <Link
-              key={c.id}
-              to={`/campaigns/${c.id}`}
-              className="group block h-full select-none focus:outline-hidden"
-              data-testid={`campaign-card-${c.asset_code}`}
-            >
-              <Card className="flex h-full flex-col justify-between overflow-hidden border-border/70 bg-card/80 transition-all duration-150 hover:border-primary/50 hover:bg-card hover:shadow-xs active:scale-[0.98]">
-                <CardContent className="flex flex-1 flex-col justify-between gap-2 p-2.5 sm:gap-3 sm:p-4">
-                  {/* Header: Brand & Asset Code + Badges */}
-                  <div className="space-y-1 sm:space-y-1.5">
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1.5">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-heading text-xs sm:text-base font-semibold text-foreground group-hover:text-primary transition-colors leading-tight" title={c.brand}>
-                          {c.brand}
-                        </p>
-                        <p className="mono-label mt-0.5 truncate text-[10px] text-muted-foreground sm:text-xs">
-                          {c.asset_code}
-                        </p>
+          <div className="grid grid-cols-2 items-stretch gap-2.5 sm:gap-4 lg:grid-cols-2 xl:grid-cols-3" data-testid="campaign-list">
+            {paginatedCampaigns.map((c) => (
+              <Link
+                key={c.id}
+                to={`/campaigns/${c.id}`}
+                className="group block h-full select-none focus:outline-hidden"
+                data-testid={`campaign-card-${c.asset_code}`}
+              >
+                <Card className="flex h-full flex-col justify-between overflow-hidden border-border/70 bg-card/80 transition-all duration-150 hover:border-primary/50 hover:bg-card hover:shadow-xs active:scale-[0.98]">
+                  <CardContent className="flex flex-1 flex-col justify-between gap-2 p-2.5 sm:gap-3 sm:p-4">
+                    {/* Header: Brand & Asset Code + Badges */}
+                    <div className="space-y-1 sm:space-y-1.5">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-heading text-xs sm:text-base font-semibold text-foreground group-hover:text-primary transition-colors leading-tight" title={c.brand}>
+                            {c.brand}
+                          </p>
+                          <p className="mono-label mt-0.5 truncate text-[10px] text-muted-foreground sm:text-xs">
+                            {c.asset_code}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 shrink-0">
+                          <PriorityBadge priority={c.priority} className="text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5" />
+                          <StageBadge stage={c.stage} className="text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5" />
+                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1 shrink-0">
-                        <PriorityBadge priority={c.priority} className="text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5" />
-                        <StageBadge stage={c.stage} className="text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5" />
-                      </div>
+
+                      {/* Key Metrics */}
+                      <dl className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2 pt-1 text-[10px] sm:text-xs">
+                        {[
+                          ["Duration", `${c.duration_days} days`],
+                          ["Salesperson", c.salesperson_name || "—"],
+                          ["Window", c.start_date ? `${fmtDate(c.start_date)} → ${fmtDate(c.end_date)}` : "Not started"],
+                          ["Invoice", c.invoice ? fmtMoney(c.invoice.total_amount) : "Pending"],
+                        ].map(([k, v]) => (
+                          <div key={k} className="min-w-0">
+                            <dt className="mono-label text-[9px] sm:text-[10px] text-muted-foreground truncate">{k}</dt>
+                            <dd className="mt-0.5 truncate font-medium text-foreground">{v}</dd>
+                          </div>
+                        ))}
+                      </dl>
                     </div>
 
-                    {/* Key Metrics */}
-                    <dl className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2 pt-1 text-[10px] sm:text-xs">
-                      {[
-                        ["Duration", `${c.duration_days} days`],
-                        ["Salesperson", c.salesperson_name || "—"],
-                        ["Window", c.start_date ? `${fmtDate(c.start_date)} → ${fmtDate(c.end_date)}` : "Not started"],
-                        ["Invoice", c.invoice ? fmtMoney(c.invoice.total_amount) : "Pending"],
-                      ].map(([k, v]) => (
-                        <div key={k} className="min-w-0">
-                          <dt className="mono-label text-[9px] sm:text-[10px] text-muted-foreground truncate">{k}</dt>
-                          <dd className="mt-0.5 truncate font-medium text-foreground">{v}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
-
-                  {/* Footer info: Checklist / GTP / Cancellation */}
-                  <div className="flex flex-wrap items-center gap-1 sm:gap-2 pt-1.5 border-t border-border/40 text-[9px] sm:text-xs text-muted-foreground">
-                    {c.stage === "onboarding" && (
-                      <span className="mono-label rounded-md bg-secondary/70 px-1.5 py-0.5 text-[9px] sm:text-[11px]" data-testid="campaign-checklist-progress">
-                        Checklist {c.checklist_done}/{c.checklist_total}
-                      </span>
-                    )}
-                    {c.next_due && (
-                      <span className={cn("mono-label rounded-md px-1.5 py-0.5 text-[9px] sm:text-[11px]", c.overdue ? "bg-red-50 text-red-600 font-medium" : "bg-secondary/70")} data-testid="campaign-next-gtp">
-                        {c.overdue ? "GTP overdue" : "Next GTP"} {fmtDate(c.next_due)}
-                      </span>
-                    )}
-                    {c.cancellation?.status === "requested" && (
-                      <span className="mono-label rounded-md bg-amber-50 text-amber-700 px-1.5 py-0.5 text-[9px] sm:text-[11px] font-medium">
-                        Cancellation pending
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                    {/* Footer info: Checklist / GTP / Cancellation */}
+                    <div className="flex flex-wrap items-center gap-1 sm:gap-2 pt-1.5 border-t border-border/40 text-[9px] sm:text-xs text-muted-foreground">
+                      {c.stage === "onboarding" && (
+                        <span className="mono-label rounded-md bg-secondary/70 px-1.5 py-0.5 text-[9px] sm:text-[11px]" data-testid="campaign-checklist-progress">
+                          Checklist {c.checklist_done}/{c.checklist_total}
+                        </span>
+                      )}
+                      {c.next_due && (
+                        <span className={cn("mono-label rounded-md px-1.5 py-0.5 text-[9px] sm:text-[11px]", c.overdue ? "bg-red-50 text-red-600 font-medium" : "bg-secondary/70")} data-testid="campaign-next-gtp">
+                          {c.overdue ? "GTP overdue" : "Next GTP"} {fmtDate(c.next_due)}
+                        </span>
+                      )}
+                      {c.cancellation?.status === "requested" && (
+                        <span className="mono-label rounded-md bg-amber-50 text-amber-700 px-1.5 py-0.5 text-[9px] sm:text-[11px] font-medium">
+                          Cancellation pending
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
         </div>
 
         {campaigns.length > 0 && (
-          <Pagination
-            currentPage={currentPage}
-            totalItems={campaigns.length}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-            pageSizeOptions={[12, 24, 48]}
-            itemLabel="campaigns"
-          />
+          <div className="mt-auto pt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalItems={campaigns.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[12, 24, 48]}
+              itemLabel="campaigns"
+            />
+          </div>
         )}
       </div>
     </AppShell>

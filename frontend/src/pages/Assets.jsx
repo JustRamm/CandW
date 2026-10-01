@@ -2717,7 +2717,7 @@ export default function Assets() {
           viewMode === "map" ? (
             <AssetMap assets={assets} />
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1 flex flex-col justify-between">
               <div className="grid grid-cols-2 items-start gap-2.5 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
                 {paginatedAssets.map((a) => (
                   <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
@@ -2725,15 +2725,17 @@ export default function Assets() {
               </div>
 
               {assets.length > 0 && (
-                <Pagination
-                  currentPage={currentPage}
-                  totalItems={assets.length}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
-                  pageSizeOptions={[12, 24, 48]}
-                  itemLabel="assets"
-                />
+                <div className="mt-auto pt-4">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={assets.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                    pageSizeOptions={[12, 24, 48]}
+                    itemLabel="assets"
+                  />
+                </div>
               )}
             </div>
           )

@@ -330,114 +330,118 @@ export default function Brands() {
         </div>
       }
     >
-      <div className="space-y-4">
-        <div className="relative sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search brands"
-            className="pl-9"
-            data-testid="brand-search-input"
-          />
-        </div>
+      <div className="space-y-4 flex-1 flex flex-col justify-between">
+        <div className="space-y-4">
+          <div className="relative sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search brands"
+              className="pl-9"
+              data-testid="brand-search-input"
+            />
+          </div>
 
-        {isError && <EmptyState title="Brands unavailable" hint="Try again shortly." testId="brands-error-state" />}
-        {isLoading && <BrandsSkeleton count={6} />}
-        {!isLoading && !isError && brands.length === 0 && (
-          <EmptyState
-            title="No brands yet"
-            hint="Brands are created here, or automatically the first time Sales adds one to an interest queue."
-            icon={Building2}
-            testId="brands-empty-state"
-          />
-        )}
+          {isError && <EmptyState title="Brands unavailable" hint="Try again shortly." testId="brands-error-state" />}
+          {isLoading && <BrandsSkeleton count={6} />}
+          {!isLoading && !isError && brands.length === 0 && (
+            <EmptyState
+              title="No brands yet"
+              hint="Brands are created here, or automatically the first time Sales adds one to an interest queue."
+              icon={Building2}
+              testId="brands-empty-state"
+            />
+          )}
 
-        {paginatedBrands.length > 0 && (
-          <div className="grid grid-cols-2 items-stretch gap-2.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-4" data-testid="brand-grid">
-            {paginatedBrands.map((b) => (
-              <Link
-                key={b.id}
-                to={`/brands/${b.id}`}
-                className="group block h-full select-none focus:outline-hidden"
-                data-testid={`brand-card-${b.name.replace(/\s+/g, "-")}`}
-              >
-                <Card className="flex h-full flex-col justify-between overflow-hidden border-border/70 bg-card/80 transition-all duration-150 hover:border-primary/50 hover:bg-card hover:shadow-xs active:scale-[0.98]">
-                  <CardContent className="flex flex-1 flex-col justify-between gap-2 p-2.5 sm:gap-3 sm:p-4">
-                    {/* Header: Name + Industry + Icon */}
-                    <div className="space-y-1 sm:space-y-1.5">
-                      <div className="flex items-start justify-between gap-1.5">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-heading text-xs font-semibold text-foreground group-hover:text-primary transition-colors sm:text-base leading-tight" title={b.name}>
-                            {b.name}
-                          </p>
-                          {b.industry && (
-                            <p className="mono-label mt-0.5 truncate text-[10px] text-muted-foreground sm:text-xs">
-                              {b.industry}
+          {paginatedBrands.length > 0 && (
+            <div className="grid grid-cols-2 items-stretch gap-2.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-4" data-testid="brand-grid">
+              {paginatedBrands.map((b) => (
+                <Link
+                  key={b.id}
+                  to={`/brands/${b.id}`}
+                  className="group block h-full select-none focus:outline-hidden"
+                  data-testid={`brand-card-${b.name.replace(/\s+/g, "-")}`}
+                >
+                  <Card className="flex h-full flex-col justify-between overflow-hidden border-border/70 bg-card/80 transition-all duration-150 hover:border-primary/50 hover:bg-card hover:shadow-xs active:scale-[0.98]">
+                    <CardContent className="flex flex-1 flex-col justify-between gap-2 p-2.5 sm:gap-3 sm:p-4">
+                      {/* Header: Name + Industry + Icon */}
+                      <div className="space-y-1 sm:space-y-1.5">
+                        <div className="flex items-start justify-between gap-1.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-heading text-xs font-semibold text-foreground group-hover:text-primary transition-colors sm:text-base leading-tight" title={b.name}>
+                              {b.name}
+                            </p>
+                            {b.industry && (
+                              <p className="mono-label mt-0.5 truncate text-[10px] text-muted-foreground sm:text-xs">
+                                {b.industry}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex size-6 sm:size-7 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                            <Building2 className="size-3 sm:size-3.5" />
+                          </div>
+                        </div>
+
+                        {/* Contact items */}
+                        <div className="space-y-0.5 pt-1 text-[10px] text-muted-foreground sm:space-y-1 sm:text-xs">
+                          {b.contact_person && (
+                            <p className="flex items-center gap-1 truncate" title={b.contact_person}>
+                              <User className="size-2.5 sm:size-3.5 shrink-0 text-muted-foreground/70" />
+                              <span className="truncate">{b.contact_person}</span>
+                            </p>
+                          )}
+                          {b.contact_email && (
+                            <p className="flex items-center gap-1 truncate" title={b.contact_email}>
+                              <Mail className="size-2.5 sm:size-3.5 shrink-0 text-muted-foreground/70" />
+                              <span className="truncate">{b.contact_email}</span>
+                            </p>
+                          )}
+                          {b.contact_phone && (
+                            <p className="flex items-center gap-1 truncate" title={b.contact_phone}>
+                              <Phone className="size-2.5 sm:size-3.5 shrink-0 text-muted-foreground/70" />
+                              <span className="truncate">{b.contact_phone}</span>
                             </p>
                           )}
                         </div>
-                        <div className="flex size-6 sm:size-7 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
-                          <Building2 className="size-3 sm:size-3.5" />
-                        </div>
                       </div>
 
-                      {/* Contact items */}
-                      <div className="space-y-0.5 pt-1 text-[10px] text-muted-foreground sm:space-y-1 sm:text-xs">
-                        {b.contact_person && (
-                          <p className="flex items-center gap-1 truncate" title={b.contact_person}>
-                            <User className="size-2.5 sm:size-3.5 shrink-0 text-muted-foreground/70" />
-                            <span className="truncate">{b.contact_person}</span>
-                          </p>
+                      {/* Footer Badges */}
+                      <div className="flex flex-wrap items-center gap-1 pt-1 sm:gap-1.5 border-t border-border/40">
+                        <Badge variant="outline" className="mono-label text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5 border-border/70 text-muted-foreground">
+                          {b.campaign_count} {b.campaign_count === 1 ? "campaign" : "campaigns"}
+                        </Badge>
+                        {b.live_campaigns > 0 && (
+                          <Badge variant="outline" className="mono-label rounded-full text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5 border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs">
+                            {b.live_campaigns} live
+                          </Badge>
                         )}
-                        {b.contact_email && (
-                          <p className="flex items-center gap-1 truncate" title={b.contact_email}>
-                            <Mail className="size-2.5 sm:size-3.5 shrink-0 text-muted-foreground/70" />
-                            <span className="truncate">{b.contact_email}</span>
-                          </p>
-                        )}
-                        {b.contact_phone && (
-                          <p className="flex items-center gap-1 truncate" title={b.contact_phone}>
-                            <Phone className="size-2.5 sm:size-3.5 shrink-0 text-muted-foreground/70" />
-                            <span className="truncate">{b.contact_phone}</span>
-                          </p>
+                        {b.open_queue_entries > 0 && (
+                          <Badge variant="outline" className="mono-label rounded-full text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5 border-sky-200 bg-sky-50 text-[#004c69] shadow-xs">
+                            {b.open_queue_entries} in queue
+                          </Badge>
                         )}
                       </div>
-                    </div>
-
-                    {/* Footer Badges */}
-                    <div className="flex flex-wrap items-center gap-1 pt-1 sm:gap-1.5 border-t border-border/40">
-                      <Badge variant="outline" className="mono-label text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5 border-border/70 text-muted-foreground">
-                        {b.campaign_count} {b.campaign_count === 1 ? "campaign" : "campaigns"}
-                      </Badge>
-                      {b.live_campaigns > 0 && (
-                        <Badge variant="outline" className="mono-label rounded-full text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5 border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs">
-                          {b.live_campaigns} live
-                        </Badge>
-                      )}
-                      {b.open_queue_entries > 0 && (
-                        <Badge variant="outline" className="mono-label rounded-full text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5 border-sky-200 bg-sky-50 text-[#004c69] shadow-xs">
-                          {b.open_queue_entries} in queue
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
 
         {brands.length > 0 && (
-          <Pagination
-            currentPage={currentPage}
-            totalItems={brands.length}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-            pageSizeOptions={[12, 24, 48]}
-            itemLabel="brands"
-          />
+          <div className="mt-auto pt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalItems={brands.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[12, 24, 48]}
+              itemLabel="brands"
+            />
+          </div>
         )}
       </div>
     </AppShell>

@@ -55,8 +55,8 @@ export default function Pagination({
     <div
       className={cn(
         sticky
-          ? "sticky bottom-1.5 sm:bottom-2 z-20 mt-6 flex items-center justify-center rounded-xl border border-border/80 bg-card/95 p-2 sm:p-2.5 backdrop-blur-md shadow-lg select-none text-xs text-muted-foreground w-fit mx-auto"
-          : "mt-6 flex items-center justify-center rounded-xl border border-border/70 bg-card/80 p-2 sm:p-2.5 shadow-xs select-none text-xs text-muted-foreground w-fit mx-auto",
+          ? "sticky bottom-1.5 sm:bottom-2 z-20 flex items-center justify-center rounded-xl border border-border/80 bg-card/95 p-2 sm:p-2.5 backdrop-blur-md shadow-lg select-none text-xs text-muted-foreground w-fit mx-auto"
+          : "flex items-center justify-center rounded-xl border border-border/70 bg-card/80 p-2 sm:p-2.5 shadow-xs select-none text-xs text-muted-foreground w-fit mx-auto",
         className
       )}
       data-testid="pagination-container"
