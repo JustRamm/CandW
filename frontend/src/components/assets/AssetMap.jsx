@@ -18,6 +18,7 @@ import {
 import { AssetStatusBadge } from "@/components/shared/StatusBadges";
 import SmartImage from "@/components/shared/SmartImage";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { fmtMoney, KNOWN_KERALA_VENUES, getAssetVacantPhoto } from "@/lib/helpers";
 import sound from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -420,13 +421,35 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
   }, [mappedAssets, selectedAsset, showAllGeofences, geofenceRadius, onSelectAsset]);
 
   // Fit bounds helper
-  const handleFitAll = () => {
+  const handleFitAll = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     sound.click();
     const map = mapInstanceRef.current;
     if (!map || mappedAssets.length === 0) return;
-    const bounds = L.latLngBounds(mappedAssets.map((a) => a.coords));
+
+    // Invalidate size immediately so Leaflet recalculates on mobile viewports
+    map.invalidateSize();
+
+    // Reset selected asset so the overlay card doesn't obstruct the map view
+    setSelectedAsset(null);
+
+    const validCoords = mappedAssets
+      .map((a) => a.coords)
+      .filter((c) => Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]));
+
+    if (validCoords.length === 0) return;
+
+    if (validCoords.length === 1) {
+      map.setView(validCoords[0], 14, { animate: true });
+      return;
+    }
+
+    const bounds = L.latLngBounds(validCoords);
     if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14, animate: true });
     }
   };
 
@@ -610,11 +633,13 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
 
             {/* Fit Bounds */}
             <Button
+              type="button"
               variant="ghost"
               size="xs"
               onClick={handleFitAll}
               className="h-7 gap-1 px-1.5 sm:px-2 text-xs font-medium cursor-pointer shrink-0"
               title="Fit all assets in view"
+              data-testid="map-fit-bounds-button"
             >
               <Maximize2 className="size-3.5" />
               <span>Fit</span>
@@ -638,35 +663,46 @@ export default function AssetMap({ assets = [], onSelectAsset, selectedAssetId }
           </div>
         </div>
 
-        {/* Row 2: Peak Simulation Bar (Smooth horizontal scroll on mobile) */}
+        {/* Row 2: Peak Simulation Bar (Fits cleanly on mobile without scrolling) */}
         {heatmapMode !== "off" && (
-          <div className="pointer-events-auto self-start flex items-center gap-1.5 rounded-xl border border-border/80 bg-background/95 px-2 py-1 sm:px-2.5 sm:py-1.5 shadow-md backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200 max-w-full overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-1 text-[11px] font-semibold text-foreground pr-1 shrink-0">
-              <Clock className="size-3.5 text-primary" />
-              <span className="hidden xs:inline sm:inline">Peak Simulation:</span>
-              <span className="inline xs:hidden sm:hidden">Sim:</span>
+          <div className="pointer-events-auto self-start flex items-center gap-1 rounded-xl border border-border/80 bg-background/95 px-1.5 py-1 sm:px-2.5 sm:py-1.5 shadow-md backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200 max-w-full">
+            <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-foreground pr-0.5 shrink-0">
+              <Clock className="size-3 sm:size-3.5 text-primary" />
+              <span className="hidden sm:inline">Peak Simulation:</span>
             </div>
 
-            <div className="flex items-center gap-1 shrink-0">
-              {TIME_SLOTS.map((slot) => (
-                <button
-                  key={slot.id}
-                  type="button"
-                  onClick={() => {
-                    sound.click();
-                    setTimeSlotId(slot.id);
-                  }}
-                  className={cn(
-                    "flex items-center gap-1 rounded-md px-1.5 sm:px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer shrink-0 whitespace-nowrap",
-                    timeSlotId === slot.id
-                      ? "bg-primary text-primary-foreground font-bold shadow-2xs"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <span>{slot.label}</span>
-                  <span className="font-mono text-[9px] opacity-80 hidden sm:inline">({slot.time.split(" ")[0]})</span>
-                </button>
-              ))}
+            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+              {TIME_SLOTS.map((slot) => {
+                const shortLabel =
+                  slot.id === "morning"
+                    ? "Morning"
+                    : slot.id === "midday"
+                    ? "Midday"
+                    : slot.id === "evening"
+                    ? "Evening"
+                    : "Night";
+
+                return (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    onClick={() => {
+                      sound.click();
+                      setTimeSlotId(slot.id);
+                    }}
+                    className={cn(
+                      "flex items-center gap-1 rounded-md px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-medium transition-colors cursor-pointer shrink-0 whitespace-nowrap",
+                      timeSlotId === slot.id
+                        ? "bg-primary text-primary-foreground font-bold shadow-2xs"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <span className="sm:hidden">{shortLabel}</span>
+                    <span className="hidden sm:inline">{slot.label}</span>
+                    <span className="font-mono text-[9px] opacity-80 hidden md:inline">({slot.time.split(" ")[0]})</span>
+                  </button>
+                );
+              })}
             </div>
 
             <Badge variant="outline" className="text-[10px] font-mono border-primary/40 bg-primary/5 text-primary ml-1 hidden lg:inline-flex shrink-0">

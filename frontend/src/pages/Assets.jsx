@@ -1762,25 +1762,25 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
             variant="card"
             fitMode={isMetro ? "contain" : "cover"}
             className="size-full"
-            imageClassName={isMetro ? "size-full p-2" : "size-full"}
+            imageClassName={isMetro ? "size-full p-1.5 sm:p-2" : "size-full"}
           />
 
-          {/* Top Tag: Theme Venue Badge (with Lucide icons, no emojis, no aspect ratio text) */}
-          <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1">
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-card/95 backdrop-blur-md px-2 py-0.5 text-[11px] font-medium text-foreground border border-border/80 shadow-xs">
+          {/* Top Tag: Theme Venue Badge */}
+          <div className="absolute top-1.5 left-1.5 sm:top-2.5 sm:left-2.5 z-10 flex items-center gap-1">
+            <span className="inline-flex items-center gap-1 sm:gap-1.5 rounded-md bg-card/95 backdrop-blur-md px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-foreground border border-border/80 shadow-xs">
               {isMetro ? (
                 <>
-                  <TrainFront className="size-3 text-primary" />
+                  <TrainFront className="size-2.5 sm:size-3 text-primary" />
                   <span>Metro</span>
                 </>
               ) : isMall ? (
                 <>
-                  <Building2 className="size-3 text-primary" />
+                  <Building2 className="size-2.5 sm:size-3 text-primary" />
                   <span>Mall</span>
                 </>
               ) : (
                 <>
-                  <PanelTop className="size-3 text-primary" />
+                  <PanelTop className="size-2.5 sm:size-3 text-primary" />
                   <span>Billboard</span>
                 </>
               )}
@@ -1788,19 +1788,19 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
           </div>
 
           {/* Bottom Bar: Asset Code & Status */}
-          <div className="pointer-events-none absolute bottom-2 inset-x-2.5 flex items-center justify-between gap-1.5 z-10">
-            <span className="mono-label rounded-md bg-card/95 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-foreground border border-border/80 shadow-xs tracking-wide">
+          <div className="pointer-events-none absolute bottom-1.5 inset-x-1.5 sm:bottom-2 sm:inset-x-2.5 flex items-center justify-between gap-1 z-10">
+            <span className="mono-label rounded-md bg-card/95 backdrop-blur-md px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-bold text-foreground border border-border/80 shadow-xs tracking-wide truncate max-w-[55%]">
               {a.asset_code}
             </span>
-            <AssetStatusBadge status={a.status} />
+            <AssetStatusBadge status={a.status} className="text-[9px] sm:text-xs px-1.5 sm:px-2.5 py-0 sm:py-0.5 shrink-0" />
           </div>
         </div>
 
         {/* Card Body */}
-        <CardContent className="p-3 flex flex-col justify-between gap-2 bg-card">
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-1.5">
-              <p className="truncate font-heading text-sm font-semibold text-foreground leading-tight" title={a.location_name}>
+        <CardContent className="p-2 sm:p-3 flex flex-col justify-between gap-1 sm:gap-2 bg-card">
+          <div className="space-y-1 sm:space-y-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <p className="truncate font-heading text-xs sm:text-sm font-semibold text-foreground leading-tight" title={a.location_name}>
                 {a.location_name}
               </p>
               <button
@@ -1816,32 +1816,32 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
                       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location_name + (a.description ? " " + a.description : "") + (a.city ? `, ${a.city}` : ", Kerala"))}`;
                   window.open(url, "_blank", "noopener,noreferrer");
                 }}
-                className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
+                className="shrink-0 p-0.5 sm:p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-primary/10"
                 title={a.description ? `${a.location_name}\nSpot: ${a.description}` : "Open location on Google Maps"}
               >
-                <ExternalLink className="size-3.5" />
+                <ExternalLink className="size-3 sm:size-3.5" />
               </button>
             </div>
 
             {a.description && (
-              <div className="flex items-start gap-1 rounded-md bg-secondary/70 px-2 py-1 text-[11px] font-medium text-foreground/90">
-                <MapPin className="mt-0.5 size-3 shrink-0 text-primary" />
+              <div className="flex items-start gap-1 rounded-md bg-secondary/70 px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-medium text-foreground/90">
+                <MapPin className="mt-0.5 size-2.5 sm:size-3 shrink-0 text-primary" />
                 <span className="truncate" title={a.description}>{a.description}</span>
               </div>
             )}
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
               {a.asset_type} · {a.city} · {a.width_ft}×{a.height_ft} ft
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 pt-0.5 sm:pt-1">
             {a.current_brand &&
               a.current_brand.split(",").map((b) => (
                 <Badge
                   key={b.trim()}
                   variant="outline"
-                  className="mono-label rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs"
+                  className="mono-label text-[9px] sm:text-[11px] px-1.5 sm:px-2 py-0 sm:py-0.5 rounded-full border-emerald-200 bg-emerald-50 text-[#006d37] shadow-xs truncate max-w-full"
                 >
                   {b.trim()}
                 </Badge>
@@ -1849,10 +1849,10 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
             {a.queue_count > 0 && (
               <Badge
                 variant="outline"
-                className="mono-label rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs"
+                className="mono-label text-[9px] sm:text-[11px] px-1.5 sm:px-2 py-0 sm:py-0.5 rounded-full border-sky-200 bg-sky-50 text-[#004c69] shadow-xs"
                 data-testid={`asset-queue-count-${a.asset_code}`}
               >
-                <Users className="mr-1 size-3" />
+                <Users className="mr-0.5 sm:mr-1 size-2.5 sm:size-3" />
                 {a.queue_count} in queue
               </Badge>
             )}
@@ -1860,9 +1860,12 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
               <Badge
                 variant="outline"
                 className={
-                  a.gtp_overdue
-                    ? "mono-label rounded-full border-red-200 bg-red-50 text-[#ba1a1a] shadow-xs"
-                    : "mono-label rounded-full border-slate-200 bg-slate-100 text-slate-600 shadow-xs"
+                  cn(
+                    "mono-label text-[9px] sm:text-[11px] px-1.5 sm:px-2 py-0 sm:py-0.5 rounded-full shadow-xs",
+                    a.gtp_overdue
+                      ? "border-red-200 bg-red-50 text-[#ba1a1a]"
+                      : "border-slate-200 bg-slate-100 text-slate-600"
+                  )
                 }
                 data-testid={`asset-next-gtp-${a.asset_code}`}
               >
@@ -1875,12 +1878,12 @@ export function AssetCard({ asset: a, canManage, isAdmin }) {
 
       {/* Card Action Footer */}
       {canManage && (
-        <div className="flex items-center gap-1.5 border-t border-border/60 bg-secondary/20 px-3.5 py-2 mt-auto">
+        <div className="flex items-center gap-1 sm:gap-1.5 border-t border-border/60 bg-secondary/20 px-2 sm:px-3.5 py-1.5 sm:py-2 mt-auto">
           <AssetDialog
             asset={a}
             trigger={
-              <Button variant="outline" size="xs" data-testid={`edit-asset-button-${a.asset_code}`} className="h-7 text-xs">
-                <Pencil className="size-3.5" />
+              <Button variant="outline" size="xs" data-testid={`edit-asset-button-${a.asset_code}`} className="h-6 sm:h-7 text-[11px] sm:text-xs px-2 flex-1 sm:flex-initial">
+                <Pencil className="size-3 sm:size-3.5 mr-1" />
                 Edit
               </Button>
             }
@@ -2715,7 +2718,7 @@ export default function Assets() {
             <AssetMap assets={assets} />
           ) : (
             <div className="space-y-4">
-              <div className="grid items-start gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
+              <div className="grid grid-cols-2 items-start gap-2.5 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" data-testid="asset-grid">
                 {paginatedAssets.map((a) => (
                   <AssetCard key={a.id} asset={a} canManage={canManage} isAdmin={me?.role === "admin"} />
                 ))}
