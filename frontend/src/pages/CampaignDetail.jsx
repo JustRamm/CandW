@@ -727,7 +727,6 @@ function GtpCard({ campaign, gtp }) {
           entity_id: campaign.id,
           action: "campaign_closed_asset_freed",
           actor_name: profile?.name || "System",
-          actor_role: me?.role || "finance",
           comment: `Closure GTP #${gtp.seq} approved. Campaign for ${c.brand || campaign.brand} closed and asset ${c.asset_code || campaign.asset_code} freed.`,
           created_at: new Date().toISOString(),
         });
@@ -1147,7 +1146,6 @@ export default function CampaignDetail() {
         entity_id: campaign.id,
         action: "campaign_closed_asset_freed",
         actor_name: profile?.name || "System",
-        actor_role: me?.role || "finance",
         comment: `Campaign for ${campaign.brand} (${campaign.asset_code}) closed and offboarded. Asset is now freed.`,
         created_at: new Date().toISOString(),
       });

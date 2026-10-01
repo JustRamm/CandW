@@ -581,7 +581,6 @@ export async function importAssetsCsv(file) {
         status,
         latitude: !isNaN(lat) ? lat : null,
         longitude: !isNaN(lng) ? lng : null,
-        map_url: rawMapUrl || (!isNaN(lat) && !isNaN(lng) ? `https://www.google.com/maps?q=${lat},${lng}` : null),
         geofence_radius_m: !isNaN(radius) && radius > 0 ? radius : 500,
       };
 
@@ -678,10 +677,6 @@ export async function importAssetsCsv(file) {
               end_date: campEndDate,
               duration_days: durationDays,
               proposed_duration_days: durationDays,
-              notes:
-                brandList.length > 1
-                  ? "Multi-Brand Ad Loop Slot (Imported from CSV)"
-                  : "Exclusive Brand Slot (Imported from CSV)",
               created_at: new Date().toISOString(),
             });
           }

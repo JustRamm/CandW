@@ -341,7 +341,9 @@ export async function syncOfflineGtpQueue(onProgress) {
           action: "offline_gtp_synced",
           entity_type: "campaign",
           entity_id: item.campaignId,
-          details: {
+          actor_name: item.userName || "Offline Sync Worker",
+          comment: `Offline GTP #${item.gtpSeq} checklist item synced with ${uploadedDocIds.length} uploaded files.`,
+          after_data: {
             gtp_id: item.gtpId,
             gtp_seq: item.gtpSeq,
             checklist_key: item.checklistKey,

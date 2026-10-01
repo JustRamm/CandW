@@ -336,8 +336,7 @@ export async function processExpiredQueueEntries() {
           entity_type: "queue_entry",
           entity_id: q.id,
           action: "queue_forfeited",
-          actor_name: "Automated System SLA Worker",
-          actor_role: "system",
+          actor_name: "Automated System SLA Worker (System)",
           comment: `Reservation for ${q.brand} on ${q.asset_code} expired after ${holdDays} business days and was forfeited.`,
           created_at: new Date().toISOString(),
         });
@@ -389,8 +388,7 @@ export async function processExpiredQueueEntries() {
             entity_type: "queue_entry",
             entity_id: next.id,
             action: "queue_promoted",
-            actor_name: "Automated System SLA Worker",
-            actor_role: "system",
+            actor_name: "Automated System SLA Worker (System)",
             comment: `Waitlist entry for ${next.brand} automatically promoted to active slot on ${next.asset_code}. SLA expiry set to ${nextExpiry}.`,
             created_at: new Date().toISOString(),
           });
@@ -499,8 +497,7 @@ export async function promoteNextWaitlistOrFreeAsset(assetId, assetCode = "") {
         entity_type: "queue_entry",
         entity_id: next.id,
         action: "queue_promoted",
-        actor_name: "Campaign Closure Worker",
-        actor_role: "system",
+        actor_name: "Campaign Closure Worker (System)",
         comment: `Campaign closed. Waitlist entry for ${next.brand} automatically promoted to active slot on ${next.asset_code || assetCode}. SLA expiry set to ${nextExpiry}.`,
         created_at: new Date().toISOString(),
       });

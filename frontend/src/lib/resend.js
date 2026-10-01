@@ -253,8 +253,7 @@ export async function notifyBrandAdStatusUpdate(campaignId, newStage, customMess
       entity_type: "campaign",
       entity_id: campaign.id,
       action: "ad_status_email_sent",
-      actor_name: "Automated Email Notification System",
-      actor_role: "system",
+      actor_name: "Automated Email Notification System (System)",
       comment: `Automated status update (${newStage}) email dispatched to ${recipientEmail}.`,
       created_at: new Date().toISOString(),
     });

@@ -528,7 +528,6 @@ export function AssetDialog({ asset, trigger }) {
         notes: notesWithBrand,
         current_brand: selectedBrand || null,
         status: determinedStatus,
-        map_url: body.map_url || (body.latitude && body.longitude ? `https://www.google.com/maps?q=${body.latitude},${body.longitude}` : null),
         latitude: body.latitude && !isNaN(Number(body.latitude)) ? Number(body.latitude) : null,
         longitude: body.longitude && !isNaN(Number(body.longitude)) ? Number(body.longitude) : null,
         geofence_radius_m: body.geofence_radius_m ? Number(body.geofence_radius_m) : 500,
@@ -641,7 +640,6 @@ export function AssetDialog({ asset, trigger }) {
             priority: "high",
             start_date: campaignStartDate,
             end_date: campaignEndDate,
-            notes: "Exclusive Static Display Poster",
             gtps: gtpList,
             created_at: new Date().toISOString(),
           });
@@ -685,7 +683,6 @@ export function AssetDialog({ asset, trigger }) {
           priority: "high",
           start_date: campaignStartDate,
           end_date: campaignEndDate,
-          notes: "Exclusive Static Display Poster",
           gtps: gtpList,
           created_at: new Date().toISOString(),
         });
