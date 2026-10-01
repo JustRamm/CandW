@@ -708,7 +708,7 @@ function GtpCard({ campaign, gtp }) {
         const updates = {
           gtps,
           stage: "closed",
-          actual_end_date: todayStr,
+          end_date: c.end_date || todayStr,
         };
         if (c.cancellation?.status === "approved") {
           updates.cancellation = {
@@ -1126,7 +1126,7 @@ export default function CampaignDetail() {
 
       const updates = {
         stage: "closed",
-        actual_end_date: todayStr,
+        end_date: campaign.end_date || todayStr,
       };
 
       if (campaign.cancellation) {
@@ -1369,7 +1369,7 @@ export default function CampaignDetail() {
                 <div>
                   <span className="font-semibold">Campaign Concluded &amp; Closed</span>
                   <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
-                    Offboarded on {fmtDate(campaign.actual_end_date || campaign.end_date)}. Asset {campaign.asset_code} is freed and available.
+                    Offboarded on {fmtDate(campaign.end_date || new Date().toISOString())}. Asset {campaign.asset_code} is freed and available.
                   </p>
                 </div>
               </div>
