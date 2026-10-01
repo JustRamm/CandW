@@ -1,8 +1,10 @@
 {
-  "name": " Outdoor Advertising Asset IMS",
+  "id": "/",
+  "name": "Carbon & Whale · Outdoor Advertising IMS",
   "short_name": "IMS",
   "description": "Lifecycle management for metro and mall bench advertising assets.",
-  "start_url": "/dashboard",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0B0F17",
   "theme_color": "#0B0F17",
@@ -12,7 +14,13 @@
       "src": "/brand/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/brand/icon-192.png",

@@ -1,6 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { getAssetVacantPhoto } from "@/lib/helpers";
+import {
+  cacheAssetsOffline,
+  getCachedAssetsOffline,
+  cacheCampaignsOffline,
+  getCachedCampaignsOffline,
+  cacheQueueOffline,
+  getCachedQueueOffline,
+  cacheBrandsOffline,
+  getCachedBrandsOffline,
+} from "@/lib/offlineStore";
 
 // ── Helper: throw on Supabase errors ──────────────────────────────────────
 function check({ data, error }) {
@@ -228,91 +238,107 @@ export function useAssets(params = {}) {
   return useQuery({
     queryKey: ["assets", params],
     queryFn: async () => {
-      let q = supabase.from("assets").select("*").order("asset_code");
-      if (params.status && params.status !== "all") q = q.eq("status", params.status);
-      if (params.q) q = q.or(`asset_code.ilike.%${params.q}%,location_name.ilike.%${params.q}%`);
-      const { data: assets, error } = await q;
-      if (error) throw new Error(error.message);
-      if (!assets || !assets.length) return [];
-
-      const ids = assets.map((a) => a.id);
-      const allPhotoIds = assets.flatMap((a) => a.photo_ids ?? []);
-
-      let queueCounts = [];
-      let activeCampaigns = [];
-      let docUrlMap = {};
-
-      // Optimized single-roundtrip parallel enrichment
       try {
-        const [qcRes, campRes, docsMap] = await Promise.all([
-          ids.length
-            ? supabase.from("queue_entries").select("asset_id").in("state", ["active", "pending"]).in("asset_id", ids)
-            : Promise.resolve({ data: [] }),
-          ids.length
-            ? supabase.from("campaigns").select("asset_id,brand,stage,gtps,start_date,end_date").neq("stage", "closed").in("asset_id", ids)
-            : Promise.resolve({ data: [] }),
-          resolveDocumentUrls(allPhotoIds),
-        ]);
-        queueCounts = qcRes.data ?? [];
-        activeCampaigns = campRes.data ?? [];
-        docUrlMap = docsMap ?? {};
-      } catch {
-        // Retain standard asset fields on partial failure
-      }
+        let q = supabase.from("assets").select("*").order("asset_code");
+        if (params.status && params.status !== "all") q = q.eq("status", params.status);
+        if (params.q) q = q.or(`asset_code.ilike.%${params.q}%,location_name.ilike.%${params.q}%`);
+        const { data: assets, error } = await q;
+        if (error) throw new Error(error.message);
+        if (!assets || !assets.length) return [];
 
-      const today = new Date().toISOString().split("T")[0];
-      const countMap = {};
-      for (const e of queueCounts ?? []) countMap[e.asset_id] = (countMap[e.asset_id] ?? 0) + 1;
+        const ids = assets.map((a) => a.id);
+        const allPhotoIds = assets.flatMap((a) => a.photo_ids ?? []);
 
-      const liveMap = {};
-      const gtpMap = {};
-      for (const c of activeCampaigns ?? []) {
-        if (c.brand) {
-          if (liveMap[c.asset_id]) {
-            const parts = liveMap[c.asset_id].split(", ");
-            if (!parts.includes(c.brand)) {
-              liveMap[c.asset_id] = `${liveMap[c.asset_id]}, ${c.brand}`;
+        let queueCounts = [];
+        let activeCampaigns = [];
+        let docUrlMap = {};
+
+        // Optimized single-roundtrip parallel enrichment
+        try {
+          const [qcRes, campRes, docsMap] = await Promise.all([
+            ids.length
+              ? supabase.from("queue_entries").select("asset_id").in("state", ["active", "pending"]).in("asset_id", ids)
+              : Promise.resolve({ data: [] }),
+            ids.length
+              ? supabase.from("campaigns").select("asset_id,brand,stage,gtps,start_date,end_date").neq("stage", "closed").in("asset_id", ids)
+              : Promise.resolve({ data: [] }),
+            resolveDocumentUrls(allPhotoIds),
+          ]);
+          queueCounts = qcRes.data ?? [];
+          activeCampaigns = campRes.data ?? [];
+          docUrlMap = docsMap ?? {};
+        } catch {
+          // Retain standard asset fields on partial failure
+        }
+
+        const today = new Date().toISOString().split("T")[0];
+        const countMap = {};
+        for (const e of queueCounts ?? []) countMap[e.asset_id] = (countMap[e.asset_id] ?? 0) + 1;
+
+        const liveMap = {};
+        const gtpMap = {};
+        for (const c of activeCampaigns ?? []) {
+          if (c.brand) {
+            if (liveMap[c.asset_id]) {
+              const parts = liveMap[c.asset_id].split(", ");
+              if (!parts.includes(c.brand)) {
+                liveMap[c.asset_id] = `${liveMap[c.asset_id]}, ${c.brand}`;
+              }
+            } else {
+              liveMap[c.asset_id] = c.brand;
             }
-          } else {
-            liveMap[c.asset_id] = c.brand;
+          }
+          if (["live", "closing"].includes(c.stage)) {
+            const pending = (c.gtps ?? []).find((g) => ["pending", "rejected"].includes(g.status));
+            if (pending) {
+              const days = Math.ceil((new Date(pending.due_date) - new Date(today)) / 86400000);
+              gtpMap[c.asset_id] = { next_gtp_date: pending.due_date, gtp_overdue: days < 0 };
+            }
           }
         }
-        if (["live", "closing"].includes(c.stage)) {
-          const pending = (c.gtps ?? []).find((g) => ["pending", "rejected"].includes(g.status));
-          if (pending) {
-            const days = Math.ceil((new Date(pending.due_date) - new Date(today)) / 86400000);
-            gtpMap[c.asset_id] = { next_gtp_date: pending.due_date, gtp_overdue: days < 0 };
+
+        const results = assets.map((a) => {
+          const isLive = a.status === "live" || Boolean(a.current_brand && a.status !== "available" && a.status !== "closed");
+          let resolvedUrls = (a.photo_ids ?? []).map((id) => docUrlMap[id]).filter(Boolean);
+          if (a.photo_url && !resolvedUrls.includes(a.photo_url)) {
+            resolvedUrls.push(a.photo_url);
           }
+          if (a.proof_photo_url && !resolvedUrls.includes(a.proof_photo_url)) {
+            resolvedUrls.push(a.proof_photo_url);
+          }
+
+          // Live assets must NEVER use hardcoded placeholder images (/asset.png, /mallasset.png)
+          if (isLive) {
+            resolvedUrls = resolvedUrls.filter((u) => u !== "/asset.png" && u !== "/mallasset.png");
+          }
+
+          const vacantPhoto = isLive ? null : getAssetVacantPhoto(a);
+          const finalUrls = resolvedUrls.length > 0 ? resolvedUrls : (vacantPhoto ? [vacantPhoto] : []);
+          return {
+            ...a,
+            queue_count: countMap[a.id] ?? a.queue_count ?? 0,
+            current_brand: liveMap[a.id] ?? a.current_brand ?? null,
+            photo_ids: a.photo_ids ?? [],
+            photo_urls: finalUrls,
+            photo_url: resolvedUrls[0] || (isLive ? "" : vacantPhoto) || "",
+            ...(gtpMap[a.id] ?? (a.next_gtp_date ? { next_gtp_date: a.next_gtp_date, gtp_overdue: false } : {})),
+          };
+        });
+
+        // Persist to IndexedDB for offline access
+        cacheAssetsOffline(results);
+        return results;
+      } catch (err) {
+        // Offline fallback to IndexedDB
+        const cached = await getCachedAssetsOffline();
+        if (cached && cached.length) {
+          if (params.status && params.status !== "all") {
+            return cached.filter((a) => a.status === params.status);
+          }
+          return cached;
         }
+        throw err;
       }
-
-      return assets.map((a) => {
-        const isLive = a.status === "live" || Boolean(a.current_brand && a.status !== "available" && a.status !== "closed");
-        let resolvedUrls = (a.photo_ids ?? []).map((id) => docUrlMap[id]).filter(Boolean);
-        if (a.photo_url && !resolvedUrls.includes(a.photo_url)) {
-          resolvedUrls.push(a.photo_url);
-        }
-        if (a.proof_photo_url && !resolvedUrls.includes(a.proof_photo_url)) {
-          resolvedUrls.push(a.proof_photo_url);
-        }
-
-        // Live assets must NEVER use hardcoded placeholder images (/asset.png, /mallasset.png)
-        if (isLive) {
-          resolvedUrls = resolvedUrls.filter((u) => u !== "/asset.png" && u !== "/mallasset.png");
-        }
-
-        const vacantPhoto = isLive ? null : getAssetVacantPhoto(a);
-        const finalUrls = resolvedUrls.length > 0 ? resolvedUrls : (vacantPhoto ? [vacantPhoto] : []);
-        return {
-          ...a,
-          queue_count: countMap[a.id] ?? a.queue_count ?? 0,
-          current_brand: liveMap[a.id] ?? a.current_brand ?? null,
-          photo_ids: a.photo_ids ?? [],
-          photo_urls: finalUrls,
-          photo_url: resolvedUrls[0] || (isLive ? "" : vacantPhoto) || "",
-          ...(gtpMap[a.id] ?? (a.next_gtp_date ? { next_gtp_date: a.next_gtp_date, gtp_overdue: false } : {})),
-        };
-      });
     },
     retry: 1,
   });
@@ -369,26 +395,34 @@ export function useQueueList() {
   return useQuery({
     queryKey: ["queue"],
     queryFn: async () => {
-      const entries = check(
-        await supabase
-          .from("queue_entries")
-          .select("*")
-          .in("state", ["active", "pending"])
-          .order("asset_code")
-          .order("position"),
-      );
-      const today = new Date().toISOString().split("T")[0];
-      return entries.map((e) => {
-        let daysRemaining = null;
-        let urgency = "ok";
-        if (e.expires_on && e.state === "active") {
-          daysRemaining = Math.ceil((new Date(e.expires_on) - new Date(today)) / 86400000);
-          urgency = daysRemaining <= 1 ? "urgent" : daysRemaining <= 2 ? "warning" : "ok";
-        }
-        return { ...e, days_remaining: daysRemaining, urgency };
-      });
+      try {
+        const entries = check(
+          await supabase
+            .from("queue_entries")
+            .select("*")
+            .in("state", ["active", "pending"])
+            .order("asset_code")
+            .order("position"),
+        );
+        const today = new Date().toISOString().split("T")[0];
+        const results = entries.map((e) => {
+          let daysRemaining = null;
+          let urgency = "ok";
+          if (e.expires_on && e.state === "active") {
+            daysRemaining = Math.ceil((new Date(e.expires_on) - new Date(today)) / 86400000);
+            urgency = daysRemaining <= 1 ? "urgent" : daysRemaining <= 2 ? "warning" : "ok";
+          }
+          return { ...e, days_remaining: daysRemaining, urgency };
+        });
+        cacheQueueOffline(results);
+        return results;
+      } catch (err) {
+        const cached = await getCachedQueueOffline();
+        if (cached && cached.length) return cached;
+        throw err;
+      }
     },
-    retry: false,
+    retry: 1,
   });
 }
 
@@ -421,11 +455,24 @@ export function useCampaigns(stage) {
   return useQuery({
     queryKey: ["campaigns", stage ?? "all"],
     queryFn: async () => {
-      let q = supabase.from("campaigns").select("*");
-      if (stage && stage !== "all") q = q.eq("stage", stage);
-      return check(await q);
+      try {
+        let q = supabase.from("campaigns").select("*");
+        if (stage && stage !== "all") q = q.eq("stage", stage);
+        const campaigns = check(await q);
+        cacheCampaignsOffline(campaigns);
+        return campaigns;
+      } catch (err) {
+        const cached = await getCachedCampaignsOffline();
+        if (cached && cached.length) {
+          if (stage && stage !== "all") {
+            return cached.filter((c) => c.stage === stage);
+          }
+          return cached;
+        }
+        throw err;
+      }
     },
-    retry: false,
+    retry: 1,
   });
 }
 
@@ -556,24 +603,35 @@ export function useBrands(q = "") {
   return useQuery({
     queryKey: ["brands", q],
     queryFn: async () => {
-      let query = supabase.from("brands").select("*").order("name");
-      if (q) query = query.ilike("name", `%${q}%`);
-      const brands = check(await query);
-      // Enrich with counts
-      const ids = brands.map((b) => b.id);
-      if (!ids.length) return brands;
-      const [{ data: campaigns }, { data: queueEntries }] = await Promise.all([
-        supabase.from("campaigns").select("brand_id,stage").in("brand_id", ids),
-        supabase.from("queue_entries").select("brand_id,state").in("brand_id", ids).in("state", ["active", "pending"]),
-      ]);
-      return brands.map((b) => ({
-        ...b,
-        campaign_count: (campaigns ?? []).filter((c) => c.brand_id === b.id).length,
-        live_campaigns: (campaigns ?? []).filter((c) => c.brand_id === b.id && c.stage === "live").length,
-        open_queue_entries: (queueEntries ?? []).filter((e) => e.brand_id === b.id).length,
-      }));
+      try {
+        let query = supabase.from("brands").select("*").order("name");
+        if (q) query = query.ilike("name", `%${q}%`);
+        const brands = check(await query);
+        // Enrich with counts
+        const ids = brands.map((b) => b.id);
+        if (!ids.length) return brands;
+        const [{ data: campaigns }, { data: queueEntries }] = await Promise.all([
+          supabase.from("campaigns").select("brand_id,stage").in("brand_id", ids),
+          supabase.from("queue_entries").select("brand_id,state").in("brand_id", ids).in("state", ["active", "pending"]),
+        ]);
+        const results = brands.map((b) => ({
+          ...b,
+          campaign_count: (campaigns ?? []).filter((c) => c.brand_id === b.id).length,
+          live_campaigns: (campaigns ?? []).filter((c) => c.brand_id === b.id && c.stage === "live").length,
+          open_queue_entries: (queueEntries ?? []).filter((e) => e.brand_id === b.id).length,
+        }));
+        cacheBrandsOffline(results);
+        return results;
+      } catch (err) {
+        const cached = await getCachedBrandsOffline();
+        if (cached && cached.length) {
+          if (q) return cached.filter((b) => b.name?.toLowerCase().includes(q.toLowerCase()));
+          return cached;
+        }
+        throw err;
+      }
     },
-    retry: false,
+    retry: 1,
   });
 }
 

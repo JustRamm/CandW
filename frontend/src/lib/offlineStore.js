@@ -10,9 +10,12 @@ import { toast } from "sonner";
 import sound from "@/lib/sound";
 
 const DB_NAME = "OOH_SYNC_OFFLINE_DB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_GTP_QUEUE = "gtp_queue";
 const STORE_CACHED_CAMPAIGNS = "cached_campaigns";
+const STORE_CACHED_ASSETS = "cached_assets";
+const STORE_CACHED_QUEUE = "cached_queue";
+const STORE_CACHED_BRANDS = "cached_brands";
 
 /** Open or initialize the IndexedDB instance */
 function openDB() {
@@ -33,6 +36,15 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains(STORE_CACHED_CAMPAIGNS)) {
         db.createObjectStore(STORE_CACHED_CAMPAIGNS, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(STORE_CACHED_ASSETS)) {
+        db.createObjectStore(STORE_CACHED_ASSETS, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(STORE_CACHED_QUEUE)) {
+        db.createObjectStore(STORE_CACHED_QUEUE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(STORE_CACHED_BRANDS)) {
+        db.createObjectStore(STORE_CACHED_BRANDS, { keyPath: "id" });
       }
     };
 
@@ -179,7 +191,7 @@ export async function cacheCampaignsOffline(campaigns = []) {
     const tx = db.transaction(STORE_CACHED_CAMPAIGNS, "readwrite");
     const store = tx.objectStore(STORE_CACHED_CAMPAIGNS);
     for (const c of campaigns) {
-      store.put({ ...c, _cached_at: new Date().toISOString() });
+      if (c && c.id) store.put({ ...c, _cached_at: new Date().toISOString() });
     }
   } catch (e) {
     console.warn("Failed to cache campaigns offline:", e);
@@ -193,6 +205,99 @@ export async function getCachedCampaignsOffline() {
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_CACHED_CAMPAIGNS, "readonly");
       const store = tx.objectStore(STORE_CACHED_CAMPAIGNS);
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Cache assets locally for offline browsing */
+export async function cacheAssetsOffline(assets = []) {
+  if (!Array.isArray(assets) || assets.length === 0) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_CACHED_ASSETS, "readwrite");
+    const store = tx.objectStore(STORE_CACHED_ASSETS);
+    for (const a of assets) {
+      if (a && a.id) store.put({ ...a, _cached_at: new Date().toISOString() });
+    }
+  } catch (e) {
+    console.warn("Failed to cache assets offline:", e);
+  }
+}
+
+/** Get cached assets when offline */
+export async function getCachedAssetsOffline() {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_CACHED_ASSETS, "readonly");
+      const store = tx.objectStore(STORE_CACHED_ASSETS);
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Cache queue entries locally for offline viewing */
+export async function cacheQueueOffline(queue = []) {
+  if (!Array.isArray(queue) || queue.length === 0) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_CACHED_QUEUE, "readwrite");
+    const store = tx.objectStore(STORE_CACHED_QUEUE);
+    for (const q of queue) {
+      if (q && q.id) store.put({ ...q, _cached_at: new Date().toISOString() });
+    }
+  } catch (e) {
+    console.warn("Failed to cache queue offline:", e);
+  }
+}
+
+/** Get cached queue entries when offline */
+export async function getCachedQueueOffline() {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_CACHED_QUEUE, "readonly");
+      const store = tx.objectStore(STORE_CACHED_QUEUE);
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Cache brands locally for offline viewing */
+export async function cacheBrandsOffline(brands = []) {
+  if (!Array.isArray(brands) || brands.length === 0) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_CACHED_BRANDS, "readwrite");
+    const store = tx.objectStore(STORE_CACHED_BRANDS);
+    for (const b of brands) {
+      if (b && b.id) store.put({ ...b, _cached_at: new Date().toISOString() });
+    }
+  } catch (e) {
+    console.warn("Failed to cache brands offline:", e);
+  }
+}
+
+/** Get cached brands when offline */
+export async function getCachedBrandsOffline() {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_CACHED_BRANDS, "readonly");
+      const store = tx.objectStore(STORE_CACHED_BRANDS);
       const request = store.getAll();
       request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => resolve([]);

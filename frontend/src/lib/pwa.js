@@ -6,6 +6,43 @@ import { useState, useEffect } from "react";
 import { getOfflineGtpQueue, syncOfflineGtpQueue } from "./offlineStore";
 import { toast } from "sonner";
 
+/** Pre-fetch all code-split page bundles so entire application is cached offline */
+export function prefetchAllAppRoutes() {
+  if (typeof window === "undefined") return;
+
+  const prefetch = () => {
+    // Dynamically import all page bundles to cache their JavaScript & CSS chunks in Service Worker
+    const pageModules = [
+      () => import("@/pages/Dashboard"),
+      () => import("@/pages/Assets"),
+      () => import("@/pages/AssetDetail"),
+      () => import("@/pages/Queue"),
+      () => import("@/pages/Brands"),
+      () => import("@/pages/BrandDetail"),
+      () => import("@/pages/Campaigns"),
+      () => import("@/pages/CampaignDetail"),
+      () => import("@/pages/Audit"),
+      () => import("@/pages/Admin"),
+      () => import("@/pages/ClientPortal"),
+      () => import("@/pages/Login"),
+    ];
+
+    pageModules.forEach((load) => {
+      try {
+        load().catch(() => {});
+      } catch {
+        // ignore
+      }
+    });
+  };
+
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(() => prefetch(), { timeout: 4000 });
+  } else {
+    setTimeout(prefetch, 2500);
+  }
+}
+
 /** Register Service Worker in production/supporting environments */
 export function registerServiceWorker() {
   if ("serviceWorker" in navigator && !window.__SW_REGISTERED) {
@@ -15,6 +52,9 @@ export function registerServiceWorker() {
         .register("/sw.js")
         .then((reg) => {
           console.log("[PWA] Service Worker registered with scope:", reg.scope);
+
+          // Once registered, prefetch all application route bundles into offline cache
+          prefetchAllAppRoutes();
 
           reg.onupdatefound = () => {
             const installingWorker = reg.installing;
