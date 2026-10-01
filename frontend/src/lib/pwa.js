@@ -151,6 +151,8 @@ export function useOfflineQueue() {
   return { queue, pendingCount, loading, refreshQueue };
 }
 
+let appInstalledNotified = false;
+
 /** Hook for PWA installation prompt */
 export function usePwaInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -170,7 +172,10 @@ export function usePwaInstall() {
     function handleAppInstalled() {
       setIsInstalled(true);
       setDeferredPrompt(null);
-      toast.success("IMS added to your home screen / desktop!");
+      if (!appInstalledNotified) {
+        appInstalledNotified = true;
+        toast.success("IMS added to your home screen / desktop!", { id: "pwa-app-installed" });
+      }
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);

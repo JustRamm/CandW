@@ -354,7 +354,7 @@ export default function Queue() {
           />
         )}
 
-        <div className="space-y-4" data-testid="queue-board">
+        <div className="grid grid-cols-2 items-start gap-2.5 sm:gap-4 lg:grid-cols-2 xl:grid-cols-3" data-testid="queue-board">
           {Object.entries(grouped).map(([assetCode, group]) => {
             const active = group.find((e) => e.state === "active");
             const pending = group.filter((e) => e.state === "pending").sort((a, b) => a.position - b.position);
@@ -362,33 +362,37 @@ export default function Queue() {
               <Card
                 key={assetCode}
                 className={cn(
-                  "border-border/70 bg-card/70 transition-colors duration-200",
+                  "flex flex-col justify-between overflow-hidden border-border/70 bg-card/80 transition-all duration-150 hover:border-primary/50 hover:bg-card hover:shadow-xs",
                   active?.urgency === "urgent" && "border-red-700/60",
                   active?.urgency === "warning" && "border-amber-700/60",
                 )}
                 data-testid={`queue-group-${assetCode}`}
               >
-                <CardContent className="space-y-3 px-4 py-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <Link
-                        to={`/assets/${group[0].asset_id}`}
-                        className="mono-label text-primary transition-colors duration-150 hover:text-sky-300"
-                        data-testid={`queue-asset-link-${assetCode}`}
-                      >
-                        {assetCode}
-                      </Link>
-                      <p className="truncate text-xs text-muted-foreground">{group[0].asset_location}</p>
+                <CardContent className="flex flex-1 flex-col justify-between gap-2 p-2.5 sm:gap-3 sm:p-4">
+                  {/* Header: Asset Code & Location */}
+                  <div className="space-y-1 border-b border-border/40 pb-2">
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          to={`/assets/${group[0].asset_id}`}
+                          className="mono-label block text-xs sm:text-sm font-bold text-primary transition-colors duration-150 hover:text-sky-300 truncate"
+                          data-testid={`queue-asset-link-${assetCode}`}
+                        >
+                          {assetCode}
+                        </Link>
+                        <p className="truncate text-[10px] sm:text-xs text-muted-foreground">{group[0].asset_location}</p>
+                      </div>
+                      <Badge variant="outline" className="mono-label border-border/70 text-muted-foreground text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5 shrink-0">
+                        {group.length} in queue
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="mono-label border-border/70 text-muted-foreground">
-                      {group.length} in queue
-                    </Badge>
                   </div>
 
+                  {/* Active Slot */}
                   {active && (
                     <div
                       className={cn(
-                        "rounded-xl border px-4 py-3",
+                        "rounded-lg sm:rounded-xl border p-2 sm:p-3",
                         active.urgency === "urgent"
                           ? "border-red-200 bg-red-50/90 animate-urgent-pulse shadow-xs"
                           : active.urgency === "warning"
@@ -397,31 +401,29 @@ export default function Queue() {
                       )}
                       data-testid={`queue-active-slot-${assetCode}`}
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-heading text-sm font-semibold">{active.brand}</p>
-                            <Badge variant="outline" className="mono-label border-primary/50 text-primary">
-                              Active slot
-                            </Badge>
-                          </div>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {active.salesperson_name} · proposed {active.proposed_duration_days} days
-                            {active.proposed_start_date
-                              ? ` (${fmtDate(active.proposed_start_date)} → ${fmtDate(active.proposed_end_date)})`
-                              : ""}{" "}
-                            · expires {fmtDate(active.expires_on)}
-                          </p>
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5 justify-between">
+                          <p className="font-heading text-xs sm:text-sm font-semibold truncate leading-tight">{active.brand}</p>
+                          <Badge variant="outline" className="mono-label border-primary/50 text-primary text-[9px] px-1.5 py-0 sm:text-[10px] sm:px-2 sm:py-0.5">
+                            Active slot
+                          </Badge>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <UrgencyBadge urgency={active.urgency} daysRemaining={active.days_remaining} />
+                        <p className="text-[10px] sm:text-xs text-muted-foreground leading-snug">
+                          {active.salesperson_name} · proposed {active.proposed_duration_days}d
+                          {active.proposed_start_date
+                            ? ` (${fmtDate(active.proposed_start_date)} → ${fmtDate(active.proposed_end_date)})`
+                            : ""}{" "}
+                          · expires {fmtDate(active.expires_on)}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 pt-0.5">
+                          <UrgencyBadge urgency={active.urgency} daysRemaining={active.days_remaining} className="text-[9px] px-1.5 py-0 sm:text-[11px] sm:px-2 sm:py-0.5" />
                           {isFm && <ConfirmDialog entry={active} />}
                           {me?.role === "sales" && active.salesperson_id === me.id && (
                             <Button
                               variant="ghost"
                               size="xs"
                               onClick={() => withdraw.mutate(active.id)}
-                              className="text-muted-foreground hover:text-destructive"
+                              className="h-6 px-1.5 text-[10px] sm:text-xs text-muted-foreground hover:text-destructive"
                               data-testid="withdraw-active-button"
                             >
                               Withdraw
@@ -432,35 +434,39 @@ export default function Queue() {
                     </div>
                   )}
 
+                  {/* Pending Waitlist */}
                   {pending.length > 0 && (
-                    <ul className="space-y-1.5" data-testid={`queue-waitlist-${assetCode}`}>
-                      {pending.map((e) => (
-                        <li
-                          key={e.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2"
-                          data-testid="queue-waitlist-entry"
-                        >
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span className="mono-label shrink-0 text-muted-foreground">#{e.position}</span>
-                            <span className="truncate text-sm">{e.brand}</span>
-                            <span className="truncate text-xs text-muted-foreground">
-                              {e.salesperson_name} · {e.proposed_duration_days}d
-                            </span>
-                          </div>
-                          {me?.role === "sales" && e.salesperson_id === me.id && (
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              onClick={() => withdraw.mutate(e.id)}
-                              className="text-muted-foreground hover:text-destructive"
-                              data-testid="withdraw-waitlist-button"
-                            >
-                              Withdraw
-                            </Button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="space-y-1 pt-1">
+                      <p className="mono-label text-[9px] sm:text-[10px] text-muted-foreground font-semibold">Waitlist ({pending.length})</p>
+                      <ul className="space-y-1 sm:space-y-1.5" data-testid={`queue-waitlist-${assetCode}`}>
+                        {pending.map((e) => (
+                          <li
+                            key={e.id}
+                            className="flex flex-wrap items-center justify-between gap-1 sm:gap-2 rounded-md sm:rounded-lg border border-border/60 bg-secondary/30 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs"
+                            data-testid="queue-waitlist-entry"
+                          >
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span className="mono-label shrink-0 text-muted-foreground text-[9px] sm:text-[10px]">#{e.position}</span>
+                              <span className="truncate font-medium text-foreground">{e.brand}</span>
+                              <span className="truncate text-[9px] sm:text-[11px] text-muted-foreground">
+                                · {e.proposed_duration_days}d
+                              </span>
+                            </div>
+                            {me?.role === "sales" && e.salesperson_id === me.id && (
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => withdraw.mutate(e.id)}
+                                className="h-5 px-1 text-[9px] text-muted-foreground hover:text-destructive"
+                                data-testid="withdraw-waitlist-button"
+                              >
+                                Withdraw
+                              </Button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                 </CardContent>
               </Card>

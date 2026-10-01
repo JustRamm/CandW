@@ -1,7 +1,6 @@
 import React from "react";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export default function Pagination({
@@ -13,17 +12,13 @@ export default function Pagination({
   pageSizeOptions = [12, 24, 48],
   className,
   itemLabel = "items",
-  sticky = true,
+  sticky = false,
 }) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(Math.max(1, currentPage), totalPages);
 
   const startItem = totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1;
   const endItem = Math.min(safePage * pageSize, totalItems);
-
-  if (totalItems <= pageSize && safePage === 1 && !onPageSizeChange) {
-    return null;
-  }
 
   // Generate page numbers with ellipsis
   const getPageNumbers = () => {
@@ -60,46 +55,13 @@ export default function Pagination({
     <div
       className={cn(
         sticky
-          ? "sticky bottom-1.5 sm:bottom-2 z-20 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-border/80 bg-card/95 p-3 sm:p-3.5 backdrop-blur-md shadow-lg select-none text-xs text-muted-foreground"
-          : "flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-border/60 text-xs text-muted-foreground select-none",
+          ? "sticky bottom-1.5 sm:bottom-2 z-20 mt-6 flex items-center justify-center rounded-xl border border-border/80 bg-card/95 p-2 sm:p-2.5 backdrop-blur-md shadow-lg select-none text-xs text-muted-foreground w-fit mx-auto"
+          : "mt-6 flex items-center justify-center rounded-xl border border-border/70 bg-card/80 p-2 sm:p-2.5 shadow-xs select-none text-xs text-muted-foreground w-fit mx-auto",
         className
       )}
       data-testid="pagination-container"
     >
-      {/* Left: Summary Count & Page Size */}
-      <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-        <p className="text-xs text-muted-foreground font-medium">
-          Showing <span className="font-semibold text-foreground">{startItem}</span>–
-          <span className="font-semibold text-foreground">{endItem}</span> of{" "}
-          <span className="font-semibold text-foreground">{totalItems}</span> {itemLabel}
-        </p>
-
-        {onPageSizeChange && (
-          <div className="flex items-center gap-1.5 pl-2 border-l border-border/50">
-            <span className="text-[11px] text-muted-foreground hidden sm:inline">Per page:</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(val) => {
-                onPageSizeChange(Number(val));
-                onPageChange(1);
-              }}
-            >
-              <SelectTrigger className="h-7 w-16 text-[11px] px-2 py-0">
-                <SelectValue placeholder={String(pageSize)} />
-              </SelectTrigger>
-              <SelectContent>
-                {pageSizeOptions.map((opt) => (
-                  <SelectItem key={opt} value={String(opt)} className="text-xs">
-                    {opt}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-
-      {/* Right: Page Navigation Buttons */}
+      {/* Page Navigation Buttons */}
       <div className="flex items-center gap-1">
         <Button
           variant="outline"

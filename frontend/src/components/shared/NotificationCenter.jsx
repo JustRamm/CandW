@@ -183,9 +183,9 @@ export default function NotificationCenter() {
             </div>
           </div>
 
-          {/* Category Tabs — Fitted horizontally without scroll */}
-          <div className="px-3 py-2 border-b border-border/40 bg-muted/10">
-            <div className="flex items-center gap-1.5 justify-start text-xs">
+          {/* Category Tabs — Horizontally scrollable and responsive without awkward truncation */}
+          <div className="px-3 py-2 border-b border-border/40 bg-muted/10 overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex items-center gap-1 sm:gap-1.5 min-w-max text-xs">
               <button
                 type="button"
                 onClick={() => setActiveTab("all")}
@@ -204,7 +204,8 @@ export default function NotificationCenter() {
                   activeTab === "inventory" ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60"
                 )}
               >
-                Assets & Brands
+                <span className="hidden sm:inline">Assets &amp; Brands</span>
+                <span className="sm:hidden">Inventory</span>
               </button>
               <button
                 type="button"
@@ -214,7 +215,8 @@ export default function NotificationCenter() {
                   activeTab === "expiry" ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60"
                 )}
               >
-                Queue Expiry
+                <span className="hidden sm:inline">Queue Expiry</span>
+                <span className="sm:hidden">Queue</span>
               </button>
               <button
                 type="button"
@@ -224,7 +226,8 @@ export default function NotificationCenter() {
                   activeTab === "gtp" ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60"
                 )}
               >
-                GTP Alerts
+                <span className="hidden sm:inline">GTP Alerts</span>
+                <span className="sm:hidden">GTP</span>
               </button>
               <button
                 type="button"
