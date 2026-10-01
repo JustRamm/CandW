@@ -30,7 +30,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardSkeleton } from "@/components/skeletons";
 import OccupancyHeatmap from "@/components/financials/OccupancyHeatmap";
-import MallAnnexureReport from "@/components/financials/MallAnnexureReport";
 import { useDashboard, useAssets, useMe } from "@/lib/queries";
 import { REVENUE_SHARE_MATRIX, matchVenueRule, calculateRevenueSplit } from "@/lib/revenueShare";
 import { fmtDate, fmtMoney } from "@/lib/helpers";
@@ -236,10 +235,6 @@ export default function Dashboard() {
                 <TabsTrigger value="heatmap" className="gap-1.5 text-xs">
                   <Flame className="size-3.5 text-amber-500" />
                   12-Month Capacity Radar
-                </TabsTrigger>
-                <TabsTrigger value="annexure" className="gap-1.5 text-xs">
-                  <FileSpreadsheet className="size-3.5 text-primary" />
-                  Mall Annexure Certificates
                 </TabsTrigger>
               </TabsList>
 
@@ -478,7 +473,7 @@ export default function Dashboard() {
 
               {/* Mall-by-Mall Revenue & Payout Matrix */}
               <Card className="border-border/80 bg-card shadow-xs rounded-xl overflow-hidden">
-                <CardHeader className="pb-3 border-b border-border/50 flex flex-row items-center justify-between">
+                <CardHeader className="pb-3 border-b border-border/50">
                   <div>
                     <CardTitle className="font-heading text-base font-semibold flex items-center gap-2">
                       <Building2 className="size-4 text-primary" />
@@ -488,15 +483,6 @@ export default function Dashboard() {
                       Breakdown of contract values, mall/metro share payouts, and net earnings across Kerala.
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setActiveTab("annexure")}
-                    className="h-7 text-xs gap-1.5"
-                  >
-                    <FileText className="size-3.5" />
-                    View Annexure Certificates
-                  </Button>
                 </CardHeader>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
@@ -558,11 +544,6 @@ export default function Dashboard() {
             {/* TAB 3: 12-MONTH OCCUPANCY HEATMAP */}
             <TabsContent value="heatmap" className="space-y-5 m-0">
               <OccupancyHeatmap assets={allAssets} campaigns={campaigns} queue={queue} />
-            </TabsContent>
-
-            {/* TAB 4: MALL ANNEXURE CERTIFICATES */}
-            <TabsContent value="annexure" className="space-y-5 m-0">
-              <MallAnnexureReport campaigns={campaigns} assets={allAssets} />
             </TabsContent>
           </Tabs>
         </div>
