@@ -62,8 +62,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { queryClient } from "@/lib/queryClient";
 import { useAssetTypes, useAssets, useBrands, useMe } from "@/lib/queries";
 import {
+  KOCHI_METRO_STATIONS,
   downloadCsv,
   errMessage,
+  extractMetroStation,
   fetchCoordinatesForLocation,
   getCurrentDeviceLocation,
   importAssetsCsv,
@@ -959,6 +961,71 @@ export function AssetDialog({ asset, trigger }) {
             </div>
           </div>
 
+          {form.location_type === "Metro" && form.district && form.district.toLowerCase() !== "ernakulam" && (
+            <div className="rounded-lg border border-amber-300/80 bg-amber-50/90 dark:bg-amber-950/40 p-3 text-xs text-amber-900 dark:text-amber-200 animate-in fade-in duration-150" data-testid="metro-add-district-warning">
+              <div className="flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-300">
+                <TrainFront className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>Notice: Kochi Metro operates exclusively in Ernakulam</span>
+              </div>
+              <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 mt-1">
+                You have selected <strong>{form.district}</strong> district, but Kerala's Metro network operates exclusively in <strong>Ernakulam</strong> (Kochi).
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setForm((f) => ({ ...f, district: "Ernakulam", city: "Ernakulam" }))}
+                className="mt-2 h-7 text-xs bg-background border-amber-300 text-amber-900 hover:bg-amber-100"
+                data-testid="set-add-form-ernakulam-btn"
+              >
+                Set District to Ernakulam
+              </Button>
+            </div>
+          )}
+
+          {form.location_type === "Metro" && (
+            <div className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                  <TrainFront className="size-3.5" />
+                  Kochi Metro Station Preset
+                </Label>
+                <span className="text-[10px] text-muted-foreground">Auto-fills station code & GPS</span>
+              </div>
+
+              <Select
+                value=""
+                onValueChange={(stName) => {
+                  const st = KOCHI_METRO_STATIONS.find((s) => s.name === stName);
+                  if (st) {
+                    const lCode = st.code;
+                    setForm((f) => ({
+                      ...f,
+                      location_name: `Kochi Metro — ${st.name} Platform 1`,
+                      city: st.city,
+                      district: "Ernakulam",
+                      location_code: lCode,
+                      asset_code: `${lCode}-B${f.bench_number || 1}-${f.display_side || "DA"}`,
+                      latitude: st.latitude,
+                      longitude: st.longitude,
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-background text-xs" data-testid="metro-station-picker">
+                  <SelectValue>Select Metro Station…</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {KOCHI_METRO_STATIONS.map((s) => (
+                    <SelectItem key={s.name} value={s.name}>
+                      {s.name} Station ({s.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {form.location_type === "Mall" && (
             <div className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 p-3">
               <div className="flex items-center justify-between">
@@ -1833,6 +1900,7 @@ export default function Assets() {
   const [venueType, setVenueType] = useState("all"); // "all" | "mall" | "metro" | "other"
   const [district, setDistrict] = useState("all");
   const [mall, setMall] = useState("all");
+  const [metroStation, setMetroStation] = useState("all");
   const [q, setQ] = useState("");
 
   useEffect(() => {
@@ -1898,7 +1966,16 @@ export default function Assets() {
     }
   }, [malls, mall, venueType]);
 
-  // Filter assets by venueType, status, district, and mall
+  // If venueType is not metro or district is not Ernakulam/all, reset metroStation
+  useEffect(() => {
+    if (venueType !== "metro" && metroStation !== "all") {
+      setMetroStation("all");
+    } else if (district !== "all" && district.toLowerCase() !== "ernakulam" && metroStation !== "all") {
+      setMetroStation("all");
+    }
+  }, [venueType, district, metroStation]);
+
+  // Filter assets by venueType, status, district, mall, and metroStation
   const assets = useMemo(() => {
     return (rawAssets ?? []).filter((a) => {
       const vType = getAssetVenueType(a);
@@ -1906,9 +1983,10 @@ export default function Assets() {
       if (status !== "all" && a.status !== status) return false;
       if (district !== "all" && extractDistrict(a).toLowerCase() !== district.toLowerCase()) return false;
       if (venueType === "mall" && mall !== "all" && extractMallName(a)?.toLowerCase() !== mall.toLowerCase()) return false;
+      if (venueType === "metro" && metroStation !== "all" && extractMetroStation(a)?.toLowerCase() !== metroStation.toLowerCase()) return false;
       return true;
     });
-  }, [rawAssets, status, district, mall, venueType]);
+  }, [rawAssets, status, district, mall, venueType, metroStation]);
 
   const [viewMode, setViewMode] = useState("grid");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -1918,7 +1996,7 @@ export default function Assets() {
   // Reset page when any filter or search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [status, district, mall, venueType, q]);
+  }, [status, district, mall, venueType, metroStation, q]);
 
   const paginatedAssets = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -1929,16 +2007,18 @@ export default function Assets() {
     (venueType !== "all" ? 1 : 0) +
     (district !== "all" ? 1 : 0) +
     (venueType === "mall" && mall !== "all" ? 1 : 0) +
+    (venueType === "metro" && metroStation !== "all" ? 1 : 0) +
     (status !== "all" ? 1 : 0);
 
   const hasActiveFilters =
-    venueType !== "all" || status !== "all" || district !== "all" || (venueType === "mall" && mall !== "all") || Boolean(q.trim());
+    venueType !== "all" || status !== "all" || district !== "all" || (venueType === "mall" && mall !== "all") || (venueType === "metro" && metroStation !== "all") || Boolean(q.trim());
 
   function clearFilters() {
     setVenueType("all");
     setStatus("all");
     setDistrict("all");
     setMall("all");
+    setMetroStation("all");
     setQ("");
     setCurrentPage(1);
   }
@@ -2123,6 +2203,31 @@ export default function Assets() {
                           {malls.map((m) => (
                             <SelectItem key={m} value={m}>
                               {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* 2b. Metro Station Filter (ONLY shown if venueType === 'metro' and district is all or Ernakulam) */}
+                  {venueType === "metro" && (district === "all" || district.toLowerCase() === "ernakulam") && (
+                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <TrainFront className="size-3.5 text-primary" />
+                        Kochi Metro Station
+                      </label>
+                      <Select value={metroStation} onValueChange={setMetroStation}>
+                        <SelectTrigger className="w-full text-xs" data-testid="mobile-metro-station-filter">
+                          <SelectValue placeholder="All Metro Stations">
+                            {(v) => (v === "all" ? "All Metro Stations" : `${v} Station`)}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Metro Stations</SelectItem>
+                          {KOCHI_METRO_STATIONS.map((s) => (
+                            <SelectItem key={s.name} value={s.name}>
+                              {s.name} Station ({s.code})
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -2334,6 +2439,34 @@ export default function Assets() {
               </Select>
             )}
 
+            {/* 2b. Filter by Metro Station (Kochi Metro) — ONLY shown if venueType === 'metro' and district is all or Ernakulam */}
+            {venueType === "metro" && (district === "all" || district.toLowerCase() === "ernakulam") && (
+              <Select value={metroStation} onValueChange={setMetroStation}>
+                <SelectTrigger className="w-56 animate-in fade-in zoom-in-95 duration-150" data-testid="asset-metro-station-filter">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <TrainFront className="size-3.5 shrink-0 text-primary" />
+                    <SelectValue>
+                      {(v) => (v === "all" ? "All Metro Stations" : `${v} Station`)}
+                    </SelectValue>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" data-testid="asset-metro-station-option-all">
+                    All Metro Stations
+                  </SelectItem>
+                  {KOCHI_METRO_STATIONS.map((s) => (
+                    <SelectItem
+                      key={s.name}
+                      value={s.name}
+                      data-testid={`asset-metro-station-option-${s.code.toLowerCase()}`}
+                    >
+                      {s.name} Station ({s.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             {/* 3. Filter by District (Kerala's 14 districts) */}
             <Select value={district} onValueChange={setDistrict}>
               <SelectTrigger className="w-48" data-testid="asset-district-filter">
@@ -2458,6 +2591,45 @@ export default function Assets() {
             </div>
           </div>
         </div>
+
+        {/* Metro District Mismatch Notice */}
+        {venueType === "metro" && district !== "all" && district.toLowerCase() !== "ernakulam" && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/90 dark:bg-amber-950/40 p-4 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-950 dark:text-amber-100 shadow-xs animate-in fade-in slide-in-from-top-2 duration-200" data-testid="metro-district-mismatch-banner">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 shrink-0">
+                <TrainFront className="size-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-amber-900 dark:text-amber-200">
+                  No Metro Network in {district}
+                </p>
+                <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5 max-w-xl">
+                  Kerala's Metro network (Kochi Metro) operates exclusively within <strong>Ernakulam</strong> district. There are no metro rail stations or metro assets in {district}.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setDistrict("Ernakulam")}
+                className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-xs flex-1 sm:flex-initial"
+                data-testid="switch-to-ernakulam-btn"
+              >
+                Switch to Ernakulam
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDistrict("all")}
+                className="text-xs border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 flex-1 sm:flex-initial"
+              >
+                All Districts
+              </Button>
+            </div>
+          </div>
+        )}
 
         {isError && (
           <EmptyState

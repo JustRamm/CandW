@@ -161,6 +161,7 @@ export const KNOWN_KERALA_VENUES = {
   "kalamassery": { lat: 10.0468, lng: 76.3175, district: "Ernakulam", city: "Kochi" },
   "palarivattom": { lat: 10.0052, lng: 76.3068, district: "Ernakulam", city: "Kochi" },
   "pulinchode": { lat: 10.0963, lng: 76.3472, district: "Ernakulam", city: "Kochi" },
+  "pulinchodu": { lat: 10.0963, lng: 76.3472, district: "Ernakulam", city: "Kochi" },
   "companypady": { lat: 10.0825, lng: 76.3392, district: "Ernakulam", city: "Kochi" },
   "ambattukavu": { lat: 10.0718, lng: 76.3325, district: "Ernakulam", city: "Kochi" },
   "muttom": { lat: 10.0601, lng: 76.3262, district: "Ernakulam", city: "Kochi" },
@@ -168,6 +169,7 @@ export const KNOWN_KERALA_VENUES = {
   "pathadipalam": { lat: 10.0335, lng: 76.3148, district: "Ernakulam", city: "Kochi" },
   "jln stadium": { lat: 10.0001, lng: 76.3005, district: "Ernakulam", city: "Kochi" },
   "kadavanthra": { lat: 9.9672, lng: 76.2998, district: "Ernakulam", city: "Kochi" },
+  "elamkulam": { lat: 9.9634, lng: 76.3110, district: "Ernakulam", city: "Kochi" },
   "vadakkekotta": { lat: 9.9515, lng: 76.3440, district: "Ernakulam", city: "Kochi" },
   "thaikoodam": { lat: 9.9610, lng: 76.3312, district: "Ernakulam", city: "Kochi" },
   "petta": { lat: 9.9575, lng: 76.3395, district: "Ernakulam", city: "Kochi" },
@@ -177,6 +179,72 @@ export const KNOWN_KERALA_VENUES = {
   "kaloor": { lat: 9.9952, lng: 76.2915, district: "Ernakulam", city: "Kochi" },
   "changampuzha": { lat: 10.0152, lng: 76.3045, district: "Ernakulam", city: "Kochi" },
 };
+
+/** All 25 Kochi Metro (KMRL) Stations with standard station codes and GPS coordinates */
+export const KOCHI_METRO_STATIONS = [
+  { name: "Aluva", code: "ALVA", district: "Ernakulam", city: "Aluva, Kochi", latitude: 10.1082, longitude: 76.3533 },
+  { name: "Pulinchodu", code: "PLCD", district: "Ernakulam", city: "Aluva, Kochi", latitude: 10.0963, longitude: 76.3472 },
+  { name: "Companypady", code: "CPDY", district: "Ernakulam", city: "Aluva, Kochi", latitude: 10.0825, longitude: 76.3392 },
+  { name: "Ambattukavu", code: "AMBK", district: "Ernakulam", city: "Aluva, Kochi", latitude: 10.0718, longitude: 76.3325 },
+  { name: "Muttom", code: "MUTM", district: "Ernakulam", city: "Muttom, Kochi", latitude: 10.0601, longitude: 76.3262 },
+  { name: "Kalamassery", code: "KLMY", district: "Ernakulam", city: "Kalamassery, Kochi", latitude: 10.0468, longitude: 76.3175 },
+  { name: "Cochin University (CUSAT)", code: "CUST", district: "Ernakulam", city: "Kalamassery, Kochi", latitude: 10.0401, longitude: 76.3195 },
+  { name: "Pathadipalam", code: "PTPM", district: "Ernakulam", city: "Edappally, Kochi", latitude: 10.0335, longitude: 76.3148 },
+  { name: "Edappally", code: "EDPL", district: "Ernakulam", city: "Edappally, Kochi", latitude: 10.0245, longitude: 76.3075 },
+  { name: "Changampuzha Park", code: "CGPZ", district: "Ernakulam", city: "Edappally, Kochi", latitude: 10.0152, longitude: 76.3045 },
+  { name: "Palarivattom", code: "PLVT", district: "Ernakulam", city: "Palarivattom, Kochi", latitude: 10.0052, longitude: 76.3068 },
+  { name: "JLN Stadium", code: "JLNS", district: "Ernakulam", city: "Kaloor, Kochi", latitude: 10.0001, longitude: 76.3005 },
+  { name: "Kaloor", code: "KALR", district: "Ernakulam", city: "Kaloor, Kochi", latitude: 9.9952, longitude: 76.2915 },
+  { name: "Town Hall", code: "TWNH", district: "Ernakulam", city: "Kaloor, Kochi", latitude: 9.9922, longitude: 76.2877 },
+  { name: "M.G. Road", code: "MGRD", district: "Ernakulam", city: "MG Road, Kochi", latitude: 9.9816, longitude: 76.2828 },
+  { name: "Maharaja's College", code: "MHCL", district: "Ernakulam", city: "Kochi", latitude: 9.9723, longitude: 76.2845 },
+  { name: "Ernakulam South", code: "EKMS", district: "Ernakulam", city: "Kochi", latitude: 9.9678, longitude: 76.2912 },
+  { name: "Kadavanthra", code: "KDVT", district: "Ernakulam", city: "Kadavanthra, Kochi", latitude: 9.9672, longitude: 76.2998 },
+  { name: "Elamkulam", code: "ELKM", district: "Ernakulam", city: "Elamkulam, Kochi", latitude: 9.9634, longitude: 76.3110 },
+  { name: "Vyttila", code: "VYTL", district: "Ernakulam", city: "Vyttila, Kochi", latitude: 9.9658, longitude: 76.3204 },
+  { name: "Thaikoodam", code: "TKDM", district: "Ernakulam", city: "Thaikoodam, Kochi", latitude: 9.9610, longitude: 76.3312 },
+  { name: "Petta", code: "PETA", district: "Ernakulam", city: "Petta, Kochi", latitude: 9.9575, longitude: 76.3395 },
+  { name: "Vadakkekotta", code: "VDKA", district: "Ernakulam", city: "Thripunithura, Kochi", latitude: 9.9515, longitude: 76.3440 },
+  { name: "SN Junction", code: "SNJN", district: "Ernakulam", city: "Thripunithura, Kochi", latitude: 9.9535, longitude: 76.3430 },
+  { name: "Thripunithura", code: "TPRA", district: "Ernakulam", city: "Thripunithura, Kochi", latitude: 9.9482, longitude: 76.3508 },
+];
+
+/**
+ * Extracts and normalizes the Metro Station name from an asset.
+ */
+export function extractMetroStation(asset) {
+  if (!asset) return null;
+  const locName = (asset.location_name || "").toLowerCase();
+  const locCode = (asset.location_code || "").toLowerCase();
+  const assetCode = (asset.asset_code || "").toLowerCase();
+  const desc = (asset.description || "").toLowerCase();
+
+  for (const s of KOCHI_METRO_STATIONS) {
+    const sNameLower = s.name.toLowerCase();
+    const sCodeLower = s.code.toLowerCase();
+    if (
+      locName.includes(sNameLower) ||
+      locCode === sCodeLower ||
+      assetCode.includes(sCodeLower) ||
+      desc.includes(sNameLower)
+    ) {
+      return s.name;
+    }
+  }
+
+  // Common aliases
+  if (locName.includes("cusat") || desc.includes("cusat")) return "Cochin University (CUSAT)";
+  if (locName.includes("mg road") || locName.includes("m.g road") || locName.includes("m.g. road")) return "M.G. Road";
+  if (locName.includes("jln") || locName.includes("jawaharlal")) return "JLN Stadium";
+  if (locName.includes("townhall") || locName.includes("town hall")) return "Town Hall";
+  if (locName.includes("maharajas") || locName.includes("maharaja")) return "Maharaja's College";
+  if (locName.includes("ernakulam south") || locName.includes("south metro")) return "Ernakulam South";
+  if (locName.includes("tripunithura") || locName.includes("thrippunithura")) return "Thripunithura";
+  if (locName.includes("vytilla") || locName.includes("vyttila")) return "Vyttila";
+  if (locName.includes("pulinchode") || locName.includes("pulinchodu")) return "Pulinchodu";
+
+  return null;
+}
 
 /**
  * Live Dynamic Geocoding Engine
