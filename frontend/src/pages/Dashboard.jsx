@@ -557,7 +557,7 @@ export default function Dashboard() {
 
             {/* TAB 3: 12-MONTH OCCUPANCY HEATMAP */}
             <TabsContent value="heatmap" className="space-y-5 m-0">
-              <OccupancyHeatmap assets={allAssets} campaigns={campaigns} />
+              <OccupancyHeatmap assets={allAssets} campaigns={campaigns} queue={queue} />
             </TabsContent>
 
             {/* TAB 4: MALL ANNEXURE CERTIFICATES */}
