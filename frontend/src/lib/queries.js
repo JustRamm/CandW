@@ -193,6 +193,37 @@ export function useDashboard(userProfile) {
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 
+// In-memory document URL cache to avoid redundant storage API lookups
+const docUrlCache = new Map();
+
+export async function resolveDocumentUrls(docIds = []) {
+  if (!docIds || !docIds.length) return {};
+  const missingIds = docIds.filter((id) => id && !docUrlCache.has(id));
+  if (missingIds.length) {
+    try {
+      const { data: docs } = await supabase
+        .from("documents")
+        .select("id, url, storage_path")
+        .in("id", missingIds);
+      for (const d of docs ?? []) {
+        const url =
+          d.url ||
+          (d.storage_path
+            ? supabase.storage.from("documents").getPublicUrl(d.storage_path).data?.publicUrl
+            : null);
+        if (url) docUrlCache.set(d.id, url);
+      }
+    } catch {
+      // ignore
+    }
+  }
+  const result = {};
+  for (const id of docIds) {
+    if (docUrlCache.has(id)) result[id] = docUrlCache.get(id);
+  }
+  return result;
+}
+
 export function useAssets(params = {}) {
   return useQuery({
     queryKey: ["assets", params],
@@ -204,63 +235,54 @@ export function useAssets(params = {}) {
       if (error) throw new Error(error.message);
       if (!assets || !assets.length) return [];
 
-      // Enrich with queue counts and live brand
       const ids = assets.map((a) => a.id);
-      if (!ids.length) return [];
-      let queueCounts = [];
-      let liveCampaigns = [];
-      let gtpCampaigns = [];
+      const allPhotoIds = assets.flatMap((a) => a.photo_ids ?? []);
 
+      let queueCounts = [];
+      let activeCampaigns = [];
+      let docUrlMap = {};
+
+      // Optimized single-roundtrip parallel enrichment
       try {
-        const [qcRes, lcRes, gcRes] = await Promise.all([
-          supabase.from("queue_entries").select("asset_id").in("state", ["active", "pending"]).in("asset_id", ids),
-          supabase.from("campaigns").select("asset_id,brand").neq("stage", "closed").in("asset_id", ids),
-          supabase.from("campaigns").select("asset_id,gtps,start_date,end_date").in("stage", ["live", "closing"]).in("asset_id", ids),
+        const [qcRes, campRes, docsMap] = await Promise.all([
+          ids.length
+            ? supabase.from("queue_entries").select("asset_id").in("state", ["active", "pending"]).in("asset_id", ids)
+            : Promise.resolve({ data: [] }),
+          ids.length
+            ? supabase.from("campaigns").select("asset_id,brand,stage,gtps,start_date,end_date").neq("stage", "closed").in("asset_id", ids)
+            : Promise.resolve({ data: [] }),
+          resolveDocumentUrls(allPhotoIds),
         ]);
         queueCounts = qcRes.data ?? [];
-        liveCampaigns = lcRes.data ?? [];
-        gtpCampaigns = gcRes.data ?? [];
+        activeCampaigns = campRes.data ?? [];
+        docUrlMap = docsMap ?? {};
       } catch {
-        // Mock fallback retains its enriched fields
+        // Retain standard asset fields on partial failure
       }
 
       const today = new Date().toISOString().split("T")[0];
       const countMap = {};
       for (const e of queueCounts ?? []) countMap[e.asset_id] = (countMap[e.asset_id] ?? 0) + 1;
-      const liveMap = {};
-      for (const c of liveCampaigns ?? []) {
-        if (liveMap[c.asset_id]) {
-          const parts = liveMap[c.asset_id].split(", ");
-          if (!parts.includes(c.brand)) {
-            liveMap[c.asset_id] = `${liveMap[c.asset_id]}, ${c.brand}`;
-          }
-        } else {
-          liveMap[c.asset_id] = c.brand;
-        }
-      }
-      const gtpMap = {};
-      for (const c of gtpCampaigns ?? []) {
-        const pending = (c.gtps ?? []).find((g) => ["pending", "rejected"].includes(g.status));
-        if (pending) {
-          const days = Math.ceil((new Date(pending.due_date) - new Date(today)) / 86400000);
-          gtpMap[c.asset_id] = { next_gtp_date: pending.due_date, gtp_overdue: days < 0 };
-        }
-      }
 
-      // Fetch document public URLs for all asset photo_ids
-      const allPhotoIds = assets.flatMap((a) => a.photo_ids ?? []);
-      const docUrlMap = {};
-      if (allPhotoIds.length) {
-        const { data: docs } = await supabase
-          .from("documents")
-          .select("id, url, storage_path")
-          .in("id", allPhotoIds);
-        for (const d of docs ?? []) {
-          docUrlMap[d.id] =
-            d.url ||
-            (d.storage_path
-              ? supabase.storage.from("documents").getPublicUrl(d.storage_path).data?.publicUrl
-              : null);
+      const liveMap = {};
+      const gtpMap = {};
+      for (const c of activeCampaigns ?? []) {
+        if (c.brand) {
+          if (liveMap[c.asset_id]) {
+            const parts = liveMap[c.asset_id].split(", ");
+            if (!parts.includes(c.brand)) {
+              liveMap[c.asset_id] = `${liveMap[c.asset_id]}, ${c.brand}`;
+            }
+          } else {
+            liveMap[c.asset_id] = c.brand;
+          }
+        }
+        if (["live", "closing"].includes(c.stage)) {
+          const pending = (c.gtps ?? []).find((g) => ["pending", "rejected"].includes(g.status));
+          if (pending) {
+            const days = Math.ceil((new Date(pending.due_date) - new Date(today)) / 86400000);
+            gtpMap[c.asset_id] = { next_gtp_date: pending.due_date, gtp_overdue: days < 0 };
+          }
         }
       }
 
@@ -292,7 +314,7 @@ export function useAssets(params = {}) {
         };
       });
     },
-    retry: false,
+    retry: 1,
   });
 }
 
@@ -302,24 +324,14 @@ export function useAsset(id) {
     queryFn: async () => {
       if (!id) return null;
       const asset = check(await supabase.from("assets").select("*").eq("id", id).single());
-      const [{ data: campaigns }, { data: audit }, { data: queueEntries }, { data: docs }] = await Promise.all([
+      const [{ data: campaigns }, { data: audit }, { data: queueEntries }, docsMap] = await Promise.all([
         supabase.from("campaigns").select("*").eq("asset_id", id).order("created_at", { ascending: false }),
         supabase.from("audit_logs").select("*").eq("asset_id", id).order("created_at", { ascending: false }),
         supabase.from("queue_entries").select("*").eq("asset_id", id).order("created_at"),
-        (asset.photo_ids ?? []).length
-          ? supabase.from("documents").select("id, url, storage_path").in("id", asset.photo_ids)
-          : Promise.resolve({ data: [] }),
+        resolveDocumentUrls(asset.photo_ids ?? []),
       ]);
 
-      const docUrls = (docs ?? [])
-        .map(
-          (d) =>
-            d.url ||
-            (d.storage_path
-              ? supabase.storage.from("documents").getPublicUrl(d.storage_path).data?.publicUrl
-              : null),
-        )
-        .filter(Boolean);
+      const docUrls = (asset.photo_ids ?? []).map((pId) => docsMap[pId]).filter(Boolean);
 
       let resolvedUrls = [...docUrls];
       if (asset.photo_url && !resolvedUrls.includes(asset.photo_url)) {
