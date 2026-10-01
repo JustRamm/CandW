@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import {
+  ArrowLeft,
   Briefcase,
   Building2,
   Clock,
@@ -40,13 +41,42 @@ function visibleNav(role) {
   return NAV.filter((n) => n.roles === "*" || n.roles.includes(role));
 }
 
-export default function AppShell({ children, title, subtitle, actions }) {
+export default function AppShell({
+  children,
+  title,
+  subtitle,
+  actions,
+  backTo,
+  backLabel,
+  backTestId,
+}) {
   const { data: me } = useMe();
   const location = useLocation();
   const [signingOut, setSigningOut] = useState(false);
   const [soundOn, setSoundOn] = useState(sound.isEnabled());
 
   const isDashboard = location.pathname === "/dashboard" || location.pathname === "/";
+
+  // Auto-resolve backTo if on a detail screen
+  let resolvedBackTo = backTo;
+  let resolvedBackLabel = backLabel;
+  let resolvedBackTestId = backTestId;
+
+  if (!resolvedBackTo) {
+    if (location.pathname.startsWith("/campaigns/") && location.pathname !== "/campaigns") {
+      resolvedBackTo = "/campaigns";
+      resolvedBackLabel = "Campaigns";
+      resolvedBackTestId = "back-to-campaigns";
+    } else if (location.pathname.startsWith("/brands/") && location.pathname !== "/brands") {
+      resolvedBackTo = "/brands";
+      resolvedBackLabel = "Brands";
+      resolvedBackTestId = "back-to-brands";
+    } else if (location.pathname.startsWith("/assets/") && location.pathname !== "/assets") {
+      resolvedBackTo = "/assets";
+      resolvedBackLabel = "Assets";
+      resolvedBackTestId = "back-to-assets";
+    }
+  }
 
   useEffect(() => {
     if (me?.id) {
@@ -199,13 +229,26 @@ export default function AppShell({ children, title, subtitle, actions }) {
               </div>
             </div>
           ) : (
-            /* Other screens Mobile: Title + Subtitle + OfflineSyncModal + NotificationCenter + SignOut */
-            <div className="flex sm:hidden items-center justify-between gap-3 min-w-0">
-              <div className="min-w-0 flex-1">
-                <h1 className="font-heading text-lg font-bold tracking-tight truncate" data-testid="mobile-page-title">
-                  {title}
-                </h1>
-                {subtitle && <p className="mt-0.5 text-xs text-muted-foreground truncate">{subtitle}</p>}
+            /* Other screens Mobile: Back button + Title + Subtitle on left, and OfflineSyncModal + NotificationCenter + SignOut on right (all in same horizontal header bar) */
+            <div className="flex sm:hidden items-center justify-between gap-2.5 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {resolvedBackTo && (
+                  <Link
+                    to={resolvedBackTo}
+                    onClick={() => sound.click()}
+                    className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-secondary/70 text-foreground transition-all duration-150 hover:bg-secondary hover:text-primary active:scale-90 shadow-xs"
+                    data-testid={resolvedBackTestId || "back-to-parent"}
+                    aria-label={resolvedBackLabel ? `Back to ${resolvedBackLabel}` : "Go back"}
+                  >
+                    <ArrowLeft className="size-4.5 stroke-[2.25]" />
+                  </Link>
+                )}
+                <div className="min-w-0 flex-1">
+                  <h1 className="font-heading text-lg font-bold tracking-tight truncate leading-tight" data-testid="mobile-page-title">
+                    {title}
+                  </h1>
+                  {subtitle && <p className="mt-0.5 text-xs text-muted-foreground truncate">{subtitle}</p>}
+                </div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <OfflineSyncModal />
@@ -227,13 +270,26 @@ export default function AppShell({ children, title, subtitle, actions }) {
             </div>
           )}
 
-          {/* Desktop view: Always renders title, subtitle, actions, OfflineSyncModal and notification center */}
+          {/* Desktop view: Always renders back button, title, subtitle, actions, OfflineSyncModal and notification center */}
           <div className="hidden sm:flex sm:items-center sm:justify-between sm:gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="font-heading text-lg font-bold tracking-tight sm:text-xl md:text-2xl truncate" data-testid="page-title">
-                {title}
-              </h1>
-              {subtitle && <p className="mt-0.5 text-xs text-muted-foreground truncate sm:whitespace-normal">{subtitle}</p>}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              {resolvedBackTo && (
+                <Link
+                  to={resolvedBackTo}
+                  onClick={() => sound.click()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-secondary/40 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground active:scale-95 shadow-2xs shrink-0"
+                  data-testid={resolvedBackTestId || "desktop-back-to-parent"}
+                >
+                  <ArrowLeft className="size-3.5" />
+                  <span>{resolvedBackLabel || "Back"}</span>
+                </Link>
+              )}
+              <div className="min-w-0 flex-1">
+                <h1 className="font-heading text-lg font-bold tracking-tight sm:text-xl md:text-2xl truncate" data-testid="page-title">
+                  {title}
+                </h1>
+                {subtitle && <p className="mt-0.5 text-xs text-muted-foreground truncate sm:whitespace-normal">{subtitle}</p>}
+              </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {actions && (
@@ -246,9 +302,9 @@ export default function AppShell({ children, title, subtitle, actions }) {
             </div>
           </div>
 
-          {/* If mobile and NOT dashboard and actions exist, render them */}
+          {/* If mobile and NOT dashboard and actions exist, render them with smooth horizontal scrolling */}
           {!isDashboard && actions && (
-            <div className="mt-2.5 flex sm:hidden items-center gap-1.5 flex-wrap">
+            <div className="mt-2.5 flex sm:hidden items-center gap-1.5 overflow-x-auto scrollbar-none -mx-4 px-4 pb-0.5 pt-0.5">
               {actions}
             </div>
           )}
@@ -269,6 +325,7 @@ export default function AppShell({ children, title, subtitle, actions }) {
       >
         {nav.map(({ to, label, icon: Icon }) => {
           const active = location.pathname === to || (to !== "/dashboard" && location.pathname.startsWith(to));
+          const isCampaign = to === "/campaigns";
           const shortLabel =
             label === "Interest Queue"
               ? "Queue"
@@ -283,7 +340,8 @@ export default function AppShell({ children, title, subtitle, actions }) {
               to={to}
               onClick={() => sound.click()}
               className={cn(
-                "relative flex flex-1 min-w-[48px] max-w-[68px] flex-col items-center justify-center gap-0.5 py-1 text-[10px] font-medium transition-colors duration-150 text-center select-none",
+                "relative flex flex-col items-center justify-center gap-0.5 py-1 text-[10px] font-medium transition-colors duration-150 text-center select-none overflow-visible",
+                isCampaign ? "flex-[1.35] min-w-[64px] max-w-[84px]" : "flex-1 min-w-[42px] max-w-[62px]",
                 active ? "text-[#00668a] font-semibold" : "text-muted-foreground hover:text-foreground",
               )}
               data-testid={`mobile-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
@@ -292,11 +350,14 @@ export default function AppShell({ children, title, subtitle, actions }) {
                 <motion.div
                   layoutId="mobileActiveTab"
                   transition={{ type: "spring", stiffness: 420, damping: 32 }}
-                  className="absolute inset-x-1 inset-y-0.5 rounded-xl bg-sky-100/70 border border-sky-200/80 shadow-xs dark:bg-sky-950/50 dark:border-sky-800"
+                  className={cn(
+                    "absolute -inset-y-1 rounded-xl bg-sky-100/80 border border-sky-200/90 shadow-xs dark:bg-sky-950/60 dark:border-sky-800 pointer-events-none",
+                    isCampaign ? "w-[76px] left-1/2 -translate-x-1/2" : "-inset-x-1",
+                  )}
                 />
               )}
               <Icon className={cn("size-4.5 shrink-0 relative z-10 transition-transform duration-200", active && "scale-110 stroke-[2.25] text-[#00668a]")} />
-              <span className="truncate max-w-full relative z-10">{shortLabel}</span>
+              <span className="truncate max-w-full relative z-10 px-0.5">{shortLabel}</span>
             </Link>
           );
         })}

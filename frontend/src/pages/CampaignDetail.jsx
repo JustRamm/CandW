@@ -1180,17 +1180,16 @@ export default function CampaignDetail() {
     <AppShell
       title={campaign ? `${campaign.brand}` : "Campaign"}
       subtitle={campaign ? `${campaign.asset_code} · ${campaign.duration_days} day campaign` : "Loading…"}
+      backTo="/campaigns"
+      backLabel="Campaigns"
+      backTestId="back-to-campaigns"
       actions={
-        <div className="flex items-center gap-1.5">
-          <Link to="/campaigns" className={cn(buttonVariants({ variant: "outline", size: "xs" }))} data-testid="back-to-campaigns">
-            <ArrowLeft className="size-3.5" />
-            Campaigns
-          </Link>
+        <div className="flex items-center gap-1.5 shrink-0">
           {campaign && (
             <Button
               variant="outline"
               size="xs"
-              className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer"
+              className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer shrink-0"
               onClick={() => {
                 const url = `${getAppBaseUrl()}/view/${campaign.id}`;
                 navigator.clipboard.writeText(url);
@@ -1199,17 +1198,17 @@ export default function CampaignDetail() {
               data-testid="copy-client-pop-portal-button"
             >
               <Copy className="size-3.5" />
-              Copy Client Link
+              <span>Copy Client Link</span>
             </Button>
           )}
           {campaign && (
             <Link
               to={`/view/${campaign.id}`}
-              className={cn(buttonVariants({ variant: "outline", size: "xs" }), "gap-1.5 cursor-pointer")}
+              className={cn(buttonVariants({ variant: "outline", size: "xs" }), "gap-1.5 cursor-pointer shrink-0")}
               data-testid="view-client-pop-portal-button"
             >
               <ExternalLink className="size-3.5" />
-              View Portal
+              <span>View Portal</span>
             </Link>
           )}
           {campaign && <SendClientEmailDialog campaign={campaign} />}

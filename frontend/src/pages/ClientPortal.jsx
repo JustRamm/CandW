@@ -371,23 +371,14 @@ export default function ClientPortal() {
       {/* ── Executive Branded Header ────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-sm tracking-wider shadow-sm">
-              CW
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-xs ring-1 ring-white/10">
+              <img src="/brand/logo.svg" alt="Carbon & Whale" className="h-full w-full object-contain" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-heading text-sm font-semibold tracking-tight text-foreground">
-                  Carbon & Whale
-                </span>
-                <span className="text-[11px] text-muted-foreground">·</span>
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  OOH-Sync Proof-of-Performance
-                </span>
-              </div>
-              <p className="text-[10px] text-muted-foreground hidden sm:block">
-                Cryptographically audited outdoor advertising verification
-              </p>
+            <div className="min-w-0">
+              <span className="font-heading text-sm sm:text-base font-bold tracking-tight text-foreground truncate block">
+                Carbon & Whale
+              </span>
             </div>
           </div>
 
@@ -912,10 +903,10 @@ export default function ClientPortal() {
         <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <div className="size-2 rounded-full bg-emerald-500" />
-            <span>Digital Proof-of-Performance Verification Hash: <span className="font-mono text-[10px]">OOH-{lookupKey?.slice(0, 8).toUpperCase()}-VERIFIED</span></span>
+            <span>Verification Hash: <span className="font-mono text-[10px]">CW-{lookupKey?.slice(0, 8).toUpperCase() || "VERIFIED"}</span></span>
           </div>
           <div>
-            Powered by <strong className="text-foreground">Carbon & Whale · OOH-Sync Intelligence</strong>
+            Powered by <strong className="text-foreground">Carbon & Whale</strong>
           </div>
         </div>
       </footer>

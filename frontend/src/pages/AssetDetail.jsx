@@ -586,19 +586,18 @@ export default function AssetDetail() {
     <AppShell
       title={asset?.asset_code ?? "Asset"}
       subtitle={asset?.location_name ?? "Loading asset…"}
+      backTo="/assets"
+      backLabel="Assets"
+      backTestId="back-to-assets"
       actions={
-        <div className="flex items-center gap-1.5">
-          <Link to="/assets" className={cn(buttonVariants({ variant: "outline", size: "xs" }))} data-testid="back-to-assets">
-            <ArrowLeft className="size-3.5" />
-            Assets
-          </Link>
+        <div className="flex items-center gap-1.5 shrink-0">
           {canAddInterest && <AddInterestDialog asset={asset} />}
           {asset && <UploadProofDialog asset={asset} />}
           {asset && (me?.role === "ops" || me?.role === "admin") && (
             <AssetDialog
               asset={asset}
               trigger={
-                <Button variant="outline" size="xs" data-testid="edit-asset-detail-button">
+                <Button variant="outline" size="xs" className="shrink-0" data-testid="edit-asset-detail-button">
                   <Pencil className="size-3.5" />
                   Edit
                 </Button>

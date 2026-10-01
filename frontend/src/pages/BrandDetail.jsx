@@ -130,17 +130,16 @@ export default function BrandDetail() {
     <AppShell
       title={brand?.name ?? "Brand"}
       subtitle={brand?.industry || "Customer record and asset history"}
+      backTo="/brands"
+      backLabel="Brands"
+      backTestId="back-to-brands"
       actions={
-        <div className="flex items-center gap-1.5">
-          <Link to="/brands" className={cn(buttonVariants({ variant: "outline", size: "xs" }))} data-testid="back-to-brands">
-            <ArrowLeft className="size-3.5" />
-            Brands
-          </Link>
+        <div className="flex items-center gap-1.5 shrink-0">
           {brand && (
             <Button
               variant="outline"
               size="xs"
-              className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer"
+              className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10 cursor-pointer shrink-0"
               onClick={() => {
                 const slug = encodeURIComponent(brand.name.toLowerCase().replace(/\s+/g, "-"));
                 const url = `${getAppBaseUrl()}/portal/${slug}`;
@@ -150,17 +149,17 @@ export default function BrandDetail() {
               data-testid="copy-client-portal-button"
             >
               <Copy className="size-3.5" />
-              Copy Client Link
+              <span>Copy Client Link</span>
             </Button>
           )}
           {brand && (
             <Link
               to={`/portal/${encodeURIComponent(brand.name.toLowerCase().replace(/\s+/g, "-"))}`}
-              className={cn(buttonVariants({ variant: "outline", size: "xs" }), "gap-1.5 cursor-pointer")}
+              className={cn(buttonVariants({ variant: "outline", size: "xs" }), "gap-1.5 cursor-pointer shrink-0")}
               data-testid="view-client-portal-button"
             >
               <ExternalLink className="size-3.5" />
-              View Portal
+              <span>View Portal</span>
             </Link>
           )}
           {brand && <SendClientEmailDialog brand={brand} />}
@@ -172,51 +171,69 @@ export default function BrandDetail() {
       {isLoading && <BrandDetailSkeleton />}
 
       {brand && (
-        <div className="space-y-5">
-          <Card className="border-border/70 bg-card/80">
-            <CardContent className="px-5 py-5">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl border border-primary/40 bg-primary/10 p-2.5">
-                  <Building2 className="size-5 text-primary" />
+        <div className="space-y-4 sm:space-y-5">
+          <Card className="border-border/70 bg-card/80 overflow-hidden shadow-2xs">
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex items-start gap-3 sm:gap-4">
+                <div className="rounded-xl border border-primary/40 bg-primary/10 p-2.5 sm:p-3 shrink-0">
+                  <Building2 className="size-5 sm:size-6 text-primary" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-heading text-2xl font-bold tracking-tight" data-testid="brand-detail-name">
-                    {brand.name}
-                  </h2>
-                  <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
-                    <div>
-                      <dt className="mono-label text-muted-foreground">Contact</dt>
-                      <dd className="mt-0.5 flex items-center gap-1.5" data-testid="brand-contact-person">
-                        <User className="size-3.5 text-muted-foreground" />
-                        {brand.contact_person || "—"}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="font-heading text-xl sm:text-2xl font-bold tracking-tight text-foreground break-words" data-testid="brand-detail-name">
+                      {brand.name}
+                    </h2>
+                    {brand.industry && (
+                      <Badge variant="secondary" className="mono-label text-[11px] shrink-0">
+                        {brand.industry}
+                      </Badge>
+                    )}
+                  </div>
+                  <dl className="mt-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3 text-xs">
+                    <div className="min-w-0 rounded-lg bg-secondary/30 p-2.5 sm:bg-transparent sm:p-0">
+                      <dt className="mono-label text-muted-foreground text-[10px]">Contact Person</dt>
+                      <dd className="mt-0.5 flex items-center gap-1.5 min-w-0 font-medium text-foreground" data-testid="brand-contact-person">
+                        <User className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{brand.contact_person || "—"}</span>
                       </dd>
                     </div>
-                    <div>
-                      <dt className="mono-label text-muted-foreground">Email</dt>
-                      <dd className="mt-0.5 flex items-center gap-1.5 truncate" data-testid="brand-contact-email">
+                    <div className="min-w-0 rounded-lg bg-secondary/30 p-2.5 sm:bg-transparent sm:p-0">
+                      <dt className="mono-label text-muted-foreground text-[10px]">Email Address</dt>
+                      <dd className="mt-0.5 flex items-center gap-1.5 min-w-0 font-medium text-foreground" data-testid="brand-contact-email">
                         <Mail className="size-3.5 shrink-0 text-muted-foreground" />
-                        {brand.contact_email || "—"}
+                        <span className="truncate break-all">{brand.contact_email || "—"}</span>
                       </dd>
                     </div>
-                    <div>
-                      <dt className="mono-label text-muted-foreground">Phone</dt>
-                      <dd className="mt-0.5 flex items-center gap-1.5" data-testid="brand-contact-phone">
-                        <Phone className="size-3.5 text-muted-foreground" />
-                        {brand.contact_phone || "—"}
+                    <div className="min-w-0 rounded-lg bg-secondary/30 p-2.5 sm:bg-transparent sm:p-0">
+                      <dt className="mono-label text-muted-foreground text-[10px]">Phone Number</dt>
+                      <dd className="mt-0.5 flex items-center gap-1.5 min-w-0 font-medium text-foreground" data-testid="brand-contact-phone">
+                        <Phone className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{brand.contact_phone || "—"}</span>
                       </dd>
                     </div>
                   </dl>
-                  {brand.notes && <p className="mt-3 text-xs text-muted-foreground">{brand.notes}</p>}
+                  {brand.notes && (
+                    <div className="mt-3 rounded-lg border border-border/50 bg-secondary/20 p-2.5 text-xs text-muted-foreground break-words">
+                      {brand.notes}
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-border/70 bg-card/70" data-testid="brand-campaign-history">
-            <CardHeader className="pb-3">
-              <CardTitle className="font-heading text-base">Campaign history</CardTitle>
+          <Card className="border-border/70 bg-card/70 overflow-hidden shadow-2xs" data-testid="brand-campaign-history">
+            <CardHeader className="p-4 sm:p-5 pb-2 sm:pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-heading text-base font-semibold">Campaign history</CardTitle>
+                {(brand.campaigns ?? []).length > 0 && (
+                  <Badge variant="outline" className="mono-label text-[10px] text-muted-foreground">
+                    {(brand.campaigns ?? []).length} {(brand.campaigns ?? []).length === 1 ? "campaign" : "campaigns"}
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 space-y-2.5">
               {(brand.campaigns ?? []).length === 0 ? (
                 <EmptyState
                   title="No campaigns yet"
@@ -228,17 +245,19 @@ export default function BrandDetail() {
                   <Link
                     key={c.id}
                     to={`/campaigns/${c.id}`}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 transition-colors duration-150 hover:border-primary/45"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-border/60 bg-secondary/30 p-3.5 sm:px-4 sm:py-3 transition-all duration-150 hover:border-primary/45 hover:bg-secondary/50 group"
                     data-testid="brand-campaign-row"
                   >
-                    <div className="min-w-0">
-                      <p className="font-heading text-sm font-medium">{c.asset_code}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-heading text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                        {c.asset_code}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground break-words">
                         {assetById[c.asset_id]?.location_name ?? "—"} · {c.duration_days} days
                         {c.start_date ? ` · ${fmtDate(c.start_date)} → ${fmtDate(c.end_date)}` : ""}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap pt-1 sm:pt-0 border-t border-border/40 sm:border-0">
                       {assetById[c.asset_id] && <AssetStatusBadge status={assetById[c.asset_id].status} />}
                       <StageBadge stage={c.stage} />
                     </div>
@@ -248,25 +267,32 @@ export default function BrandDetail() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/70 bg-card/70" data-testid="brand-queue-history">
-            <CardHeader className="pb-3">
-              <CardTitle className="font-heading text-base">Interest queue history</CardTitle>
+          <Card className="border-border/70 bg-card/70 overflow-hidden shadow-2xs" data-testid="brand-queue-history">
+            <CardHeader className="p-4 sm:p-5 pb-2 sm:pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-heading text-base font-semibold">Interest queue history</CardTitle>
+                {(brand.queue_entries ?? []).length > 0 && (
+                  <Badge variant="outline" className="mono-label text-[10px] text-muted-foreground">
+                    {(brand.queue_entries ?? []).length} {(brand.queue_entries ?? []).length === 1 ? "entry" : "entries"}
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
-            <CardContent className="space-y-1.5">
+            <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 space-y-2">
               {(brand.queue_entries ?? []).length === 0 ? (
                 <EmptyState title="No queue entries" testId="brand-queue-empty" />
               ) : (
                 (brand.queue_entries ?? []).map((e) => (
                   <div
                     key={e.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2 text-xs"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-border/60 bg-secondary/30 p-3 sm:px-3 sm:py-2.5 text-xs"
                     data-testid="brand-queue-row"
                   >
-                    <span className="truncate">
-                      {e.asset_code} · {e.salesperson_name} · proposed {e.proposed_duration_days}d
+                    <span className="min-w-0 flex-1 break-words">
+                      <strong className="font-semibold text-foreground">{e.asset_code}</strong> · {e.salesperson_name} · proposed {e.proposed_duration_days}d
                       {e.proposed_start_date ? ` · from ${fmtDate(e.proposed_start_date)}` : ""}
                     </span>
-                    <Badge variant="outline" className="mono-label border-border/70 text-muted-foreground">
+                    <Badge variant="outline" className="mono-label border-border/70 text-muted-foreground shrink-0 self-start sm:self-auto">
                       {e.state}
                     </Badge>
                   </div>
