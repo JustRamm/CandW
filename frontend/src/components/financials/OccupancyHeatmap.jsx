@@ -229,42 +229,6 @@ export default function OccupancyHeatmap({ assets = [], campaigns = [], queue = 
                             transition={{ duration: 0.2 }}
                             className="space-y-3.5 overflow-hidden"
                           >
-                            {/* Venue Drawer Header */}
-                            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/70 bg-card p-3 shadow-2xs">
-                              <div className="flex items-center gap-2.5">
-                                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                  {v.venueType === "Metro" ? <TrainFront className="size-4" /> : <Building2 className="size-4" />}
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <h5 className="font-heading text-sm font-bold text-foreground">
-                                      {v.venueName}
-                                    </h5>
-                                    <Badge variant="secondary" className="text-[10px]">
-                                      {v.district}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                                    {v.totalDisplays} total display units · {v.venueCampaigns.length} active campaigns · {v.venueQueue.length} waitlisted
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <Link
-                                  to={
-                                    v.venueType === "Metro"
-                                      ? `/assets?venueType=metro`
-                                      : `/assets?mall=${encodeURIComponent(v.venueName)}`
-                                  }
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
-                                >
-                                  <span>View in Inventory</span>
-                                  <ExternalLink className="size-3" />
-                                </Link>
-                              </div>
-                            </div>
-
                             {/* Two-Column Grid: Displays/Ads + Waitlist */}
                             <div className="grid gap-3 lg:grid-cols-2">
                               {/* Column 1: Live Display Units & Active Campaigns */}
@@ -274,6 +238,17 @@ export default function OccupancyHeatmap({ assets = [], campaigns = [], queue = 
                                     <Layers className="size-3.5 text-primary" />
                                     <span>Displays &amp; Active Advertisements ({v.matchingAssets.length})</span>
                                   </h6>
+                                  <Link
+                                    to={
+                                      v.venueType === "Metro"
+                                        ? `/assets?venueType=metro`
+                                        : `/assets?mall=${encodeURIComponent(v.venueName)}`
+                                    }
+                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                                  >
+                                    <span>View Inventory</span>
+                                    <ArrowUpRight className="size-3" />
+                                  </Link>
                                 </div>
 
                                 {v.matchingAssets.length === 0 ? (
