@@ -773,7 +773,21 @@ export function AssetDialog({ asset, trigger }) {
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            // Bug #1 fix: keep photo_ids and proof_photo_ids separate
+            // Photo validation: Live assets must have at least one real photo/GTP proof attached
+            const hasUploadedPhoto =
+              photos.length > 0 ||
+              proofPhotos.length > 0 ||
+              (asset?.photo_urls ?? []).some((u) => u && u !== "/asset.png" && u !== "/mallasset.png") ||
+              (asset?.photo_url && asset.photo_url !== "/asset.png" && asset.photo_url !== "/mallasset.png") ||
+              (asset?.proof_photo_url && asset.proof_photo_url !== "/asset.png" && asset.proof_photo_url !== "/mallasset.png");
+
+            if (isLive && !hasUploadedPhoto) {
+              toast.error("Photo required for live asset", {
+                description: "You must attach at least one physical site photo or GTP proof before setting an asset to Live.",
+              });
+              return;
+            }
+
             const regularPhotoIds = photos.map((p) => p.id);
             const proofPhotoIds = proofPhotos.map((p) => p.id);
             const primaryPhoto = photos[0]?.url || asset?.photo_url || "";
@@ -1416,8 +1430,31 @@ export function AssetDialog({ asset, trigger }) {
 
           {/* Photo Attachments & Geo-Tagged Proof Section */}
           <div className="space-y-3 pt-1">
+            {isLive &&
+              photos.length === 0 &&
+              proofPhotos.length === 0 &&
+              !(asset?.photo_urls ?? []).some((u) => u && u !== "/asset.png" && u !== "/mallasset.png") &&
+              !(asset?.photo_url && asset.photo_url !== "/asset.png" && asset.photo_url !== "/mallasset.png") &&
+              !(asset?.proof_photo_url && asset.proof_photo_url !== "/asset.png" && asset.proof_photo_url !== "/mallasset.png") && (
+                <div
+                  className="rounded-lg border border-rose-300 bg-rose-50/90 dark:bg-rose-950/40 p-3 text-xs text-rose-900 dark:text-rose-200 flex items-start gap-2.5 animate-in fade-in duration-150"
+                  data-testid="live-photo-required-banner"
+                >
+                  <Camera className="size-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-rose-800 dark:text-rose-300">Live Asset Photo Required</p>
+                    <p className="text-[11px] text-rose-700/90 dark:text-rose-300/90 mt-0.5">
+                      An asset cannot be set to Live without an uploaded site photo or mounting proof (GTP). Please attach a photo below before saving.
+                    </p>
+                  </div>
+                </div>
+              )}
+
             <div className="space-y-1.5">
-              <Label>Photo attachments</Label>
+              <Label className="flex items-center justify-between">
+                <span>Photo attachments</span>
+                {isLive && <span className="text-[11px] font-semibold text-destructive">* Required for Live</span>}
+              </Label>
               <FileUploader
                 value={photos}
                 onChange={setPhotos}
@@ -1606,8 +1643,31 @@ export function AssetDialog({ asset, trigger }) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={save.isPending} data-testid="submit-asset-button">
-              {save.isPending ? "Saving…" : asset ? "Save changes" : "Create asset"}
+            <Button
+              type="submit"
+              disabled={
+                save.isPending ||
+                (isLive &&
+                  photos.length === 0 &&
+                  proofPhotos.length === 0 &&
+                  !(asset?.photo_urls ?? []).some((u) => u && u !== "/asset.png" && u !== "/mallasset.png") &&
+                  !(asset?.photo_url && asset.photo_url !== "/asset.png" && asset.photo_url !== "/mallasset.png") &&
+                  !(asset?.proof_photo_url && asset.proof_photo_url !== "/asset.png" && asset.proof_photo_url !== "/mallasset.png"))
+              }
+              data-testid="submit-asset-button"
+            >
+              {save.isPending
+                ? "Saving…"
+                : isLive &&
+                  photos.length === 0 &&
+                  proofPhotos.length === 0 &&
+                  !(asset?.photo_urls ?? []).some((u) => u && u !== "/asset.png" && u !== "/mallasset.png") &&
+                  !(asset?.photo_url && asset.photo_url !== "/asset.png" && asset.photo_url !== "/mallasset.png") &&
+                  !(asset?.proof_photo_url && asset.proof_photo_url !== "/asset.png" && asset.proof_photo_url !== "/mallasset.png")
+                ? "Upload photo to go live"
+                : asset
+                ? "Save changes"
+                : "Create asset"}
             </Button>
           </DialogFooter>
         </form>
