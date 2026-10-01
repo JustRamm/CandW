@@ -265,11 +265,21 @@ export function useAssets(params = {}) {
       }
 
       return assets.map((a) => {
-        const resolvedUrls = (a.photo_ids ?? []).map((id) => docUrlMap[id]).filter(Boolean);
+        const isLive = a.status === "live" || Boolean(a.current_brand && a.status !== "available" && a.status !== "closed");
+        let resolvedUrls = (a.photo_ids ?? []).map((id) => docUrlMap[id]).filter(Boolean);
         if (a.photo_url && !resolvedUrls.includes(a.photo_url)) {
           resolvedUrls.push(a.photo_url);
         }
-        const vacantPhoto = getAssetVacantPhoto(a);
+        if (a.proof_photo_url && !resolvedUrls.includes(a.proof_photo_url)) {
+          resolvedUrls.push(a.proof_photo_url);
+        }
+
+        // Live assets must NEVER use hardcoded placeholder images (/asset.png, /mallasset.png)
+        if (isLive) {
+          resolvedUrls = resolvedUrls.filter((u) => u !== "/asset.png" && u !== "/mallasset.png");
+        }
+
+        const vacantPhoto = isLive ? null : getAssetVacantPhoto(a);
         const finalUrls = resolvedUrls.length > 0 ? resolvedUrls : (vacantPhoto ? [vacantPhoto] : []);
         return {
           ...a,
@@ -277,7 +287,7 @@ export function useAssets(params = {}) {
           current_brand: liveMap[a.id] ?? a.current_brand ?? null,
           photo_ids: a.photo_ids ?? [],
           photo_urls: finalUrls,
-          photo_url: resolvedUrls[0] || a.photo_url || vacantPhoto || "",
+          photo_url: resolvedUrls[0] || (isLive ? "" : vacantPhoto) || "",
           ...(gtpMap[a.id] ?? (a.next_gtp_date ? { next_gtp_date: a.next_gtp_date, gtp_overdue: false } : {})),
         };
       });
@@ -311,17 +321,26 @@ export function useAsset(id) {
         )
         .filter(Boolean);
 
-      const resolvedUrls = [...docUrls];
+      let resolvedUrls = [...docUrls];
       if (asset.photo_url && !resolvedUrls.includes(asset.photo_url)) {
         resolvedUrls.push(asset.photo_url);
       }
-      const vacantPhoto = getAssetVacantPhoto(asset);
+      if (asset.proof_photo_url && !resolvedUrls.includes(asset.proof_photo_url)) {
+        resolvedUrls.push(asset.proof_photo_url);
+      }
+
+      const isLive = asset.status === "live" || Boolean(asset.current_brand && asset.status !== "available" && asset.status !== "closed");
+      if (isLive) {
+        resolvedUrls = resolvedUrls.filter((u) => u !== "/asset.png" && u !== "/mallasset.png");
+      }
+
+      const vacantPhoto = isLive ? null : getAssetVacantPhoto(asset);
       const finalUrls = resolvedUrls.length > 0 ? resolvedUrls : (vacantPhoto ? [vacantPhoto] : []);
 
       return {
         ...asset,
         photo_urls: finalUrls,
-        photo_url: resolvedUrls[0] || asset.photo_url || vacantPhoto || "",
+        photo_url: resolvedUrls[0] || (isLive ? "" : vacantPhoto) || "",
         campaigns: campaigns ?? [],
         audit: audit ?? [],
         queue: queueEntries ?? [],

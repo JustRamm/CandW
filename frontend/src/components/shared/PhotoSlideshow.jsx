@@ -16,30 +16,30 @@ export default function PhotoSlideshow({
   imageClassName,
   fitMode = "cover",
 }) {
-  const vacantPhoto = getAssetVacantPhoto(asset);
+  const isLive =
+    asset?.status === "live" ||
+    Boolean(asset?.current_brand && asset?.status !== "available" && asset?.status !== "closed");
+
+  const vacantPhoto = isLive ? null : getAssetVacantPhoto(asset);
   const defaultShots = vacantPhoto ? [vacantPhoto] : [];
 
-  const initialShots = Array.from(
-    new Set(
-      [
-        ...(asset?.photo_urls ?? []),
-        ...(asset?.photo_url ? [asset.photo_url] : []),
-      ].filter(Boolean),
-    ),
-  );
+  const rawShots = [
+    ...(asset?.photo_urls ?? []),
+    ...(asset?.photo_url ? [asset.photo_url] : []),
+    ...(asset?.proof_photo_url ? [asset.proof_photo_url] : []),
+  ].filter(Boolean);
 
+  const filterLiveShots = (list) => {
+    if (!isLive) return list;
+    return list.filter((u) => u !== "/asset.png" && u !== "/mallasset.png");
+  };
+
+  const initialShots = Array.from(new Set(filterLiveShots(rawShots)));
   const [shots, setShots] = useState(initialShots.length > 0 ? initialShots : defaultShots);
 
   useEffect(() => {
     let active = true;
-    const known = Array.from(
-      new Set(
-        [
-          ...(asset?.photo_urls ?? []),
-          ...(asset?.photo_url ? [asset.photo_url] : []),
-        ].filter(Boolean),
-      ),
-    );
+    const known = Array.from(new Set(filterLiveShots(rawShots)));
 
     if (known.length > 0) {
       setShots(known);
@@ -68,7 +68,13 @@ export default function PhotoSlideshow({
           )
           .filter(Boolean);
         const combined = Array.from(
-          new Set([...fetched, ...(asset?.photo_url ? [asset.photo_url] : [])].filter(Boolean))
+          new Set(
+            filterLiveShots([
+              ...fetched,
+              ...(asset?.photo_url ? [asset.photo_url] : []),
+              ...(asset?.proof_photo_url ? [asset.proof_photo_url] : []),
+            ]),
+          ),
         );
         setShots(combined.length > 0 ? combined : (vacantPhoto ? [vacantPhoto] : []));
       });
@@ -76,7 +82,16 @@ export default function PhotoSlideshow({
     return () => {
       active = false;
     };
-  }, [asset?.id, asset?.photo_url, JSON.stringify(asset?.photo_urls), JSON.stringify(asset?.photo_ids), vacantPhoto]);
+  }, [
+    asset?.id,
+    asset?.status,
+    asset?.current_brand,
+    asset?.photo_url,
+    asset?.proof_photo_url,
+    JSON.stringify(asset?.photo_urls),
+    JSON.stringify(asset?.photo_ids),
+    vacantPhoto,
+  ]);
 
   const [i, setI] = useState(0);
   const count = shots.length;
@@ -91,10 +106,18 @@ export default function PhotoSlideshow({
   if (!current) {
     return (
       <div
-        className={cn("flex size-full items-center justify-center bg-secondary/40 text-muted-foreground", className)}
+        className={cn(
+          "flex flex-col size-full items-center justify-center bg-secondary/40 text-muted-foreground p-3 text-center gap-1.5",
+          className,
+        )}
         data-testid="photo-slideshow-empty"
       >
         <ImageIcon className="size-6 opacity-60" />
+        {isLive && asset?.current_brand && (
+          <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+            {asset.current_brand}
+          </span>
+        )}
       </div>
     );
   }

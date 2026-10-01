@@ -1094,6 +1094,11 @@ export function isMallAsset(asset) {
 
 export function getAssetVacantPhoto(asset) {
   if (!asset) return null;
+  // If the asset is live, do NOT use hardcoded placeholder images! Only user-uploaded photos are used.
+  const isLive = asset.status === "live" || Boolean(asset.current_brand && asset.status !== "available" && asset.status !== "closed");
+  if (isLive) {
+    return null;
+  }
   if (isMetroAsset(asset)) {
     return "/asset.png";
   }
