@@ -238,17 +238,15 @@ export default function OccupancyHeatmap({ assets = [], campaigns = [], queue = 
                                     <Layers className="size-3.5 text-primary" />
                                     <span>Displays &amp; Active Advertisements ({v.matchingAssets.length})</span>
                                   </h6>
-                                  <Link
-                                    to={
-                                      v.venueType === "Metro"
-                                        ? `/assets?venueType=metro`
-                                        : `/assets?mall=${encodeURIComponent(v.venueName)}`
-                                    }
-                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
-                                  >
-                                    <span>View Inventory</span>
-                                    <ArrowUpRight className="size-3" />
-                                  </Link>
+                                  {v.matchingAssets.length > 0 && (
+                                    <Link
+                                      to={`/assets/${v.matchingAssets[0].id}`}
+                                      className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                                    >
+                                      <span>View Asset Details</span>
+                                      <ArrowUpRight className="size-3" />
+                                    </Link>
+                                  )}
                                 </div>
 
                                 {v.matchingAssets.length === 0 ? (
