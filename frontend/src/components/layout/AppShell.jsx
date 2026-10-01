@@ -27,18 +27,35 @@ import { initRealtimeFeed } from "@/lib/realtime";
 import sound from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutGrid, roles: "*" },
-  { to: "/assets", label: "Assets", icon: MapPin, roles: "*" },
-  { to: "/queue", label: "Interest Queue", icon: Clock, roles: "*" },
-  { to: "/campaigns", label: "Campaigns", icon: Briefcase, roles: "*" },
-  { to: "/brands", label: "Brands", icon: Building2, roles: "*" },
-  { to: "/audit", label: "Audit Trail", icon: History, roles: "*" },
-  { to: "/admin", label: "Admin", icon: SlidersHorizontal, roles: ["admin"] },
+const NAV_GROUPS = [
+  {
+    category: "Workspace",
+    items: [
+      { to: "/dashboard", label: "Dashboard", icon: LayoutGrid, roles: "*" },
+      { to: "/assets", label: "Assets", icon: MapPin, roles: "*" },
+      { to: "/queue", label: "Interest Queue", icon: Clock, roles: "*" },
+      { to: "/campaigns", label: "Campaigns", icon: Briefcase, roles: "*" },
+      { to: "/brands", label: "Brands", icon: Building2, roles: "*" },
+    ],
+  },
+  {
+    category: "System",
+    items: [
+      { to: "/audit", label: "Audit Trail", icon: History, roles: "*" },
+      { to: "/admin", label: "Admin", icon: SlidersHorizontal, roles: ["admin"] },
+    ],
+  },
 ];
 
 function visibleNav(role) {
-  return NAV.filter((n) => n.roles === "*" || n.roles.includes(role));
+  return NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((n) => n.roles === "*" || n.roles.includes(role)),
+  })).filter((group) => group.items.length > 0);
+}
+
+function flatVisibleNav(role) {
+  return NAV_GROUPS.flatMap((g) => g.items).filter((n) => n.roles === "*" || n.roles.includes(role));
 }
 
 export default function AppShell({
@@ -91,7 +108,8 @@ export default function AppShell({
   }
 
   const role = me?.role ?? "";
-  const nav = visibleNav(role);
+  const navGroups = visibleNav(role);
+  const mobileNav = flatVisibleNav(role);
 
   async function signOut() {
     setSigningOut(true);
@@ -101,86 +119,103 @@ export default function AppShell({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <aside className="hidden w-[248px] shrink-0 border-r border-sidebar-border bg-sidebar md:flex md:flex-col h-screen select-none">
-        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-sidebar-border/60 shrink-0">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-xs">
+      <aside className="hidden w-[236px] shrink-0 border-r border-sidebar-border bg-sidebar md:flex md:flex-col h-screen select-none">
+        {/* Brand Header */}
+        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-sidebar-border/60 shrink-0">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-slate-950 p-1.5 shadow-xs ring-1 ring-white/10 shrink-0">
             <img src="/brand/logo.svg" alt="Carbon & Whale" className="h-full w-full object-contain" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-heading text-sm font-bold leading-tight tracking-tight text-foreground truncate">Carbon &amp; Whale</p>
-            <p className="mono-label text-[10px] text-muted-foreground">IMS · Ad Inventory System</p>
+            <p className="font-heading text-xs font-bold leading-tight tracking-tight text-foreground truncate">
+              Carbon &amp; Whale
+            </p>
+            <p className="mono-label text-[10px] text-muted-foreground truncate">
+              OOH Operations OS
+            </p>
           </div>
         </div>
-        <nav className="flex-1 space-y-1 px-3 py-3 overflow-y-auto">
-          {nav.map(({ to, label, icon: Icon }) => {
-            const isActive = location.pathname === to || (to !== "/dashboard" && location.pathname.startsWith(to));
-            return (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={() => sound.click()}
-                className={cn(
-                  "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150",
-                  isActive
-                    ? "font-semibold text-[#00668a]"
-                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
-                )}
-                data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="sidebarActive"
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                    className="absolute inset-0 rounded-lg bg-sky-50 border border-sky-200/80 shadow-xs dark:bg-sky-950/40 dark:border-sky-800"
-                  />
-                )}
-                {isActive && (
-                  <motion.span
-                    layoutId="sidebarIndicator"
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                    className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-[#00668a]"
-                  />
-                )}
-                <Icon className={cn("size-4 relative z-10", isActive && "stroke-[2.25] text-[#00668a]")} />
-                <span className="relative z-10">{label}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-        <div className="border-t border-sidebar-border px-4 py-4 shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-heading text-sm font-medium" data-testid="sidebar-user-name">
-                {me?.name ?? "…"}
+
+        {/* Grouped Navigation */}
+        <nav className="flex-1 space-y-4 px-3 py-3 overflow-y-auto">
+          {navGroups.map((group) => (
+            <div key={group.category} className="space-y-1">
+              <p className="px-2 text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground/60">
+                {group.category}
               </p>
-              <Badge variant="outline" className="mono-label mt-1 border-primary/40 text-primary" data-testid="sidebar-user-role">
-                {me?.role_label ?? ""}
-              </Badge>
+              <div className="space-y-0.5">
+                {group.items.map(({ to, label, icon: Icon }) => {
+                  const isActive = location.pathname === to || (to !== "/dashboard" && location.pathname.startsWith(to));
+                  return (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      onClick={() => sound.click()}
+                      className={cn(
+                        "relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150",
+                        isActive
+                          ? "font-semibold text-primary"
+                          : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
+                      )}
+                      data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="sidebarActive"
+                          transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                          className="absolute inset-0 rounded-lg bg-primary/10 border border-primary/20 shadow-2xs dark:bg-primary/20"
+                        />
+                      )}
+                      <Icon className={cn("size-4 relative z-10 shrink-0", isActive ? "stroke-[2.25] text-primary" : "text-muted-foreground")} />
+                      <span className="relative z-10 truncate">{label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setSoundOn(sound.toggle())}
-              title={soundOn ? "Mute interface sound effects" : "Enable interface sound effects"}
-              className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
-              data-testid="sound-toggle-button"
-            >
-              {soundOn ? <Volume2 className="size-4 text-primary" /> : <VolumeX className="size-4 opacity-50" />}
-            </button>
+          ))}
+        </nav>
+
+        {/* User Profile Card Footer */}
+        <div className="border-t border-sidebar-border p-3 shrink-0">
+          <div className="rounded-xl border border-border/70 bg-card/60 p-2.5 flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="size-7 rounded-lg bg-primary/15 text-primary font-heading font-bold text-xs flex items-center justify-center shrink-0">
+                {me?.name?.charAt(0)?.toUpperCase() ?? "U"}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-heading text-xs font-semibold text-foreground leading-none" data-testid="sidebar-user-name">
+                  {me?.name ?? "…"}
+                </p>
+                <Badge variant="outline" className="mono-label text-[9px] px-1 py-0 border-primary/30 text-primary mt-1" data-testid="sidebar-user-role">
+                  {me?.role_label ?? ""}
+                </Badge>
+              </div>
+            </div>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSoundOn(sound.toggle())}
+                title={soundOn ? "Mute sound FX" : "Enable sound FX"}
+                className="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                data-testid="sound-toggle-button"
+              >
+                {soundOn ? <Volume2 className="size-3.5 text-primary" /> : <VolumeX className="size-3.5 opacity-50" />}
+              </button>
+              <button
+                type="button"
+                disabled={signingOut}
+                onClick={() => {
+                  sound.click();
+                  signOut();
+                }}
+                title="Sign out"
+                className="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                data-testid="sign-out-button"
+              >
+                <LogOut className="size-3.5" />
+              </button>
+            </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={signingOut}
-            onClick={() => {
-              sound.click();
-              signOut();
-            }}
-            className="mt-3 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-            data-testid="sign-out-button"
-          >
-            <LogOut className="size-4" />
-            Sign out
-          </Button>
         </div>
       </aside>
 
@@ -323,7 +358,7 @@ export default function AppShell({
         className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-sidebar-border bg-sidebar/95 backdrop-blur-xl px-1 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden overflow-x-auto scrollbar-none shadow-lg"
         data-testid="mobile-tab-bar"
       >
-        {nav.map(({ to, label, icon: Icon }) => {
+        {mobileNav.map(({ to, label, icon: Icon }) => {
           const active = location.pathname === to || (to !== "/dashboard" && location.pathname.startsWith(to));
           const isCampaign = to === "/campaigns";
           const shortLabel =
