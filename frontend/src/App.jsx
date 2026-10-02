@@ -1,8 +1,9 @@
-import { useEffect, Component, lazy, Suspense } from "react";
+import { useEffect, useState, Component, lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import PageLoadingFallback from "@/components/shared/PageLoadingFallback";
+import Bootscreen from "@/components/shared/Bootscreen";
 import PwaInstallPrompt from "@/components/shared/PwaInstallPrompt";
 import { useMe } from "@/lib/queries";
 
@@ -91,6 +92,8 @@ function PrivateRoute({ children, allowedRoles }) {
 // One <Route> per page in src/pages; BrowserRouter already wraps this in main.jsx.
 export default function App() {
   const navigate = useNavigate();
+  const { isLoading: isMeLoading } = useMe();
+  const [bootDismissed, setBootDismissed] = useState(false);
 
   useEffect(() => {
     // Redirect to /login whenever Supabase session is invalidated
@@ -102,6 +105,12 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      {!bootDismissed && (
+        <Bootscreen
+          isReady={!isMeLoading}
+          onDismissed={() => setBootDismissed(true)}
+        />
+      )}
       <OfflineBanner />
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>

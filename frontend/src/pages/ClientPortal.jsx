@@ -826,35 +826,86 @@ export default function ClientPortal() {
       {/* ── Fullscreen Lightbox Photo Inspection Modal ────────────────────── */}
       {lightboxProof && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-3 sm:p-6 backdrop-blur-md animate-in fade-in duration-200 select-none"
           onClick={() => setLightboxProof(null)}
         >
           <div
-            className="relative max-w-4xl w-full max-h-[90vh] flex flex-col rounded-2xl bg-card border border-border/80 overflow-hidden shadow-2xl"
+            className="relative max-w-4xl w-full max-h-[92vh] flex flex-col rounded-2xl bg-card border border-border/80 overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 bg-secondary/40">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-primary" />
-                <span className="font-heading text-sm font-semibold">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShieldCheck className="size-4 text-primary shrink-0" />
+                <span className="font-heading text-sm font-semibold truncate">
                   GTP #{lightboxProof.gtpSeq} Proof Inspection · {lightboxProof.asset?.asset_code}
                 </span>
+                {proofs.length > 1 && (
+                  <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-mono font-medium shrink-0">
+                    {proofs.findIndex((p) => p.id === lightboxProof.id) + 1} / {proofs.length}
+                  </span>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setLightboxProof(null)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer"
-              >
-                <X className="size-5" />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <a
+                  href={lightboxProof.doc?.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                  title="Open high-res original"
+                >
+                  <ExternalLink className="size-4" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setLightboxProof(null)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer"
+                  title="Close (Esc)"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-2 bg-black/50 flex items-center justify-center">
+            <div className="relative flex-1 overflow-auto p-2 bg-black/60 flex items-center justify-center min-h-[300px]">
+              {/* Previous Proof Arrow */}
+              {proofs.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const idx = proofs.findIndex((p) => p.id === lightboxProof.id);
+                    const prevIdx = (idx - 1 + proofs.length) % proofs.length;
+                    setLightboxProof(proofs[prevIdx]);
+                  }}
+                  className="absolute left-2 z-20 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 p-2 text-white backdrop-blur-md transition-transform active:scale-95 cursor-pointer"
+                  aria-label="Previous proof"
+                >
+                  <ChevronLeft className="size-5" />
+                </button>
+              )}
+
               <img
                 src={lightboxProof.doc?.url}
                 alt="GTP Inspection"
-                className="max-h-[65vh] w-auto object-contain rounded-lg shadow-lg"
+                className="max-h-[60vh] w-auto max-w-full object-contain rounded-lg shadow-lg"
               />
+
+              {/* Next Proof Arrow */}
+              {proofs.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const idx = proofs.findIndex((p) => p.id === lightboxProof.id);
+                    const nextIdx = (idx + 1) % proofs.length;
+                    setLightboxProof(proofs[nextIdx]);
+                  }}
+                  className="absolute right-2 z-20 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 p-2 text-white backdrop-blur-md transition-transform active:scale-95 cursor-pointer"
+                  aria-label="Next proof"
+                >
+                  <ChevronRight className="size-5" />
+                </button>
+              )}
             </div>
 
             <div className="border-t border-border/70 p-4 bg-card text-xs space-y-2">
@@ -866,16 +917,6 @@ export default function ClientPortal() {
                   <p className="text-muted-foreground text-[11px]">
                     {lightboxProof.asset?.city || lightboxProof.asset?.district} · {lightboxProof.asset?.width_ft}x{lightboxProof.asset?.height_ft} ft
                   </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={lightboxProof.doc?.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-lg border border-border/70 px-3 py-1.5 text-xs font-medium hover:bg-secondary transition-colors"
-                  >
-                    <ExternalLink className="size-3.5" /> Open Full-Res Original
-                  </a>
                 </div>
               </div>
 
