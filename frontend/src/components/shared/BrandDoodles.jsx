@@ -18,12 +18,12 @@ export default function BrandDoodles({ className }) {
     <div
       aria-hidden="true"
       className={cn(
-        "pointer-events-none absolute inset-0 overflow-hidden select-none -z-0 opacity-[0.045] dark:opacity-[0.03] transition-opacity duration-300",
+        "pointer-events-none absolute inset-0 overflow-hidden select-none -z-0 opacity-[0.08] dark:opacity-[0.06] transition-opacity duration-300",
         className
       )}
     >
       <svg
-        className="h-full w-full stroke-current text-sky-950 dark:text-sky-200"
+        className="h-full w-full stroke-current text-sky-600 dark:text-sky-400"
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
       >
