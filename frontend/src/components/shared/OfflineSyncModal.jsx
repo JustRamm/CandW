@@ -98,33 +98,47 @@ export default function OfflineSyncModal({ trigger }) {
               variant="outline"
               size="sm"
               className={cn(
-                "h-8 gap-1.5 rounded-full px-2 sm:px-3 text-xs font-medium transition-all shrink-0",
+                "h-8 gap-1.5 rounded-full px-2.5 text-xs font-medium transition-all shrink-0 select-none shadow-2xs",
                 !isOnline
-                  ? "border-amber-400 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20"
+                  ? "border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 font-semibold"
                   : pendingCount > 0
-                    ? "border-sky-400 bg-sky-500/10 text-sky-500 hover:bg-sky-500/20"
-                    : "border-border/70 text-muted-foreground hover:bg-secondary/60"
+                    ? "border-sky-500/60 bg-sky-500/15 text-sky-700 dark:text-sky-300 hover:bg-sky-500/25 font-semibold animate-pulse"
+                    : "border-border/60 bg-secondary/35 text-muted-foreground hover:text-foreground hover:bg-secondary/70 hover:border-border"
               )}
               data-testid="offline-sync-pill"
-              title={isOnline ? (pendingCount > 0 ? `${pendingCount} offline actions queued` : "System is online") : "Working in offline mode"}
+              title={
+                isOnline
+                  ? pendingCount > 0
+                    ? `${pendingCount} offline field upload(s) queued · Click to sync`
+                    : "System is Online · Field Ops Sync Center"
+                  : "Working in Offline Field Mode · Click to view queued records"
+              }
             >
               {isOnline ? (
-                <span className="relative flex size-2 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
-                </span>
+                pendingCount > 0 ? (
+                  <RefreshCw className="size-3.5 text-sky-500 shrink-0" />
+                ) : (
+                  <span className="relative flex size-2 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
+                  </span>
+                )
               ) : (
                 <WifiOff className="size-3.5 text-amber-500 animate-pulse shrink-0" />
               )}
 
-              <span className="hidden sm:inline">
-                {isOnline ? (pendingCount > 0 ? `${pendingCount} Queued` : "Live") : "Field Mode"}
+              <span className="text-xs">
+                {isOnline
+                  ? pendingCount > 0
+                    ? `${pendingCount} Queued`
+                    : "Online"
+                  : "Offline (Field)"}
               </span>
 
               {pendingCount > 0 && (
                 <Badge
                   variant="secondary"
-                  className="h-4 min-w-4 px-1 text-[10px] font-bold bg-primary text-primary-foreground rounded-full"
+                  className="h-4 min-w-4 px-1 text-[10px] font-bold bg-sky-600 text-white rounded-full ml-0.5"
                 >
                   {pendingCount}
                 </Badge>

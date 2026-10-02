@@ -125,9 +125,25 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+// Background Sync API Handler — sync offline field captures even if tab was closed
+self.addEventListener("sync", (event) => {
+  if (event.tag === "sync-field-queue" || event.tag === "sync-gtp-queue" || event.tag === "ooh-field-sync") {
+    event.waitUntil(
+      self.clients.matchAll({ includeUncontrolled: true, type: "window" }).then((clients) => {
+        if (clients && clients.length > 0) {
+          clients.forEach((client) => {
+            client.postMessage({ type: "TRIGGER_BACKGROUND_SYNC" });
+          });
+        }
+      })
+    );
+  }
+});
+
 // Listen for skip waiting messages from client
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
 });
+

@@ -43,10 +43,39 @@ export function prefetchAllAppRoutes() {
   }
 }
 
+/** Register a Background Sync tag with Service Worker */
+export async function requestBackgroundSync(tag = "sync-field-queue") {
+  if (typeof navigator !== "undefined" && "serviceWorker" in navigator && "SyncManager" in window) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg.sync) {
+        await reg.sync.register(tag);
+        console.log(`[PWA] Background sync registered with tag: ${tag}`);
+      }
+    } catch (err) {
+      console.warn("[PWA] Background sync registration:", err);
+    }
+  }
+}
+
 /** Register Service Worker in production/supporting environments */
 export function registerServiceWorker() {
   if ("serviceWorker" in navigator && !window.__SW_REGISTERED) {
     window.__SW_REGISTERED = true;
+
+    // Listen for Background Sync triggers from Service Worker
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data?.type === "TRIGGER_BACKGROUND_SYNC") {
+        syncOfflineGtpQueue()
+          .then(({ synced }) => {
+            if (synced > 0) {
+              toast.success(`Background sync uploaded ${synced} field record${synced === 1 ? "" : "s"}.`);
+            }
+          })
+          .catch(() => {});
+      }
+    });
+
     window.addEventListener("load", () => {
       navigator.serviceWorker
         .register("/sw.js")

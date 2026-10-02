@@ -122,6 +122,14 @@ export async function enqueueOfflineGtp({
     request.onsuccess = () => {
       notifyQueueChange();
       sound?.success?.();
+      // Register Background Sync API with Service Worker so uploads execute even if user leaves app
+      if (typeof window !== "undefined") {
+        import("./pwa")
+          .then(({ requestBackgroundSync }) => {
+            requestBackgroundSync("sync-field-queue");
+          })
+          .catch(() => {});
+      }
       resolve(queueItem);
     };
     request.onerror = () => reject(request.error);
