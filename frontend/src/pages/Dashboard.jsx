@@ -356,12 +356,6 @@ export default function Dashboard() {
                   </TabsTrigger>
                 </TabsList>
               </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <Badge variant="outline" className="mono-label text-[10px] text-muted-foreground bg-secondary/30">
-                  Carbon &amp; Whale v2.0
-                </Badge>
-              </div>
             </div>
 
             {/* TAB 1: WORK QUEUES (DEFAULT) */}
